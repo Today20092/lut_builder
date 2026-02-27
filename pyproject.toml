@@ -1,0 +1,26 @@
+[project]
+name = "lut-builder"
+version = "0.1.0"
+description = "Generate custom false-color exposure LUTs for any camera log format"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "colour-science>=0.4.7",
+    "numpy>=2.2.0",
+    "rich>=13.0.0",
+    "typer>=0.9.0",
+]
+
+[project.scripts]
+# This is what makes `uv run lut-builder` work.
+# It points directly to the Typer app object in cli.py.
+lut-builder = "lut_builder.cli:app"
+
+[build-system]
+# uv uses hatchling by default. This block tells it how to find
+# and build the package from the src/ layout.
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/lut_builder"]

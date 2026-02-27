@@ -1,0 +1,27 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# uv
+.python-version
+uv.lock
+
+# Generated LUT files (don't commit test outputs)
+*.cube
+
+# macOS
+.DS_Store
+
+# editors
+.vscode/
+.idea/
+
+# Claude Code
+.claude/
