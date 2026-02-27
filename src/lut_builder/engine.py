@@ -95,7 +95,26 @@ def generate_lut(
     # Physical sensor limits are hardware properties stored in the profile
     # — the colour library has no knowledge of where a specific sensor
     # clips, so these must come from the profile, not from math.
+    #
+    # IMPORTANT: The LUT input domain is always 0–1 in log-encoded space.
+    # For some cameras (e.g. S-Log3), the profile's white_clip_stops value
+    # can exceed the maximum stops representable by a log code value of 1.0.
+    # If we use the raw profile value, the white mask never fires because
+    # no sample in the LUT ever reaches that stop count.
+    #
+    # We compute the actual maximum stops in this LUT's domain and clamp:
+    #   effective_white_clip = min(profile["white_clip_stops"], max_stops_in_lut)
     # ------------------------------------------------------------------
+
+    # Decode [1.0, 1.0, 1.0] to find the max stop reachable in this LUT's domain.
+    # Done unconditionally so the comment header can always reference it.
+    max_linear = colour.models.log_decoding(
+        np.array([[1.0, 1.0, 1.0]]), method=profile["log"]
+    )
+    max_luma = float(np.dot(max_linear[0], LUMA_WEIGHTS))
+    max_stops_in_domain = np.log2(max(max_luma, 1e-6) / MIDDLE_GREY)
+    effective_white_clip = min(profile["white_clip_stops"], max_stops_in_domain)
+
     if black_clip and black_hex:
         black_rgb = hex_to_rgb(black_hex)
         black_mask = stops <= profile["black_clip_stops"]
@@ -103,7 +122,7 @@ def generate_lut(
 
     if white_clip and white_hex:
         white_rgb = hex_to_rgb(white_hex)
-        white_mask = stops >= profile["white_clip_stops"]
+        white_mask = stops >= effective_white_clip
         final_data[white_mask] = white_rgb
 
     # ------------------------------------------------------------------
@@ -121,7 +140,12 @@ def generate_lut(
         f"  Gamut     : {profile['gamut']}",
         f"  Log       : {profile['log']}",
         f"  Black clip: {profile['black_clip_stops']:+.1f} stops from middle grey",
-        f"  White clip: {profile['white_clip_stops']:+.1f} stops from middle grey",
+        f"  White clip: {effective_white_clip:+.2f} stops from middle grey"
+        + (
+            f"  (sensor limit {profile['white_clip_stops']:+.1f}, LUT domain max {max_stops_in_domain:+.2f})"
+            if profile["white_clip_stops"] > max_stops_in_domain
+            else ""
+        ),
         "",
         f"Target      : {target_name}",
         f"  Gamut     : {target['gamut']}",
