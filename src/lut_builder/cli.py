@@ -81,24 +81,23 @@ def tailwind_color_picker() -> str:
 
     console.print(f"\n  [bold]Pick a shade for [cyan]{family}[/cyan]:[/bold]")
     shade_table = Table(show_header=False, box=None, padding=(0, 2))
-    shade_table.add_column("Num", style="bold cyan", justify="right")
-    shade_table.add_column("Shade", style="white", justify="right")
+    shade_table.add_column("Shade", style="bold cyan", justify="right")
     shade_table.add_column("Swatch")
     shade_table.add_column("Hex", style="dim")
 
-    for i, shade in enumerate(SHADES, 1):
+    for shade in SHADES:
         L, C, H = TAILWIND_COLORS[family][shade]
         hex_val = oklch_to_hex(L, C, H)
-        shade_table.add_row(str(i), shade, swatch(hex_val), hex_val)
+        shade_table.add_row(shade, swatch(hex_val), hex_val)
 
     console.print(shade_table)
 
     while True:
-        raw = Prompt.ask(f"  Shade [1-{len(SHADES)}]")
-        if raw.isdigit() and 1 <= int(raw) <= len(SHADES):
-            shade = SHADES[int(raw) - 1]
+        raw = Prompt.ask("  Shade", default="500")
+        if raw in SHADES:
+            shade = raw
             break
-        console.print(f"  [red]Enter a number between 1 and {len(SHADES)}.[/red]")
+        console.print(f"  [red]Enter a valid shade: {', '.join(SHADES)}[/red]")
 
     L, C, H = TAILWIND_COLORS[family][shade]
     hex_val = oklch_to_hex(L, C, H)
