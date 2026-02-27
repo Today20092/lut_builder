@@ -20,8 +20,8 @@ CAMERA_PROFILES = {
     "Sony S-Log3": {
         "gamut": "S-Gamut3.Cine",
         "log": "S-Log3",
-        "white_clip_stops": 8.2,
-        "black_clip_stops": -7.0,
+        "white_clip_stops": 6.0,
+        "black_clip_stops": -9.0,
     },
     "Panasonic V-Log": {
         "gamut": "V-Gamut",
