@@ -356,6 +356,55 @@ def numbered_choice(title: str, options: list[str]) -> str:
 
 
 # ---------------------------------------------------------------------------
+# list command
+# ---------------------------------------------------------------------------
+
+
+@app.command(name="list")
+def list_profiles():
+    """List all supported camera and target display profiles."""
+    cam_table = Table(title="Camera Profiles", box=None, padding=(0, 3))
+    cam_table.add_column("#", style="bold cyan", justify="right")
+    cam_table.add_column("Camera", style="white")
+    cam_table.add_column("Gamut", style="dim")
+    cam_table.add_column("Log", style="dim")
+    cam_table.add_column("Black", style="dim", justify="right")
+    cam_table.add_column("White", style="dim", justify="right")
+
+    from .data import CAMERA_PROFILES, TARGET_PROFILES
+
+    for i, (name, p) in enumerate(CAMERA_PROFILES.items(), 1):
+        cam_table.add_row(
+            str(i),
+            name,
+            p["gamut"],
+            p["log"],
+            f"{p['black_clip_stops']:+.1f} stops",
+            f"{p['white_clip_stops']:+.1f} stops",
+        )
+
+    tgt_table = Table(title="Target Display Profiles", box=None, padding=(0, 3))
+    tgt_table.add_column("#", style="bold cyan", justify="right")
+    tgt_table.add_column("Target", style="white")
+    tgt_table.add_column("Gamut", style="dim")
+    tgt_table.add_column("Transfer", style="dim")
+
+    for i, (name, t) in enumerate(TARGET_PROFILES.items(), 1):
+        tgt_table.add_row(
+            str(i),
+            name,
+            t["gamut"],
+            f"{t['gamma']} ({t.get('encoding', 'oetf').upper()})",
+        )
+
+    console.print()
+    console.print(cam_table)
+    console.print()
+    console.print(tgt_table)
+    console.print()
+
+
+# ---------------------------------------------------------------------------
 # Main command
 # ---------------------------------------------------------------------------
 
@@ -372,15 +421,30 @@ def build(
         dir_okay=False,
         readable=True,
     ),
+    output_dir: Optional[Path] = typer.Option(
+        None,
+        "--output-dir",
+        "-o",
+        help="Directory to write the .cube file into. Created if it doesn't exist.",
+    ),
 ):
     """
     Generate a false color exposure LUT for your camera.
 
-    Run without --config for an interactive session, or pass a saved
-    config file to regenerate a LUT non-interactively:
+    Run without arguments for an interactive session, pass --config to
+    regenerate non-interactively, and --output-dir to control where the
+    .cube file lands:
 
-        uv run lut-builder --config my_setup.json
+        uv run lut-builder --config my_setup.json --output-dir ~/luts
     """
+
+    def resolve_output(filename: str) -> str:
+        """Prepend output_dir to filename if provided, creating the dir if needed."""
+        if output_dir is not None:
+            output_dir.mkdir(parents=True, exist_ok=True)
+            return str(output_dir / Path(filename).name)
+        return filename
+
     console.print(Panel.fit("[bold cyan]LUT Builder[/bold cyan]"))
 
     # ------------------------------------------------------------------
@@ -396,8 +460,8 @@ def build(
         black_hex = cfg.get("black_hex", "")
         white_clip = cfg.get("white_clip", False)
         white_hex = cfg.get("white_hex", "")
-        output_filename = cfg.get(
-            "output", f"{profile_name.replace(' ', '')}_Custom.cube"
+        output_filename = resolve_output(
+            cfg.get("output", f"{profile_name.replace(' ', '')}_Custom.cube")
         )
 
         console.print(f"  Loaded config: [bold]{config}[/bold]")
@@ -461,7 +525,9 @@ def build(
     default_name = (
         f"{profile_name.replace(' ', '')}_{target_name.replace('.', '')}.cube"
     )
-    output_filename = Prompt.ask("\nOutput filename", default=default_name)
+    output_filename = resolve_output(
+        Prompt.ask("\nOutput filename", default=default_name)
+    )
 
     # 7. Preview
     print_exposure_preview(
