@@ -15,6 +15,7 @@ from rich.text import Text
 from .colors import TAILWIND_COLORS
 from .data import CAMERA_PROFILES, TARGET_PROFILES, oklch_to_hex
 from .engine import generate_lut
+from .presets import suggest_color_for_stop, WIDTH_PRESETS
 
 app = typer.Typer(help="Interactive Custom Camera LUT Generator")
 console = Console()
@@ -151,6 +152,45 @@ def parse_stops(raw: str) -> list[float]:
     return stops
 
 
+def pick_width() -> float:
+    """
+    Show named width presets with coverage descriptions.
+    Returns the chosen ± stop width as a float.
+    """
+    console.print("\n  [bold]Band width:[/bold]")
+    table = Table(show_header=False, box=None, padding=(0, 2))
+    table.add_column("Num", style="bold cyan", justify="right")
+    table.add_column("Label", style="white", no_wrap=True)
+    table.add_column("Info", style="dim")
+
+    for i, preset in enumerate(WIDTH_PRESETS, 1):
+        table.add_row(str(i), preset["label"], preset["description"])
+
+    console.print(table)
+
+    while True:
+        raw = Prompt.ask(f"  Width [1-{len(WIDTH_PRESETS)}]")
+        if raw.isdigit() and 1 <= int(raw) <= len(WIDTH_PRESETS):
+            preset = WIDTH_PRESETS[int(raw) - 1]
+            if preset["width"] is not None:
+                console.print(f"  → [bold green]{preset['label']}[/bold green]\n")
+                return preset["width"]
+            # Custom
+            while True:
+                val = Prompt.ask("  Enter width in stops (e.g. 0.15)")
+                try:
+                    w = float(val)
+                    if w > 0:
+                        return w
+                    console.print("  [red]Must be greater than 0.[/red]")
+                except ValueError:
+                    console.print("  [red]Enter a number.[/red]")
+        else:
+            console.print(
+                f"  [red]Enter a number between 1 and {len(WIDTH_PRESETS)}.[/red]"
+            )
+
+
 def collect_false_color_bands() -> list[dict]:
     if not Confirm.ask("Add false color exposure band(s)?"):
         return []
@@ -169,11 +209,35 @@ def collect_false_color_bands() -> list[dict]:
     for stop in sorted(stops):
         label = f"+{stop:.1f}" if stop >= 0 else f"{stop:.1f}"
         console.print(f"\n  [bold cyan]Band at {label} stops:[/bold cyan]")
-        color = pick_color(f"Color for {label} stop band", "#00FF00")
-        width = float(Prompt.ask("  Width in stops", default="0.3"))
+
+        # Suggest a color based on the stop value
+        fam, shade, suggested_hex = suggest_color_for_stop(stop)
+        console.print(
+            Text.assemble(
+                "  Suggested: ",
+                (f"{fam}-{shade}", "bold"),
+                "  ",
+                swatch(suggested_hex),
+                (f"  {suggested_hex}", "dim"),
+            )
+        )
+
+        use_suggestion = Confirm.ask("  Use this color?", default=True)
+        if use_suggestion:
+            color = suggested_hex
+        else:
+            color = pick_color(f"Color for {label} stop band", suggested_hex)
+
+        width = pick_width()
         bands.append({"stop": stop, "color": color, "width": width})
         console.print(
-            f"  [green]✓[/green] {label} stops  {swatch(color)}  {color}  ±{width}"
+            Text.assemble(
+                "  [green]✓[/green] ",
+                (label, "bold"),
+                " stops  ",
+                swatch(color),
+                (f"  {color}  ±{width}", "dim"),
+            )
         )
 
     return bands
