@@ -15,6 +15,7 @@ uv.lock
 
 # Generated LUT files (don't commit test outputs)
 *.cube
+*.json
 
 # macOS
 .DS_Store
