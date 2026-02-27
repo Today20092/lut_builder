@@ -580,10 +580,38 @@ def build(
     # 5. Clipping
     console.print()
     black_clip = Confirm.ask("Highlight crushed blacks?")
-    black_hex = pick_color("Color for crushed blacks", "#FF00FF") if black_clip else ""
+    black_hex = ""
+    if black_clip:
+        _, _, black_suggested = suggest_color_for_stop(-99)  # forces violet-800
+        console.print(
+            Text.assemble(
+                "\n  Suggested: violet-800  ",
+                swatch(black_suggested),
+                (f"  {black_suggested}", "dim"),
+            )
+        )
+        black_hex = (
+            black_suggested
+            if Confirm.ask("  Use this color?", default=True)
+            else pick_color("Color for crushed blacks", black_suggested)
+        )
 
-    white_clip = Confirm.ask("Highlight clipped whites?")
-    white_hex = pick_color("Color for clipped whites", "#FF0000") if white_clip else ""
+    white_clip = Confirm.ask("\nHighlight clipped whites?")
+    white_hex = ""
+    if white_clip:
+        _, _, white_suggested = suggest_color_for_stop(99)  # forces red-600
+        console.print(
+            Text.assemble(
+                "\n  Suggested: red-600  ",
+                swatch(white_suggested),
+                (f"  {white_suggested}", "dim"),
+            )
+        )
+        white_hex = (
+            white_suggested
+            if Confirm.ask("  Use this color?", default=True)
+            else pick_color("Color for clipped whites", white_suggested)
+        )
 
     # 6. Output filename
     default_name = (
