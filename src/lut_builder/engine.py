@@ -1,5 +1,3 @@
-# src/lut_builder/engine.py
-
 import colour
 import numpy as np
 from datetime import datetime
@@ -18,96 +16,57 @@ def generate_lut(
     target_name: str,
     cube_size: int,
     bands: list[dict],
-    # Each dict: {"stop": float, "color": "#rrggbb", "width": float}
-    # Bands are applied in order — later entries overwrite earlier ones on overlap.
     black_clip: bool,
     black_hex: str,
     white_clip: bool,
     white_hex: str,
     output_filename: str,
+    opacity: float = 1.0,
+    clip_tolerance: float = 0.05,
 ) -> Path:
     profile = CAMERA_PROFILES[profile_name]
     target = TARGET_PROFILES[target_name]
 
-    # ------------------------------------------------------------------
     # 1. Initialize LUT
-    # ------------------------------------------------------------------
     lut = colour.LUT3D(size=cube_size)
     lut.name = f"{profile_name} to {target_name} Custom Assist"
     samples = lut.table.reshape(-1, 3)
 
-    # ------------------------------------------------------------------
     # 2. Colour spaces
-    # ------------------------------------------------------------------
     src_cs = colour.RGB_COLOURSPACES[profile["gamut"]]
     tgt_cs = colour.RGB_COLOURSPACES[target["gamut"]]
 
-    # ------------------------------------------------------------------
     # 3. Log → scene-linear
-    # The library guarantees that whatever the camera's log encoding maps
-    # to middle grey will decode to exactly MIDDLE_GREY (0.18) in
-    # scene-linear space — no per-camera config is needed for this.
-    # ------------------------------------------------------------------
     linear_data = colour.models.log_decoding(samples, method=profile["log"])
 
-    # ------------------------------------------------------------------
-    # 4. Perceptual luminance → stops
-    # ITU-R BT.709 weights (in data.py as LUMA_WEIGHTS) rather than a
-    # simple RGB mean. A plain mean treats all three channels as equally
-    # bright, which does not match human vision.
-    #
-    #   +1 stop → luma = 0.36  → log2(0.36 / 0.18) =  1.0
-    #   -1 stop → luma = 0.09  → log2(0.09 / 0.18) = -1.0
-    # ------------------------------------------------------------------
+    # 4. Perceptual luminance → stops (used for bands, but not absolute clipping)
     luma = np.dot(linear_data, LUMA_WEIGHTS)
     stops = np.log2(np.maximum(luma, 1e-6) / MIDDLE_GREY)
 
-    # ------------------------------------------------------------------
-    # 5. Gamut transform (wide camera gamut → target display gamut)
-    #    Done in linear light before applying any transfer function.
-    # ------------------------------------------------------------------
+    # 5. Gamut transform & PRE-OETF Gamut Clipping
+    # Prevent negative values from wide gamuts blowing up the math
     rgb_linear_tgt = colour.RGB_to_RGB(linear_data, src_cs, tgt_cs)
+    rgb_linear_tgt = np.clip(rgb_linear_tgt, 0.0, None)
 
-    # ------------------------------------------------------------------
     # 6. Apply display transfer function
-    # Rec.709 and Rec.2020 use an OETF (optical-to-electrical), not a
-    # log encoding. Using log_encoding() here was the original bug —
-    # it would silently apply the wrong curve and shift all values.
-    # ------------------------------------------------------------------
     encoding = target.get("encoding", "oetf")
     if encoding == "oetf":
         final_data = colour.models.oetf(rgb_linear_tgt, function=target["gamma"])
     else:
         final_data = colour.models.log_encoding(rgb_linear_tgt, method=target["gamma"])
 
-    # ------------------------------------------------------------------
-    # 7. Apply false color bands (in order — last wins on overlap)
-    # ------------------------------------------------------------------
+    # 7. Apply false color bands with OPACITY
     for band in bands:
         stop = band["stop"]
         width = band["width"]
-        rgb = hex_to_rgb(band["color"])
+        rgb = np.array(hex_to_rgb(band["color"]))
         mask = (stops >= (stop - width)) & (stops <= (stop + width))
-        final_data[mask] = rgb
 
-    # ------------------------------------------------------------------
-    # 8. Clipping indicators
-    # Physical sensor limits are hardware properties stored in the profile
-    # — the colour library has no knowledge of where a specific sensor
-    # clips, so these must come from the profile, not from math.
-    #
-    # IMPORTANT: The LUT input domain is always 0–1 in log-encoded space.
-    # For some cameras (e.g. S-Log3), the profile's white_clip_stops value
-    # can exceed the maximum stops representable by a log code value of 1.0.
-    # If we use the raw profile value, the white mask never fires because
-    # no sample in the LUT ever reaches that stop count.
-    #
-    # We compute the actual maximum stops in this LUT's domain and clamp:
-    #   effective_white_clip = min(profile["white_clip_stops"], max_stops_in_lut)
-    # ------------------------------------------------------------------
+        # Blend the false color over the base image
+        final_data[mask] = (final_data[mask] * (1.0 - opacity)) + (rgb * opacity)
 
-    # Decode [1.0, 1.0, 1.0] to find the max stop reachable in this LUT's domain.
-    # Done unconditionally so the comment header can always reference it.
+    # 8. Clipping indicators (Channel-based, not Luma-based)
+    # White Clip: Any channel hits the top threshold
     max_linear = colour.models.log_decoding(
         np.array([[1.0, 1.0, 1.0]]), method=profile["log"]
     )
@@ -115,41 +74,44 @@ def generate_lut(
     max_stops_in_domain = np.log2(max(max_luma, 1e-6) / MIDDLE_GREY)
     effective_white_clip = min(profile["white_clip_stops"], max_stops_in_domain)
 
+    # Calculate linear thresholds
+    white_lin_target = MIDDLE_GREY * (2**effective_white_clip)
+    white_threshold = white_lin_target * (1.0 - clip_tolerance)
+
+    black_lin_target = MIDDLE_GREY * (2 ** profile["black_clip_stops"])
+    black_threshold = black_lin_target + (black_lin_target * clip_tolerance)
+
     if black_clip and black_hex:
         black_rgb = hex_to_rgb(black_hex)
-        black_mask = stops <= profile["black_clip_stops"]
+        # Check if the MINIMUM channel is below the black threshold
+        min_channels = np.min(linear_data, axis=1)
+        black_mask = min_channels <= black_threshold
         final_data[black_mask] = black_rgb
 
     if white_clip and white_hex:
         white_rgb = hex_to_rgb(white_hex)
-        white_mask = stops >= effective_white_clip
+        # Check if the MAXIMUM channel is above the white threshold
+        max_channels = np.max(linear_data, axis=1)
+        white_mask = max_channels >= white_threshold
         final_data[white_mask] = white_rgb
 
-    # ------------------------------------------------------------------
     # 9. Build comment header
-    # colour.LUT3D.comments is a list of strings written as '# ...' lines
-    # at the top of the .cube file — readable in any text editor and
-    # visible in Resolve's LUT browser tooltip.
-    # ------------------------------------------------------------------
     comments = [
         f"Generated   : {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
-        "Tool        : lut-builder  https://github.com/your-username/lut-builder",
+        "Tool        : lut-builder",
         f"Cube size   : {cube_size}³",
         "",
         f"Source      : {profile_name}",
         f"  Gamut     : {profile['gamut']}",
         f"  Log       : {profile['log']}",
-        f"  Black clip: {profile['black_clip_stops']:+.1f} stops from middle grey",
-        f"  White clip: {effective_white_clip:+.2f} stops from middle grey"
-        + (
-            f"  (sensor limit {profile['white_clip_stops']:+.1f}, LUT domain max {max_stops_in_domain:+.2f})"
-            if profile["white_clip_stops"] > max_stops_in_domain
-            else ""
-        ),
+        f"  Black clip: {profile['black_clip_stops']:+.1f} stops (tol: {clip_tolerance * 100:.0f}%)",
+        f"  White clip: {effective_white_clip:+.2f} stops (tol: {clip_tolerance * 100:.0f}%)",
         "",
         f"Target      : {target_name}",
         f"  Gamut     : {target['gamut']}",
         f"  Transfer  : {target['gamma']} ({target.get('encoding', 'oetf').upper()})",
+        "",
+        f"Overlay Opac: {opacity * 100:.0f}%",
         "",
     ]
 
@@ -180,9 +142,7 @@ def generate_lut(
 
     lut.comments = comments
 
-    # ------------------------------------------------------------------
     # 10. Write .cube file
-    # ------------------------------------------------------------------
     lut.table = (
         np.clip(final_data, 0, 1)
         .reshape(cube_size, cube_size, cube_size, 3)
