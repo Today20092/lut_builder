@@ -30,12 +30,7 @@ jobs:
         run: uv sync
 
       - name: Validate all camera and target profiles
-        run: >
-          uv run python -c "
-          import lut_builder;
-          print('All camera profiles valid.');
-          print('All target profiles valid.');
-          "
+        run: uv run python -c "import lut_builder; print('All camera profiles valid.'); print('All target profiles valid.')"
 
       - name: Smoke-test OKLCH conversion
         run: >
