@@ -15,12 +15,25 @@ from rich.text import Text
 from .colors import TAILWIND_COLORS
 from .data import CAMERA_PROFILES, TARGET_PROFILES, oklch_to_hex
 from .engine import generate_lut
-from .presets import suggest_color_for_stop, WIDTH_PRESETS
+from .presets import (
+    suggest_color_for_stop,
+    suggest_color_for_ire,
+    WIDTH_PRESETS,
+    IRE_WIDTH_PRESETS,
+)
 
 app = typer.Typer(help="Interactive Custom Camera LUT Generator")
 console = Console()
 
 SHADES = ["50", "100", "200", "300", "400", "500", "600", "700", "800", "900", "950"]
+
+DATA_LEVELS_WARNING = (
+    "\n  [bold yellow]⚠  Monitor Configuration[/bold yellow]\n"
+    "  Ensure your camera/monitor HDMI/SDI output is set to\n"
+    "  [bold]Data / Full Range[/bold] (0-255 / 0-1023).\n"
+    "  If set to 'Legal / Video Range', the physical black/white\n"
+    "  clipping indicators will not align correctly.\n"
+)
 
 # ---------------------------------------------------------------------------
 # Color picker helpers
@@ -139,44 +152,48 @@ def pick_color(prompt_label: str, default_hex: str) -> str:
 # ---------------------------------------------------------------------------
 
 
-def parse_stops(raw: str) -> list[float]:
-    stops = []
+def parse_values(raw: str) -> list[float]:
+    """Parse a comma-separated string of numbers."""
+    values = []
     for part in raw.split(","):
         part = part.strip()
         if part:
             try:
-                stops.append(float(part))
+                values.append(float(part))
             except ValueError:
                 console.print(f"  [red]Skipping invalid value: '{part}'[/red]")
-    return stops
+    return values
 
 
-def pick_width() -> float:
+def pick_width(band_mode: str = "stops") -> float:
     """
     Show named width presets with coverage descriptions.
-    Returns the chosen ± stop width as a float.
+    Returns the chosen ± width as a float (stops or IRE depending on mode).
     """
-    console.print("\n  [bold]Band width:[/bold]")
+    presets = IRE_WIDTH_PRESETS if band_mode == "ire" else WIDTH_PRESETS
+    unit = "IRE" if band_mode == "ire" else "stops"
+
+    console.print(f"\n  [bold]Band width ({unit}):[/bold]")
     table = Table(show_header=False, box=None, padding=(0, 2))
     table.add_column("Num", style="bold cyan", justify="right")
     table.add_column("Label", style="white", no_wrap=True)
     table.add_column("Info", style="dim")
 
-    for i, preset in enumerate(WIDTH_PRESETS, 1):
+    for i, preset in enumerate(presets, 1):
         table.add_row(str(i), preset["label"], preset["description"])
 
     console.print(table)
 
     while True:
-        raw = Prompt.ask(f"  Width [1-{len(WIDTH_PRESETS)}]")
-        if raw.isdigit() and 1 <= int(raw) <= len(WIDTH_PRESETS):
-            preset = WIDTH_PRESETS[int(raw) - 1]
+        raw = Prompt.ask(f"  Width [1-{len(presets)}]")
+        if raw.isdigit() and 1 <= int(raw) <= len(presets):
+            preset = presets[int(raw) - 1]
             if preset["width"] is not None:
                 console.print(f"  → [bold green]{preset['label']}[/bold green]\n")
                 return preset["width"]
             # Custom
             while True:
-                val = Prompt.ask("  Enter width in stops (e.g. 0.15)")
+                val = Prompt.ask(f"  Enter width in {unit} (e.g. 0.15)")
                 try:
                     w = float(val)
                     if w > 0:
@@ -185,32 +202,45 @@ def pick_width() -> float:
                 except ValueError:
                     console.print("  [red]Enter a number.[/red]")
         else:
-            console.print(
-                f"  [red]Enter a number between 1 and {len(WIDTH_PRESETS)}.[/red]"
-            )
+            console.print(f"  [red]Enter a number between 1 and {len(presets)}.[/red]")
 
 
-def collect_false_color_bands() -> list[dict]:
+def collect_false_color_bands(band_mode: str = "stops") -> list[dict]:
     if not Confirm.ask("Add false color exposure band(s)?"):
         return []
 
-    while True:
-        raw = Prompt.ask(
-            "  Stop values, comma-separated  [bold](e.g. -2, -1, 0, 1, 2)[/bold]",
-            default="0",
+    if band_mode == "ire":
+        prompt_text = (
+            "  IRE values, comma-separated  [bold](e.g. 20, 42, 55, 70, 85)[/bold]"
         )
-        stops = parse_stops(raw)
-        if stops:
+        default_val = "42"
+        suggest_fn = suggest_color_for_ire
+    else:
+        prompt_text = (
+            "  Stop values, comma-separated  [bold](e.g. -2, -1, 0, 1, 2)[/bold]"
+        )
+        default_val = "0"
+        suggest_fn = suggest_color_for_stop
+
+    while True:
+        raw = Prompt.ask(prompt_text, default=default_val)
+        values = parse_values(raw)
+        if values:
             break
-        console.print("  [red]Enter at least one valid stop value.[/red]")
+        console.print("  [red]Enter at least one valid value.[/red]")
+
+    unit = "IRE" if band_mode == "ire" else "stops"
 
     bands = []
-    for stop in sorted(stops):
-        label = f"+{stop:.1f}" if stop >= 0 else f"{stop:.1f}"
-        console.print(f"\n  [bold cyan]Band at {label} stops:[/bold cyan]")
+    for val in sorted(values):
+        if band_mode == "ire":
+            label = f"{val:.0f} IRE"
+        else:
+            label = f"+{val:.1f}" if val >= 0 else f"{val:.1f}"
 
-        # Suggest a color based on the stop value
-        fam, shade, suggested_hex = suggest_color_for_stop(stop)
+        console.print(f"\n  [bold cyan]Band at {label}:[/bold cyan]")
+
+        fam, shade, suggested_hex = suggest_fn(val)
         console.print(
             Text.assemble(
                 "  Suggested: ",
@@ -225,17 +255,17 @@ def collect_false_color_bands() -> list[dict]:
         if use_suggestion:
             color = suggested_hex
         else:
-            color = pick_color(f"Color for {label} stop band", suggested_hex)
+            color = pick_color(f"Color for {label} band", suggested_hex)
 
-        width = pick_width()
-        bands.append({"stop": stop, "color": color, "width": width})
+        width = pick_width(band_mode)
+        bands.append({"stop": val, "color": color, "width": width})
         console.print(
             Text.assemble(
                 "  [green]✓[/green] ",
                 (label, "bold"),
-                " stops  ",
+                f"  ±{width} {unit}  " if band_mode == "ire" else f"  ±{width} stops  ",
                 swatch(color),
-                (f"  {color}  ±{width}", "dim"),
+                (f"  {color}", "dim"),
             )
         )
 
@@ -273,6 +303,10 @@ def print_exposure_preview(
     BAR_WIDTH = 64
     UNASSIGNED = "#3f3f46"  # zinc-700 — dark gray for normal exposure
 
+    # Each character spans this many stops — bands narrower than one
+    # character would vanish without a small buffer.
+    half_step = (total / (BAR_WIDTH - 1)) / 2.0
+
     # Build a color lookup for each bar position
     bar_colors: list[str] = []
     for pos in range(BAR_WIDTH):
@@ -280,10 +314,11 @@ def print_exposure_preview(
         color = UNASSIGNED
 
         # Bands (last defined wins on overlap, matching engine behavior)
+        # The half_step buffer ensures every band paints at least one char.
         for band in bands:
             if (
-                stop >= band["stop"] - band["width"]
-                and stop <= band["stop"] + band["width"]
+                stop >= band["stop"] - band["width"] - half_step
+                and stop <= band["stop"] + band["width"] + half_step
             ):
                 color = band["color"]
 
@@ -377,10 +412,12 @@ def config_from_session(
     target_name: str,
     cube_size: int,
     bands: list[dict],
+    band_mode: str,
     black_clip: bool,
     black_hex: str,
     white_clip: bool,
     white_hex: str,
+    monochrome: bool,
     output_filename: str,
 ) -> dict:
     return {
@@ -388,10 +425,12 @@ def config_from_session(
         "target": target_name,
         "cube_size": cube_size,
         "bands": bands,
+        "band_mode": band_mode,
         "black_clip": black_clip,
         "black_hex": black_hex,
         "white_clip": white_clip,
         "white_hex": white_hex,
+        "monochrome": monochrome,
         "output": output_filename,
     }
 
@@ -519,10 +558,12 @@ def build(
         target_name = cfg["target"]
         cube_size = cfg["cube_size"]
         bands = cfg.get("bands", [])
+        band_mode = cfg.get("band_mode", "stops")
         black_clip = cfg.get("black_clip", False)
         black_hex = cfg.get("black_hex", "")
         white_clip = cfg.get("white_clip", False)
         white_hex = cfg.get("white_hex", "")
+        monochrome = cfg.get("monochrome", False)
         output_filename = resolve_output(
             cfg.get("output", f"{profile_name.replace(' ', '')}_Custom.cube")
         )
@@ -530,7 +571,8 @@ def build(
         console.print(f"  Loaded config: [bold]{config}[/bold]")
         console.print(f"  Profile:  {profile_name}  →  {target_name}")
         console.print(f"  Cube:     {cube_size}³")
-        console.print(f"  Bands:    {len(bands)}")
+        console.print(f"  Bands:    {len(bands)} ({band_mode} mode)")
+        console.print(f"  Mono:     {'yes' if monochrome else 'no'}")
         console.print(f"  Output:   {output_filename}\n")
 
         print_exposure_preview(
@@ -544,13 +586,16 @@ def build(
                     target_name=target_name,
                     cube_size=cube_size,
                     bands=bands,
+                    band_mode=band_mode,
                     black_clip=black_clip,
                     black_hex=black_hex,
                     white_clip=white_clip,
                     white_hex=white_hex,
+                    monochrome=monochrome,
                     output_filename=output_filename,
                 )
                 rprint(f"\n[bold green]✓ Done![/bold green]  {out_path}")
+                console.print(DATA_LEVELS_WARNING)
             except Exception as e:
                 rprint(f"[bold red]Error:[/bold red] {e}")
                 raise typer.Exit(1)
@@ -569,14 +614,33 @@ def build(
     target_name = numbered_choice("Select", list(TARGET_PROFILES.keys()))
 
     # 3. Cube size
-    console.print("[bold]LUT Cube Size:[/bold]")
-    cube_size = int(numbered_choice("Select", ["17", "33", "65"]))
+    console.print(
+        "[bold]LUT Cube Size:[/bold]  "
+        "[dim]65 is highly recommended for sharp false color band edges.\n"
+        "  17 or 33 may produce soft, blurry edges due to trilinear interpolation.[/dim]"
+    )
+    cube_size = int(
+        numbered_choice("Select", ["17", "33", "65 (Recommended)"]).split()[
+            0
+        ]  # strip "(Recommended)" suffix
+    )
 
-    # 4. False color bands
+    # 4. Band mode
+    console.print("[bold]Band Mode:[/bold]")
+    band_mode_choice = numbered_choice(
+        "Select",
+        [
+            "Stops (relative to 18% middle grey)",
+            "IRE (target display signal level 0-100)",
+        ],
+    )
+    band_mode = "ire" if "IRE" in band_mode_choice else "stops"
+
+    # 5. False color bands
     console.print()
-    bands = collect_false_color_bands()
+    bands = collect_false_color_bands(band_mode)
 
-    # 5. Clipping
+    # 6. Clipping
     console.print()
     black_clip = Confirm.ask("Highlight crushed blacks?")
     black_hex = ""
@@ -612,7 +676,13 @@ def build(
             else pick_color("Color for clipped whites", white_suggested)
         )
 
-    # 6. Output filename
+    # 7. Monochrome base
+    console.print()
+    monochrome = Confirm.ask(
+        "Desaturate the underlying base image to monochrome?", default=True
+    )
+
+    # 8. Output filename
     default_name = (
         f"{profile_name.replace(' ', '')}_{target_name.replace('.', '')}.cube"
     )
@@ -620,12 +690,12 @@ def build(
         Prompt.ask("\nOutput filename", default=default_name)
     )
 
-    # 7. Preview
+    # 9. Preview
     print_exposure_preview(
         profile_name, bands, black_clip, black_hex, white_clip, white_hex
     )
 
-    # 8. Generate
+    # 10. Generate
     with console.status("[bold green]Generating LUT..."):
         try:
             out_path = generate_lut(
@@ -633,18 +703,21 @@ def build(
                 target_name=target_name,
                 cube_size=cube_size,
                 bands=bands,
+                band_mode=band_mode,
                 black_clip=black_clip,
                 black_hex=black_hex,
                 white_clip=white_clip,
                 white_hex=white_hex,
+                monochrome=monochrome,
                 output_filename=output_filename,
             )
             rprint(f"\n[bold green]✓ Done![/bold green]  {out_path}")
+            console.print(DATA_LEVELS_WARNING)
         except Exception as e:
             rprint(f"[bold red]Error:[/bold red] {e}")
             raise typer.Exit(1)
 
-    # 9. Offer to save config
+    # 11. Offer to save config
     console.print()
     if Confirm.ask("Save this setup as a config file for reuse?"):
         default_cfg_name = Path(output_filename).stem + ".json"
@@ -656,10 +729,12 @@ def build(
                 target_name,
                 cube_size,
                 bands,
+                band_mode,
                 black_clip,
                 black_hex,
                 white_clip,
                 white_hex,
+                monochrome,
                 output_filename,
             ),
         )

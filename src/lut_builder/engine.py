@@ -8,7 +8,6 @@ from .data import (
     CAMERA_PROFILES,
     TARGET_PROFILES,
     MIDDLE_GREY,
-    LUMA_WEIGHTS,
     hex_to_rgb,
 )
 
@@ -20,10 +19,12 @@ def generate_lut(
     bands: list[dict],
     # Each dict: {"stop": float, "color": "#rrggbb", "width": float}
     # Bands are applied in order — later entries overwrite earlier ones on overlap.
+    band_mode: str,  # "stops" or "ire"
     black_clip: bool,
     black_hex: str,
     white_clip: bool,
     white_hex: str,
+    monochrome: bool,
     output_filename: str,
 ) -> Path:
     profile = CAMERA_PROFILES[profile_name]
@@ -43,7 +44,7 @@ def generate_lut(
     tgt_cs = colour.RGB_COLOURSPACES[target["gamut"]]
 
     # ------------------------------------------------------------------
-    # 3. Log → scene-linear
+    # 3. Log -> scene-linear
     # The library guarantees that whatever the camera's log encoding maps
     # to middle grey will decode to exactly MIDDLE_GREY (0.18) in
     # scene-linear space — no per-camera config is needed for this.
@@ -51,22 +52,45 @@ def generate_lut(
     linear_data = colour.models.log_decoding(samples, method=profile["log"])
 
     # ------------------------------------------------------------------
-    # 4. Perceptual luminance → stops
-    # ITU-R BT.709 weights (in data.py as LUMA_WEIGHTS) rather than a
-    # simple RGB mean. A plain mean treats all three channels as equally
-    # bright, which does not match human vision.
+    # 4. Scene luminance -> stops
     #
-    #   +1 stop → luma = 0.36  → log2(0.36 / 0.18) =  1.0
-    #   -1 stop → luma = 0.09  → log2(0.09 / 0.18) = -1.0
+    # Convert scene-linear RGB to CIE XYZ using the *source* colourspace's
+    # own primary matrix, then extract Y (the luminance channel).
+    #
+    # This is correct because the linear data is still in the camera's
+    # native wide gamut.  Applying Rec.709 luma weights (0.2126, 0.7152,
+    # 0.0722) directly would be wrong — those coefficients only describe
+    # Rec.709 primaries, not S-Gamut3.Cine / V-Gamut / etc.
+    #
+    # CIE Y is gamut-independent: the same physical light produces the
+    # same Y regardless of which RGB encoding carries it.
     # ------------------------------------------------------------------
-    luma = np.dot(linear_data, LUMA_WEIGHTS)
-    stops = np.log2(np.maximum(luma, 1e-6) / MIDDLE_GREY)
+    # The second row of the RGB-to-XYZ matrix contains the Y (luminance)
+    # coefficients for this colourspace's primaries.  A direct dot product
+    # is simpler and avoids colour.RGB_to_XYZ API version differences.
+    Y = np.dot(linear_data, src_cs.matrix_RGB_to_XYZ[1, :])
+    stops = np.log2(np.maximum(Y, 1e-6) / MIDDLE_GREY)
 
     # ------------------------------------------------------------------
-    # 5. Gamut transform (wide camera gamut → target display gamut)
+    # 5. Gamut transform (wide camera gamut -> target display gamut)
     #    Done in linear light before applying any transfer function.
     # ------------------------------------------------------------------
     rgb_linear_tgt = colour.RGB_to_RGB(linear_data, src_cs, tgt_cs)
+
+    # ------------------------------------------------------------------
+    # 5b. Optional monochrome base image
+    #
+    # Standard false color monitors desaturate the underlying image so
+    # the colored bands pop against a neutral background.
+    #
+    # We derive CIE Y from the *target*-gamut linear data and set
+    # R = G = B = Y.  For any properly normalised colourspace the second
+    # row of matrix_RGB_to_XYZ sums to 1.0, so [Y, Y, Y] reproduces
+    # the correct luminance and maps to a perfectly neutral grey.
+    # ------------------------------------------------------------------
+    if monochrome:
+        Y_tgt = np.dot(rgb_linear_tgt, tgt_cs.matrix_RGB_to_XYZ[1, :])
+        rgb_linear_tgt = np.column_stack([Y_tgt, Y_tgt, Y_tgt])
 
     # ------------------------------------------------------------------
     # 6. Apply display transfer function
@@ -81,13 +105,35 @@ def generate_lut(
         final_data = colour.models.log_encoding(rgb_linear_tgt, method=target["gamma"])
 
     # ------------------------------------------------------------------
-    # 7. Apply false color bands (in order — last wins on overlap)
+    # 6b. Compute IRE values (only when band_mode == "ire")
+    #
+    # IRE is the display signal level as a percentage (0–100).
+    # We compute display-domain luma (Y') from the gamma-encoded output
+    # using the *target* colourspace's luminance coefficients — the
+    # second row of its RGB-to-XYZ matrix.
+    #
+    # For Rec.709 this gives [0.2126, 0.7152, 0.0722]; for Rec.2020
+    # it gives [0.2627, 0.6780, 0.0593] — always correct for the
+    # target in use without hardcoding.
     # ------------------------------------------------------------------
+    if band_mode == "ire":
+        tgt_luma_weights = tgt_cs.matrix_RGB_to_XYZ[1, :]
+        ire = np.dot(final_data, tgt_luma_weights) * 100.0
+
+    # ------------------------------------------------------------------
+    # 7. Apply false color bands (in order — last wins on overlap)
+    #
+    # In "stops" mode, bands are centered on a stop value relative to
+    # 18% middle grey.  In "ire" mode, bands target a specific
+    # display signal level (0–100 IRE) on the final output curve.
+    # ------------------------------------------------------------------
+    band_values = ire if band_mode == "ire" else stops
+
     for band in bands:
-        stop = band["stop"]
+        center = band["stop"]  # stop value or IRE target
         width = band["width"]
         rgb = hex_to_rgb(band["color"])
-        mask = (stops >= (stop - width)) & (stops <= (stop + width))
+        mask = (band_values >= (center - width)) & (band_values <= (center + width))
         final_data[mask] = rgb
 
     # ------------------------------------------------------------------
@@ -133,7 +179,8 @@ def generate_lut(
     comments = [
         f"Generated   : {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
         "Tool        : lut-builder  https://github.com/your-username/lut-builder",
-        f"Cube size   : {cube_size}³",
+        f"Cube size   : {cube_size}x{cube_size}x{cube_size}",
+        f"Monochrome  : {'yes' if monochrome else 'no'}",
         "",
         f"Source      : {profile_name}",
         f"  Gamut     : {profile['gamut']}",
@@ -147,14 +194,21 @@ def generate_lut(
         "",
     ]
 
+    mode_label = "IRE" if band_mode == "ire" else "Stops"
     if bands:
-        comments.append("False Color Bands:")
+        comments.append(f"False Color Bands ({mode_label}):")
         for band in sorted(bands, key=lambda b: b["stop"]):
-            sign = "+" if band["stop"] >= 0 else ""
-            comments.append(
-                f"  Stop {sign}{band['stop']:.1f}  "
-                f"±{band['width']:.2f} stops  →  {band['color']}"
-            )
+            if band_mode == "ire":
+                comments.append(
+                    f"  {band['stop']:.0f} IRE  "
+                    f"+/-{band['width']:.0f} IRE  ->  {band['color']}"
+                )
+            else:
+                sign = "+" if band["stop"] >= 0 else ""
+                comments.append(
+                    f"  Stop {sign}{band['stop']:.1f}  "
+                    f"+/-{band['width']:.2f} stops  ->  {band['color']}"
+                )
     else:
         comments.append("False Color Bands: none")
 
@@ -162,9 +216,9 @@ def generate_lut(
 
     clip_lines = []
     if black_clip and black_hex:
-        clip_lines.append(f"  Crushed blacks  →  {black_hex}")
+        clip_lines.append(f"  Crushed blacks  ->  {black_hex}")
     if white_clip and white_hex:
-        clip_lines.append(f"  Clipped whites  →  {white_hex}")
+        clip_lines.append(f"  Clipped whites  ->  {white_hex}")
 
     if clip_lines:
         comments.append("Clipping Indicators:")
