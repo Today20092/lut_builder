@@ -5,14 +5,13 @@ build/
 dist/
 wheels/
 *.egg-info
-.ruff_cache/uv sync
+.ruff_cache/
 
 # Virtual environments
 .venv
 
 # uv
 .python-version
-uv.lock
 
 # Generated LUT files (don't commit test outputs)
 *.cube
