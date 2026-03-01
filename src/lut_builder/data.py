@@ -31,7 +31,7 @@ CAMERA_PROFILES = {
         "white_clip_stops": 8.0,
         "black_clip_stops": -8.0,
         "log_ceiling": 0.92,   # V-Log clips around 92 IRE
-        "log_floor": 0.025,    # V-Log digital black
+        "log_floor": 0.073,    # 7.3 IRE — 0% reflectance per Panasonic spec
     },
     "Canon Log 3": {
         "gamut": "Cinema Gamut",
