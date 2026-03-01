@@ -33,10 +33,4 @@ jobs:
         run: uv run python -c "import lut_builder; print('All camera profiles valid.'); print('All target profiles valid.')"
 
       - name: Smoke-test OKLCH conversion
-        run: >
-          uv run python -c "
-          from lut_builder.data import oklch_to_hex;
-          result = oklch_to_hex(0.723, 0.219, 149.579);
-          assert result.startswith('#'), f'Expected hex string, got: {result}';
-          print(f'green-500 OKLCH → {result}  OK');
-          "
+        run: uv run python -c "from lut_builder.data import oklch_to_hex; result = oklch_to_hex(0.723, 0.219, 149.579); assert result.startswith('#'), f'Expected hex string, got: {result}'; print(f'green-500 OKLCH -> {result}  OK')"
