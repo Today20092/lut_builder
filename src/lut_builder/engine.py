@@ -91,38 +91,37 @@ def generate_lut(
         final_data[mask] = rgb
 
     # ------------------------------------------------------------------
-    # 8. Clipping indicators
-    # Physical sensor limits are hardware properties stored in the profile
-    # — the colour library has no knowledge of where a specific sensor
-    # clips, so these must come from the profile, not from math.
+    # 8. Clipping indicators — based on raw log signal, NOT linear stops
     #
-    # IMPORTANT: The LUT input domain is always 0–1 in log-encoded space.
-    # For some cameras (e.g. S-Log3), the profile's white_clip_stops value
-    # can exceed the maximum stops representable by a log code value of 1.0.
-    # If we use the raw profile value, the white mask never fires because
-    # no sample in the LUT ever reaches that stop count.
+    # Physical sensor clipping is a property of the raw digital signal.
+    # Each camera profile defines log_ceiling / log_floor: the code-value
+    # limits (0.0–1.0) beyond which the sensor has run out of data.
     #
-    # We compute the actual maximum stops in this LUT's domain and clamp:
-    #   effective_white_clip = min(profile["white_clip_stops"], max_stops_in_lut)
+    # We evaluate clipping against the *samples* array (the raw log input
+    # grid), not the decoded linear data, because linear-domain thresholds
+    # can miss real sensor saturation.
+    #
+    # Because a 33-pt LUT has evenly-spaced nodes that rarely land exactly
+    # on the ceiling/floor, we apply a small tolerance (half a grid step)
+    # so the clip bands render solidly on-screen.
     # ------------------------------------------------------------------
-
-    # Decode [1.0, 1.0, 1.0] to find the max stop reachable in this LUT's domain.
-    # Done unconditionally so the comment header can always reference it.
-    max_linear = colour.models.log_decoding(
-        np.array([[1.0, 1.0, 1.0]]), method=profile["log"]
-    )
-    max_luma = float(np.dot(max_linear[0], LUMA_WEIGHTS))
-    max_stops_in_domain = np.log2(max(max_luma, 1e-6) / MIDDLE_GREY)
-    effective_white_clip = min(profile["white_clip_stops"], max_stops_in_domain)
+    log_ceiling = profile.get("log_ceiling", 1.0)
+    log_floor = profile.get("log_floor", 0.0)
+    grid_step = 1.0 / (cube_size - 1)
+    clip_tol = grid_step / 2.0
 
     if black_clip and black_hex:
         black_rgb = hex_to_rgb(black_hex)
-        black_mask = stops <= profile["black_clip_stops"]
+        # Clip when the minimum channel sits at or below the sensor floor
+        channel_min = np.min(samples, axis=1)
+        black_mask = channel_min <= (log_floor + clip_tol)
         final_data[black_mask] = black_rgb
 
     if white_clip and white_hex:
         white_rgb = hex_to_rgb(white_hex)
-        white_mask = stops >= effective_white_clip
+        # Clip when the maximum channel hits or exceeds the sensor ceiling
+        channel_max = np.max(samples, axis=1)
+        white_mask = channel_max >= (log_ceiling - clip_tol)
         final_data[white_mask] = white_rgb
 
     # ------------------------------------------------------------------
@@ -139,13 +138,8 @@ def generate_lut(
         f"Source      : {profile_name}",
         f"  Gamut     : {profile['gamut']}",
         f"  Log       : {profile['log']}",
-        f"  Black clip: {profile['black_clip_stops']:+.1f} stops from middle grey",
-        f"  White clip: {effective_white_clip:+.2f} stops from middle grey"
-        + (
-            f"  (sensor limit {profile['white_clip_stops']:+.1f}, LUT domain max {max_stops_in_domain:+.2f})"
-            if profile["white_clip_stops"] > max_stops_in_domain
-            else ""
-        ),
+        f"  Log floor : {log_floor:.3f}  (sensor digital black)",
+        f"  Log ceil  : {log_ceiling:.3f}  (sensor digital ceiling)",
         "",
         f"Target      : {target_name}",
         f"  Gamut     : {target['gamut']}",

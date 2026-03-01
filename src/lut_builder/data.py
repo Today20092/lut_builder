@@ -22,30 +22,40 @@ CAMERA_PROFILES = {
         "log": "S-Log3",
         "white_clip_stops": 6.0,
         "black_clip_stops": -9.0,
+        "log_ceiling": 0.94,   # ~94 IRE — S-Log3 hard digital ceiling
+        "log_floor": 0.035,    # ~3.5 IRE — S-Log3 noise floor / digital black
     },
     "Panasonic V-Log": {
         "gamut": "V-Gamut",
         "log": "V-Log",
         "white_clip_stops": 8.0,
         "black_clip_stops": -8.0,
+        "log_ceiling": 0.92,   # V-Log clips around 92 IRE
+        "log_floor": 0.025,    # V-Log digital black
     },
     "Canon Log 3": {
         "gamut": "Cinema Gamut",
         "log": "Canon Log 3",
         "white_clip_stops": 7.0,
         "black_clip_stops": -7.5,
+        "log_ceiling": 0.90,   # Canon Log 3 hard ceiling
+        "log_floor": 0.04,     # Canon Log 3 digital black
     },
     "ARRI LogC3": {
         "gamut": "ARRI Wide Gamut 3",
         "log": "ARRI LogC3",
         "white_clip_stops": 7.5,
         "black_clip_stops": -7.0,
+        "log_ceiling": 0.91,   # LogC3 hard ceiling (EI 800)
+        "log_floor": 0.03,     # LogC3 digital black
     },
     "RED Log3G10": {
         "gamut": "REDWideGamutRGB",
         "log": "Log3G10",
         "white_clip_stops": 10.0,
         "black_clip_stops": -8.0,
+        "log_ceiling": 1.0,    # Log3G10 uses the full 0–1 code range
+        "log_floor": 0.0,      # Log3G10 has no raised digital black
     },
 }
 
