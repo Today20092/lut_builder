@@ -30,7 +30,6 @@ Camera Source:
 
 The false color is computed from **CIE Y luminance** using the camera's own gamut matrix (not a fixed BT.709 approximation), so the stops you see match what your eye actually perceives regardless of camera.
 
----
 
 ## Supported cameras
 
@@ -53,7 +52,26 @@ Adding more cameras is straightforward — see [Contributing.md](Contributing.md
 
 ---
 
-## Installation
+## Quick Start (Easy Build)
+
+For users who do not want to use the command line directly, you can easily build LUTs using our double-clickable scripts. First, ensure you have the required `.json` profile and base LUT in the project folder.
+
+**Windows:**
+1. Install [uv](https://docs.astral.sh/uv/getting-started/installation/) if you haven't already. (Open PowerShell and run: `irm https://astral.sh/uv/install.ps1 | iex`)
+2. Double-click `build.bat`.
+3. The script will automatically install any missing dependencies and run the build process.
+
+**macOS:**
+1. Install [uv](https://docs.astral.sh/uv/getting-started/installation/) if you haven't already. (Open Terminal and run: `curl -LsSf https://astral.sh/uv/install.sh | sh`)
+2. You first need to make the script executable. Open Terminal, type `chmod +x ` (with a space at the end), drag and drop the `build.command` file into the Terminal, and press Enter. You only need to do this once.
+3. Double-click `build.command`.
+4. The script will automatically install any missing dependencies and run the build process.
+
+---
+
+## Command Line Usage
+
+### Installation
 
 **Clone and install with uv:**
 

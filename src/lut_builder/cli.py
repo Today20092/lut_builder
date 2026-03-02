@@ -1,8 +1,12 @@
 # src/lut_builder/cli.py
 
 import json
+import warnings
 from pathlib import Path
 from typing import Optional
+
+# Suppress colour-science optional dependency warnings
+warnings.filterwarnings("ignore", module="colour")
 
 import typer
 from rich.console import Console
