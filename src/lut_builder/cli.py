@@ -27,6 +27,27 @@ console = Console()
 
 SHADES = ["50", "100", "200", "300", "400", "500", "600", "700", "800", "900", "950"]
 
+# Sentinel returned by any prompt helper to signal "go back one step".
+BACK = object()
+
+
+def confirm_with_back(question: str, default: bool = True):
+    """Yes/No prompt that also accepts 'b' to go back. Returns True, False, or BACK."""
+    y = "[bold green]Y[/bold green]" if default else "[dim]y[/dim]"
+    n = "[dim]n[/dim]" if default else "[bold green]N[/bold green]"
+    while True:
+        console.print(f"{question} \\[{y}/{n}/[dim]b[/dim]] ", end="", highlight=False)
+        raw = input().strip().lower()
+        if raw == "":
+            return default
+        if raw in ("y", "yes"):
+            return True
+        if raw in ("n", "no"):
+            return False
+        if raw in ("b", "back"):
+            return BACK
+        console.print("  [red]Enter y, n, or b (back).[/red]")
+
 DATA_LEVELS_WARNING = (
     "\n  [bold yellow]⚠  Monitor Configuration[/bold yellow]\n"
     "  Ensure your camera/monitor HDMI/SDI output is set to\n"
@@ -134,20 +155,23 @@ def tailwind_color_picker() -> str:
     return hex_val
 
 
-def pick_color(prompt_label: str, default_hex: str) -> str:
+def pick_color(prompt_label: str, default_hex: str):
     console.print(f"\n  [bold]{prompt_label}[/bold]")
     table = Table(show_header=False, box=None, padding=(0, 2))
     table.add_column("Num", style="bold cyan", justify="right")
     table.add_column("Option")
+    table.add_row("0", "← Back")
     table.add_row("1", "Enter hex code")
     table.add_row("2", "Pick Tailwind color")
     console.print(table)
 
     while True:
-        raw = Prompt.ask("  Input method [1-2]")
+        raw = Prompt.ask("  Input method [0-2]")
+        if raw == "0":
+            return BACK
         if raw in ("1", "2"):
             break
-        console.print("  [red]Enter 1 or 2.[/red]")
+        console.print("  [red]Enter 0, 1, or 2.[/red]")
 
     if raw == "1":
         return Prompt.ask("  Hex code", default=default_hex)
@@ -186,13 +210,16 @@ def pick_width(band_mode: str = "stops") -> float:
     table.add_column("Label", style="white", no_wrap=True)
     table.add_column("Info", style="dim")
 
+    table.add_row("0", "← Back", "")
     for i, preset in enumerate(presets, 1):
         table.add_row(str(i), preset["label"], preset["description"])
 
     console.print(table)
 
     while True:
-        raw = Prompt.ask(f"  Width [1-{len(presets)}]")
+        raw = Prompt.ask(f"  Width [0-{len(presets)}]")
+        if raw == "0":
+            return BACK
         if raw.isdigit() and 1 <= int(raw) <= len(presets):
             preset = presets[int(raw) - 1]
             if preset["width"] is not None:
@@ -209,74 +236,121 @@ def pick_width(band_mode: str = "stops") -> float:
                 except ValueError:
                     console.print("  [red]Enter a number.[/red]")
         else:
-            console.print(f"  [red]Enter a number between 1 and {len(presets)}.[/red]")
+            console.print(f"  [red]Enter a number between 0 and {len(presets)}.[/red]")
 
 
-def collect_false_color_bands(band_mode: str = "stops") -> list[dict]:
-    if not Confirm.ask("Add false color exposure band(s)?"):
-        return []
+def collect_false_color_bands(band_mode: str = "stops"):
+    """
+    Collect false color band definitions with full back-navigation support.
+
+    Navigation:
+      - 'b' at "Add bands?" → returns BACK to the parent step loop
+      - 'b' at stop-values entry → returns to "Add bands?" question
+      - '0' at a band's color/width prompt → goes back one band (or to stop-values)
+    Returns a list of band dicts, or BACK.
+    """
+    unit = "IRE" if band_mode == "ire" else "stops"
+    suggest_fn = suggest_color_for_ire if band_mode == "ire" else suggest_color_for_stop
 
     if band_mode == "ire":
-        prompt_text = (
-            "  IRE values, comma-separated  [bold](e.g. 20, 42, 55, 70, 85)[/bold]"
-        )
+        prompt_text = "  IRE values, comma-separated  [bold](e.g. 20, 42, 55, 70, 85)[/bold]"
         default_val = "42"
-        suggest_fn = suggest_color_for_ire
     else:
-        prompt_text = (
-            "  Stop values, comma-separated  [bold](e.g. -2, -1, 0, 1, 2)[/bold]"
-        )
+        prompt_text = "  Stop values, comma-separated  [bold](e.g. -2, -1, 0, 1, 2)[/bold]"
         default_val = "0"
-        suggest_fn = suggest_color_for_stop
+
+    # States: "ask_add" → "get_values" → "band_color" ↔ "band_width"
+    step = "ask_add"
+    sorted_values: list[float] = []
+    bands: list[dict] = []
+    bi = 0          # current band index
+    current_color = ""
 
     while True:
-        raw = Prompt.ask(prompt_text, default=default_val)
-        values = parse_values(raw)
-        if values:
-            break
-        console.print("  [red]Enter at least one valid value.[/red]")
+        # ── ask whether to add bands at all ──────────────────────────────
+        if step == "ask_add":
+            result = confirm_with_back("Add false color exposure band(s)?")
+            if result is BACK:
+                return BACK
+            if not result:
+                return []
+            step = "get_values"
 
-    unit = "IRE" if band_mode == "ire" else "stops"
+        # ── collect stop / IRE values ─────────────────────────────────────
+        elif step == "get_values":
+            raw = Prompt.ask(prompt_text + "  [dim](b=back)[/dim]", default=default_val)
+            if raw.strip().lower() in ("b", "back"):
+                step = "ask_add"
+                continue
+            values = parse_values(raw)
+            if not values:
+                console.print("  [red]Enter at least one valid value.[/red]")
+                continue
+            sorted_values = sorted(values)
+            bands = []
+            bi = 0
+            step = "band_color"
 
-    bands = []
-    for val in sorted(values):
-        if band_mode == "ire":
-            label = f"{val:.0f} IRE"
-        else:
-            label = f"+{val:.1f}" if val >= 0 else f"{val:.1f}"
+        # ── pick color for band[bi] ───────────────────────────────────────
+        elif step == "band_color":
+            if bi >= len(sorted_values):
+                return bands
 
-        console.print(f"\n  [bold cyan]Band at {label}:[/bold cyan]")
+            val = sorted_values[bi]
+            label = f"{val:.0f} IRE" if band_mode == "ire" else (
+                f"+{val:.1f}" if val >= 0 else f"{val:.1f}"
+            )
+            console.print(f"\n  [bold cyan]Band at {label}:[/bold cyan]")
 
-        fam, shade, suggested_hex = suggest_fn(val)
-        console.print(
-            Text.assemble(
+            fam, shade, suggested_hex = suggest_fn(val)
+            console.print(Text.assemble(
                 "  Suggested: ",
                 (f"{fam}-{shade}", "bold"),
                 "  ",
                 swatch(suggested_hex),
                 (f"  {suggested_hex}", "dim"),
+            ))
+
+            use = confirm_with_back("  Use this color?", default=True)
+            if use is BACK:
+                if bi == 0:
+                    step = "get_values"
+                else:
+                    bi -= 1
+                    bands.pop()
+                continue
+
+            if use:
+                current_color = suggested_hex
+                step = "band_width"
+            else:
+                color = pick_color(f"Color for {label} band", suggested_hex)
+                if color is BACK:
+                    continue  # re-show suggestion for same band
+                current_color = color
+                step = "band_width"
+
+        # ── pick width for band[bi] ───────────────────────────────────────
+        elif step == "band_width":
+            val = sorted_values[bi]
+            label = f"{val:.0f} IRE" if band_mode == "ire" else (
+                f"+{val:.1f}" if val >= 0 else f"{val:.1f}"
             )
-        )
+            width = pick_width(band_mode)
+            if width is BACK:
+                step = "band_color"
+                continue
 
-        use_suggestion = Confirm.ask("  Use this color?", default=True)
-        if use_suggestion:
-            color = suggested_hex
-        else:
-            color = pick_color(f"Color for {label} band", suggested_hex)
-
-        width = pick_width(band_mode)
-        bands.append({"stop": val, "color": color, "width": width})
-        console.print(
-            Text.assemble(
+            bands.append({"stop": val, "color": current_color, "width": width})
+            console.print(Text.assemble(
                 ("  ✓ ", "green"),
                 (label, "bold"),
                 f"  ±{width} {unit}  " if band_mode == "ire" else f"  ±{width} stops  ",
-                swatch(color),
-                (f"  {color}", "dim"),
-            )
-        )
-
-    return bands
+                swatch(current_color),
+                (f"  {current_color}", "dim"),
+            ))
+            bi += 1
+            step = "band_color"
 
 
 # ---------------------------------------------------------------------------
@@ -346,7 +420,7 @@ def print_exposure_preview(
     # Show integer stops that fall within the range
     label_line = Text()
     start_stop = int(lo) if lo == int(lo) else int(lo) + 1
-    last_pos = -999
+    last_pos = -1
     for s in range(start_stop, int(hi) + 1):
         pos = int(((s - lo) / total) * (BAR_WIDTH - 1))
         label = f"+{s}" if s > 0 else str(s)
@@ -449,21 +523,26 @@ def config_from_session(
 # ---------------------------------------------------------------------------
 
 
-def numbered_choice(title: str, options: list[str]) -> str:
+def numbered_choice(title: str, options: list[str], allow_back: bool = False) -> str:
     table = Table(show_header=False, box=None, padding=(0, 2))
     table.add_column("Num", style="bold cyan", justify="right")
     table.add_column("Option")
     for i, opt in enumerate(options, 1):
         table.add_row(str(i), opt)
+    if allow_back:
+        table.add_row("[dim]0[/dim]", "[dim]← back[/dim]")
     console.print(table)
 
+    lo = "0" if allow_back else "1"
     while True:
-        raw = Prompt.ask(f"{title} [1-{len(options)}]")
+        raw = Prompt.ask(f"{title} [{lo}-{len(options)}]")
+        if allow_back and raw == "0":
+            return BACK
         if raw.isdigit() and 1 <= int(raw) <= len(options):
             chosen = options[int(raw) - 1]
             console.print(f"  → [bold green]{chosen}[/bold green]\n")
             return chosen
-        console.print(f"  [red]Enter a number between 1 and {len(options)}.[/red]")
+        console.print(f"  [red]Enter a number between {lo} and {len(options)}.[/red]")
 
 
 # ---------------------------------------------------------------------------
@@ -513,6 +592,17 @@ def list_profiles():
     console.print()
     console.print(tgt_table)
     console.print()
+
+    any_sources = any(p.get("sources") for p in CAMERA_PROFILES.values())
+    if any_sources:
+        console.print("[bold]Sources[/bold]")
+        for name, p in CAMERA_PROFILES.items():
+            sources = p.get("sources", [])
+            if sources:
+                console.print(f"  [dim]{name}[/dim]")
+                for url in sources:
+                    console.print(f"    [dim]• {url}[/dim]")
+        console.print()
 
 
 # ---------------------------------------------------------------------------
@@ -581,13 +671,18 @@ def build(
             cfg.get("output", f"{profile_name.replace(' ', '')}_Custom.cube")
         )
 
-        console.print(f"  Loaded config: [bold]{config}[/bold]")
-        console.print(f"  Profile:  {profile_name}  →  {target_name}")
-        console.print(f"  Cube:     {cube_size}³")
-        console.print(f"  Bands:    {len(bands)} ({band_mode} mode)")
-        console.print(f"  Mono:     {'yes' if monochrome else 'no'}")
-        console.print(f"  Range:    {'Legal (64-940)' if legal_range else 'Full (0-1023)'}")
-        console.print(f"  Output:   {output_filename}\n")
+        summary = Table(show_header=False, box=None, padding=(0, 1))
+        summary.add_column("Key", style="dim", justify="right")
+        summary.add_column("Value")
+        summary.add_row("config", f"[bold]{config}[/bold]")
+        summary.add_row("profile", f"{profile_name}  [dim]→[/dim]  {target_name}")
+        summary.add_row("cube", f"{cube_size}³")
+        summary.add_row("bands", f"{len(bands)}  [dim]({band_mode} mode)[/dim]")
+        summary.add_row("mono", "yes" if monochrome else "no")
+        summary.add_row("range", "Legal [dim](64-940)[/dim]" if legal_range else "Full [dim](0-1023)[/dim]")
+        summary.add_row("output", f"[bold]{output_filename}[/bold]")
+        console.print(summary)
+        console.print()
 
         print_exposure_preview(
             profile_name, bands, black_clip, black_hex, white_clip, white_hex
@@ -617,107 +712,174 @@ def build(
         return
 
     # ------------------------------------------------------------------
-    # Interactive path
+    # Interactive path — step-based loop with back navigation.
+    #
+    # Each step is a closure that reads from a shared `state` dict and
+    # returns either an updated dict (advance) or BACK (go one step back).
+    # Step 0 (camera source) never goes back — it's the entry point.
     # ------------------------------------------------------------------
 
-    # 1. Camera source
-    console.print("\n[bold]Camera Source:[/bold]")
-    profile_name = numbered_choice("Select", list(CAMERA_PROFILES.keys()))
+    def step_profile(state):
+        console.print("\n[bold]Camera Source:[/bold]")
+        result = numbered_choice("Select", list(CAMERA_PROFILES.keys()), allow_back=False)
+        if result is BACK:
+            return BACK
+        return {**state, "profile_name": result}
 
-    # 2. Target display
-    console.print("[bold]Target Display:[/bold]")
-    target_name = numbered_choice("Select", list(TARGET_PROFILES.keys()))
+    def step_target(state):
+        console.print("[bold]Target Display:[/bold]")
+        result = numbered_choice("Select", list(TARGET_PROFILES.keys()), allow_back=True)
+        if result is BACK:
+            return BACK
+        return {**state, "target_name": result}
 
-    # 3. Cube size
-    console.print(
-        "[bold]LUT Cube Size:[/bold]  "
-        "[dim]65 is highly recommended for sharp false color band edges.\n"
-        "  17 or 33 may produce soft, blurry edges due to trilinear interpolation.[/dim]"
-    )
-    cube_size = int(
-        numbered_choice("Select", ["17", "33", "65 (Recommended)"]).split()[
-            0
-        ]  # strip "(Recommended)" suffix
-    )
-
-    # 4. Band mode
-    console.print("[bold]Band Mode:[/bold]")
-    band_mode_choice = numbered_choice(
-        "Select",
-        [
-            "Stops (relative to 18% middle grey)",
-            "IRE (target display signal level 0-100)",
-        ],
-    )
-    band_mode = "ire" if "IRE" in band_mode_choice else "stops"
-
-    # 5. False color bands
-    console.print()
-    bands = collect_false_color_bands(band_mode)
-
-    # 6. Clipping
-    console.print()
-    black_clip = Confirm.ask("Highlight crushed blacks?")
-    black_hex = ""
-    if black_clip:
-        _, _, black_suggested = suggest_color_for_stop(-99)  # forces violet-800
+    def step_cube(state):
         console.print(
-            Text.assemble(
+            "[bold]LUT Cube Size:[/bold]  "
+            "[dim]65 is highly recommended for sharp false color band edges.\n"
+            "  17 or 33 may produce soft, blurry edges due to trilinear interpolation.[/dim]"
+        )
+        result = numbered_choice(
+            "Select", ["17", "33", "65 (Recommended)"], allow_back=True
+        )
+        if result is BACK:
+            return BACK
+        return {**state, "cube_size": int(result.split()[0])}
+
+    def step_band_mode(state):
+        console.print("[bold]Band Mode:[/bold]")
+        result = numbered_choice(
+            "Select",
+            [
+                "Stops (relative to 18% middle grey)",
+                "IRE (target display signal level 0-100)",
+            ],
+            allow_back=True,
+        )
+        if result is BACK:
+            return BACK
+        return {**state, "band_mode": "ire" if "IRE" in result else "stops"}
+
+    def step_bands(state):
+        console.print()
+        result = collect_false_color_bands(state["band_mode"])
+        if result is BACK:
+            return BACK
+        return {**state, "bands": result}
+
+    def step_black_clip(state):
+        console.print()
+        while True:
+            result = confirm_with_back("Highlight crushed blacks?")
+            if result is BACK:
+                return BACK
+            if not result:
+                return {**state, "black_clip": False, "black_hex": ""}
+            _, _, suggested = suggest_color_for_stop(-99)
+            console.print(Text.assemble(
                 "\n  Suggested: violet-800  ",
-                swatch(black_suggested),
-                (f"  {black_suggested}", "dim"),
-            )
-        )
-        black_hex = (
-            black_suggested
-            if Confirm.ask("  Use this color?", default=True)
-            else pick_color("Color for crushed blacks", black_suggested)
-        )
+                swatch(suggested),
+                (f"  {suggested}", "dim"),
+            ))
+            use = confirm_with_back("  Use this color?", default=True)
+            if use is BACK:
+                continue  # redo from "Highlight crushed blacks?"
+            color = suggested if use else pick_color("Color for crushed blacks", suggested)
+            if color is BACK:
+                continue
+            return {**state, "black_clip": True, "black_hex": color}
 
-    white_clip = Confirm.ask("\nHighlight clipped whites?")
-    white_hex = ""
-    if white_clip:
-        _, _, white_suggested = suggest_color_for_stop(99)  # forces red-600
-        console.print(
-            Text.assemble(
+    def step_white_clip(state):
+        while True:
+            result = confirm_with_back("\nHighlight clipped whites?")
+            if result is BACK:
+                return BACK
+            if not result:
+                return {**state, "white_clip": False, "white_hex": ""}
+            _, _, suggested = suggest_color_for_stop(99)
+            console.print(Text.assemble(
                 "\n  Suggested: red-600  ",
-                swatch(white_suggested),
-                (f"  {white_suggested}", "dim"),
-            )
+                swatch(suggested),
+                (f"  {suggested}", "dim"),
+            ))
+            use = confirm_with_back("  Use this color?", default=True)
+            if use is BACK:
+                continue
+            color = suggested if use else pick_color("Color for clipped whites", suggested)
+            if color is BACK:
+                continue
+            return {**state, "white_clip": True, "white_hex": color}
+
+    def step_mono(state):
+        console.print()
+        result = confirm_with_back(
+            "Desaturate the underlying base image to monochrome?", default=True
         )
-        white_hex = (
-            white_suggested
-            if Confirm.ask("  Use this color?", default=True)
-            else pick_color("Color for clipped whites", white_suggested)
+        if result is BACK:
+            return BACK
+        return {**state, "monochrome": result}
+
+    def step_legal(state):
+        console.print()
+        result = confirm_with_back(
+            "Output legal/video range? [dim](64-940 for broadcast; full range 0-1023 otherwise)[/dim]",
+            default=False,
         )
+        if result is BACK:
+            return BACK
+        return {**state, "legal_range": result}
 
-    # 7. Monochrome base
-    console.print()
-    monochrome = Confirm.ask(
-        "Desaturate the underlying base image to monochrome?", default=True
-    )
+    def step_output(state):
+        default_name = (
+            f"{state['profile_name'].replace(' ', '')}_{state['target_name'].replace('.', '')}.cube"
+        )
+        raw = Prompt.ask("\nOutput filename (b=back)", default=default_name)
+        if raw.strip().lower() in ("b", "back"):
+            return BACK
+        return {**state, "output_filename": resolve_output(raw)}
 
-    # 8. Output range
-    console.print()
-    legal_range = Confirm.ask(
-        "Output legal/video range? [dim](64-940 for broadcast; full range 0-1023 otherwise)[/dim]",
-        default=False,
-    )
+    steps = [
+        step_profile,
+        step_target,
+        step_cube,
+        step_band_mode,
+        step_bands,
+        step_black_clip,
+        step_white_clip,
+        step_mono,
+        step_legal,
+        step_output,
+    ]
 
-    # 9. Output filename
-    default_name = (
-        f"{profile_name.replace(' ', '')}_{target_name.replace('.', '')}.cube"
-    )
-    output_filename = resolve_output(
-        Prompt.ask("\nOutput filename", default=default_name)
-    )
+    state: dict = {}
+    i = 0
+    while i < len(steps):
+        result = steps[i](state)
+        if result is BACK:
+            i = max(0, i - 1)
+        else:
+            state = result
+            i += 1
 
-    # 10. Preview
+    profile_name = state["profile_name"]
+    target_name = state["target_name"]
+    cube_size = state["cube_size"]
+    band_mode = state["band_mode"]
+    bands = state["bands"]
+    black_clip = state["black_clip"]
+    black_hex = state["black_hex"]
+    white_clip = state["white_clip"]
+    white_hex = state["white_hex"]
+    monochrome = state["monochrome"]
+    legal_range = state["legal_range"]
+    output_filename = state["output_filename"]
+
+    # Preview
     print_exposure_preview(
         profile_name, bands, black_clip, black_hex, white_clip, white_hex
     )
 
-    # 11. Generate
+    # Generate
     with console.status("[bold green]Generating LUT..."):
         try:
             out_path = generate_lut(
@@ -740,7 +902,7 @@ def build(
             rprint(f"[bold red]Error:[/bold red] {e}")
             raise typer.Exit(1)
 
-    # 12. Offer to save config
+    # Offer to save config
     console.print()
     if Confirm.ask("Save this setup as a config file for reuse?"):
         default_cfg_name = Path(output_filename).stem + ".json"

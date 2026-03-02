@@ -196,6 +196,13 @@ def generate_lut(
         "",
     ]
 
+    sources = profile.get("sources", [])
+    if sources:
+        comments.append("References  :")
+        for url in sources:
+            comments.append(f"  {url}")
+        comments.append("")
+
     mode_label = "IRE" if band_mode == "ire" else "Stops"
     if bands:
         comments.append(f"False Color Bands ({mode_label}):")

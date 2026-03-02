@@ -14,6 +14,10 @@ LUMA_WEIGHTS = np.array([0.2126, 0.7152, 0.0722])
 
 # ---------------------------------------------------------------------------
 # Camera Profiles
+#
+# Each profile may include an optional "sources" list of URLs or document
+# titles citing where the numeric values (clip codes, stop ranges) were
+# derived from. Add or extend this list when referencing a new spec sheet.
 # ---------------------------------------------------------------------------
 
 CAMERA_PROFILES = {
@@ -22,8 +26,11 @@ CAMERA_PROFILES = {
         "log": "S-Log3",
         "white_clip_stops": 6.0,
         "black_clip_stops": -9.0,
-        "log_ceiling": 0.94,  # ~94 IRE — S-Log3 hard digital ceiling
-        "log_floor": 0.035,  # ~3.5 IRE — S-Log3 noise floor / digital black
+        "log_ceiling": 0.94,  # S-Log3 hard digital ceiling (~94 IRE)
+        "log_floor": 0.0929,  # 0% black = 10-bit code 95 → 95/1023 (3.5% IRE)
+        "sources": [
+            "https://pro.sony/s3/cms-static-content/uploadfile/06/1237494271406.pdf",
+        ],
     },
     "Panasonic V-Log": {
         "gamut": "V-Gamut",
@@ -32,6 +39,9 @@ CAMERA_PROFILES = {
         "black_clip_stops": -8.0,
         "log_ceiling": 0.8906,  # Varicam 35 clip = 10-bit code 911 → 911/1023 (~96.7 IRE legal)
         "log_floor": 0.1251,    # 0% reflectance = 10-bit code 128 → 128/1023
+        "sources": [
+            "https://pro-av.panasonic.net/en/cinema_camera_varicam_eva/support/pdf/VARICAM_V-Log_V-Gamut.pdf",
+        ],
     },
     "Canon Log 3": {
         "gamut": "Cinema Gamut",
@@ -40,6 +50,7 @@ CAMERA_PROFILES = {
         "black_clip_stops": -7.5,
         "log_ceiling": 0.90,  # Canon Log 3 hard ceiling
         "log_floor": 0.04,  # Canon Log 3 digital black
+        "sources": [],
     },
     "ARRI LogC3": {
         "gamut": "ARRI Wide Gamut 3",
@@ -48,6 +59,9 @@ CAMERA_PROFILES = {
         "black_clip_stops": -7.0,
         "log_ceiling": 0.91,  # LogC3 hard ceiling (EI 800)
         "log_floor": 0.03,  # LogC3 digital black
+        "sources": [
+            "https://www.arri.com/resource/blob/31918/66f56e6abb6e5b6553929edf9aa7483e/2012-01-arrilog-c-logarithmic-cine-camera-image-encoding-data.pdf",
+        ],
     },
     "RED Log3G10": {
         "gamut": "REDWideGamutRGB",
@@ -56,6 +70,9 @@ CAMERA_PROFILES = {
         "black_clip_stops": -8.0,
         "log_ceiling": 1.0,  # Log3G10 uses the full 0–1 code range
         "log_floor": 0.0,  # Log3G10 has no raised digital black
+        "sources": [
+            "https://www.red.com/download/ipp2-technical-paper",
+        ],
     },
 }
 
