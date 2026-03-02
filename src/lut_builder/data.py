@@ -28,10 +28,10 @@ CAMERA_PROFILES = {
     "Panasonic V-Log": {
         "gamut": "V-Gamut",
         "log": "V-Log",
-        "white_clip_stops": 8.0,
+        "white_clip_stops": 6.5,   # derived: log2(linear_clip / 0.18), clip = 911/1023
         "black_clip_stops": -8.0,
-        "log_ceiling": 0.92,  # V-Log clips around 92 IRE
-        "log_floor": 0.073,  # 7.3 IRE — 0% reflectance per Panasonic spec
+        "log_ceiling": 0.8906,  # Varicam 35 clip = 10-bit code 911 → 911/1023 (~96.7 IRE legal)
+        "log_floor": 0.1251,    # 0% reflectance = 10-bit code 128 → 128/1023
     },
     "Canon Log 3": {
         "gamut": "Cinema Gamut",
