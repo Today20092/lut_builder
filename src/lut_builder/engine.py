@@ -26,6 +26,7 @@ def generate_lut(
     white_hex: str,
     monochrome: bool,
     output_filename: str,
+    legal_range: bool = False,
 ) -> Path:
     profile = CAMERA_PROFILES[profile_name]
     target = TARGET_PROFILES[target_name]
@@ -181,6 +182,7 @@ def generate_lut(
         "Tool        : lut-builder  https://github.com/your-username/lut-builder",
         f"Cube size   : {cube_size}x{cube_size}x{cube_size}",
         f"Monochrome  : {'yes' if monochrome else 'no'}",
+        f"Output range: {'Legal (64-940)' if legal_range else 'Full (0-1023)'}",
         "",
         f"Source      : {profile_name}",
         f"  Gamut     : {profile['gamut']}",
@@ -229,7 +231,22 @@ def generate_lut(
     lut.comments = comments
 
     # ------------------------------------------------------------------
-    # 10. Write .cube file
+    # 10. Optional legal/video range scaling
+    #
+    # Scales the full-range [0, 1] output to the broadcast legal window:
+    #   10-bit codes 64–940 out of 1023  →  [64/1023, 940/1023]
+    #
+    # Applied after all false color and clip overlays so those colors
+    # are also correctly scaled (a clipping indicator at #ff0000 will
+    # land at the legal-range equivalent, not full-range 1.0).
+    # ------------------------------------------------------------------
+    if legal_range:
+        legal_low = 64 / 1023   # ≈ 0.0626
+        legal_high = 940 / 1023  # ≈ 0.9189
+        final_data = final_data * (legal_high - legal_low) + legal_low
+
+    # ------------------------------------------------------------------
+    # 11. Write .cube file
     # ------------------------------------------------------------------
     lut.table = (
         np.clip(final_data, 0, 1)

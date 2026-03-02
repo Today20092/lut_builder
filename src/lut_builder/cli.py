@@ -35,6 +35,13 @@ DATA_LEVELS_WARNING = (
     "  clipping indicators will not align correctly.\n"
 )
 
+LEGAL_LEVELS_NOTE = (
+    "\n  [bold cyan]ℹ  Legal Range Output[/bold cyan]\n"
+    "  This LUT outputs legal/video range (10-bit codes 64–940).\n"
+    "  Set your camera/monitor HDMI/SDI output to\n"
+    "  [bold]Legal / Video Range[/bold] for correct alignment.\n"
+)
+
 # ---------------------------------------------------------------------------
 # Color picker helpers
 # ---------------------------------------------------------------------------
@@ -419,6 +426,7 @@ def config_from_session(
     white_hex: str,
     monochrome: bool,
     output_filename: str,
+    legal_range: bool,
 ) -> dict:
     return {
         "profile": profile_name,
@@ -431,6 +439,7 @@ def config_from_session(
         "white_clip": white_clip,
         "white_hex": white_hex,
         "monochrome": monochrome,
+        "legal_range": legal_range,
         "output": output_filename,
     }
 
@@ -564,6 +573,7 @@ def build(
         white_clip = cfg.get("white_clip", False)
         white_hex = cfg.get("white_hex", "")
         monochrome = cfg.get("monochrome", False)
+        legal_range = cfg.get("legal_range", False)
         output_filename = resolve_output(
             cfg.get("output", f"{profile_name.replace(' ', '')}_Custom.cube")
         )
@@ -573,6 +583,7 @@ def build(
         console.print(f"  Cube:     {cube_size}³")
         console.print(f"  Bands:    {len(bands)} ({band_mode} mode)")
         console.print(f"  Mono:     {'yes' if monochrome else 'no'}")
+        console.print(f"  Range:    {'Legal (64-940)' if legal_range else 'Full (0-1023)'}")
         console.print(f"  Output:   {output_filename}\n")
 
         print_exposure_preview(
@@ -592,10 +603,11 @@ def build(
                     white_clip=white_clip,
                     white_hex=white_hex,
                     monochrome=monochrome,
+                    legal_range=legal_range,
                     output_filename=output_filename,
                 )
                 rprint(f"\n[bold green]✓ Done![/bold green]  {out_path}")
-                console.print(DATA_LEVELS_WARNING)
+                console.print(LEGAL_LEVELS_NOTE if legal_range else DATA_LEVELS_WARNING)
             except Exception as e:
                 rprint(f"[bold red]Error:[/bold red] {e}")
                 raise typer.Exit(1)
@@ -682,7 +694,14 @@ def build(
         "Desaturate the underlying base image to monochrome?", default=True
     )
 
-    # 8. Output filename
+    # 8. Output range
+    console.print()
+    legal_range = Confirm.ask(
+        "Output legal/video range? [dim](64-940 for broadcast; full range 0-1023 otherwise)[/dim]",
+        default=False,
+    )
+
+    # 9. Output filename
     default_name = (
         f"{profile_name.replace(' ', '')}_{target_name.replace('.', '')}.cube"
     )
@@ -690,12 +709,12 @@ def build(
         Prompt.ask("\nOutput filename", default=default_name)
     )
 
-    # 9. Preview
+    # 10. Preview
     print_exposure_preview(
         profile_name, bands, black_clip, black_hex, white_clip, white_hex
     )
 
-    # 10. Generate
+    # 11. Generate
     with console.status("[bold green]Generating LUT..."):
         try:
             out_path = generate_lut(
@@ -709,15 +728,16 @@ def build(
                 white_clip=white_clip,
                 white_hex=white_hex,
                 monochrome=monochrome,
+                legal_range=legal_range,
                 output_filename=output_filename,
             )
             rprint(f"\n[bold green]✓ Done![/bold green]  {out_path}")
-            console.print(DATA_LEVELS_WARNING)
+            console.print(LEGAL_LEVELS_NOTE if legal_range else DATA_LEVELS_WARNING)
         except Exception as e:
             rprint(f"[bold red]Error:[/bold red] {e}")
             raise typer.Exit(1)
 
-    # 11. Offer to save config
+    # 12. Offer to save config
     console.print()
     if Confirm.ask("Save this setup as a config file for reuse?"):
         default_cfg_name = Path(output_filename).stem + ".json"
@@ -736,6 +756,7 @@ def build(
                 white_hex,
                 monochrome,
                 output_filename,
+                legal_range,
             ),
         )
 
