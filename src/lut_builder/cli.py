@@ -268,7 +268,7 @@ def collect_false_color_bands(band_mode: str = "stops") -> list[dict]:
         bands.append({"stop": val, "color": color, "width": width})
         console.print(
             Text.assemble(
-                "  [green]✓[/green] ",
+                ("  ✓ ", "green"),
                 (label, "bold"),
                 f"  ±{width} {unit}  " if band_mode == "ire" else f"  ±{width} stops  ",
                 swatch(color),
@@ -550,11 +550,14 @@ def build(
     """
 
     def resolve_output(filename: str) -> str:
-        """Prepend output_dir to filename if provided, creating the dir if needed."""
+        """Ensure .cube extension, prepend output_dir if provided."""
+        p = Path(filename)
+        if p.suffix.lower() != ".cube":
+            p = p.with_suffix(".cube")
         if output_dir is not None:
             output_dir.mkdir(parents=True, exist_ok=True)
-            return str(output_dir / Path(filename).name)
-        return filename
+            return str(output_dir / p.name)
+        return str(p)
 
     console.print(Panel.fit("[bold cyan]LUT Builder[/bold cyan]"))
 
