@@ -19,6 +19,7 @@ def generate_lut(
     bands: list[dict],
     # Each dict: {"stop": float, "color": "#rrggbb", "width": float}
     # Bands are applied in order — later entries overwrite earlier ones on overlap.
+    # In fill_mode, "width" is ignored; every pixel is assigned to its nearest stop.
     band_mode: str,  # "stops" or "ire"
     black_clip: bool,
     black_hex: str,
@@ -27,6 +28,7 @@ def generate_lut(
     monochrome: bool,
     output_filename: str,
     legal_range: bool = False,
+    fill_mode: bool = False,
 ) -> Path:
     profile = CAMERA_PROFILES[profile_name]
     target = TARGET_PROFILES[target_name]
@@ -89,7 +91,7 @@ def generate_lut(
     # row of matrix_RGB_to_XYZ sums to 1.0, so [Y, Y, Y] reproduces
     # the correct luminance and maps to a perfectly neutral grey.
     # ------------------------------------------------------------------
-    if monochrome:
+    if monochrome and not fill_mode:
         Y_tgt = np.dot(rgb_linear_tgt, tgt_cs.matrix_RGB_to_XYZ[1, :])
         rgb_linear_tgt = np.column_stack([Y_tgt, Y_tgt, Y_tgt])
 
@@ -130,12 +132,24 @@ def generate_lut(
     # ------------------------------------------------------------------
     band_values = ire if band_mode == "ire" else stops
 
-    for band in bands:
-        center = band["stop"]  # stop value or IRE target
-        width = band["width"]
-        rgb = hex_to_rgb(band["color"])
-        mask = (band_values >= (center - width)) & (band_values <= (center + width))
-        final_data[mask] = rgb
+    if fill_mode and bands:
+        # Voronoi partition: every pixel gets the color of its nearest stop.
+        # Outermost stops' colors extend to -inf / +inf with no uncolored pixels.
+        sorted_bands = sorted(bands, key=lambda b: b["stop"])
+        centers = np.array([b["stop"] for b in sorted_bands])
+        colors = [hex_to_rgb(b["color"]) for b in sorted_bands]
+        # Shape: (N_pixels, N_bands) — argmin over axis=1 gives nearest band index
+        diffs = np.abs(band_values[:, None] - centers[None, :])
+        nearest = np.argmin(diffs, axis=1)
+        for idx, rgb in enumerate(colors):
+            final_data[nearest == idx] = rgb
+    else:
+        for band in bands:
+            center = band["stop"]  # stop value or IRE target
+            width = band["width"]
+            rgb = hex_to_rgb(band["color"])
+            mask = (band_values >= (center - width)) & (band_values <= (center + width))
+            final_data[mask] = rgb
 
     # ------------------------------------------------------------------
     # 8. Clipping indicators — based on raw log signal, NOT linear stops
@@ -204,10 +218,16 @@ def generate_lut(
         comments.append("")
 
     mode_label = "IRE" if band_mode == "ire" else "Stops"
+    fill_label = " [Fill]" if fill_mode else ""
     if bands:
-        comments.append(f"False Color Bands ({mode_label}):")
+        comments.append(f"False Color Bands ({mode_label}{fill_label}):")
         for band in sorted(bands, key=lambda b: b["stop"]):
-            if band_mode == "ire":
+            if fill_mode:
+                sign = "+" if band["stop"] >= 0 else ""
+                comments.append(
+                    f"  Stop {sign}{band['stop']:.1f}  ->  {band['color']}  (fill zone)"
+                )
+            elif band_mode == "ire":
                 comments.append(
                     f"  {band['stop']:.0f} IRE  "
                     f"+/-{band['width']:.0f} IRE  ->  {band['color']}"

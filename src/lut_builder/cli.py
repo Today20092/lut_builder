@@ -243,7 +243,7 @@ def pick_width(band_mode: str = "stops") -> float:
             console.print(f"  [red]Enter a number between 0 and {len(presets)}.[/red]")
 
 
-def collect_false_color_bands(band_mode: str = "stops"):
+def collect_false_color_bands(band_mode: str = "stops", fill_mode: bool = False):
     """
     Collect false color band definitions with full back-navigation support.
 
@@ -252,6 +252,7 @@ def collect_false_color_bands(band_mode: str = "stops"):
       - 'b' at stop-values entry → returns to "Add bands?" question
       - '0' at a band's color/width prompt → goes back one band (or to stop-values)
     Returns a list of band dicts, or BACK.
+    In fill_mode, the "band_width" step is skipped (width=0.0 sentinel stored).
     """
     unit = "IRE" if band_mode == "ire" else "stops"
     suggest_fn = suggest_color_for_ire if band_mode == "ire" else suggest_color_for_stop
@@ -263,7 +264,7 @@ def collect_false_color_bands(band_mode: str = "stops"):
         prompt_text = "  Stop values, comma-separated  [bold](e.g. -2, -1, 0, 1, 2)[/bold]"
         default_val = "0"
 
-    # States: "ask_add" → "get_values" → "band_color" ↔ "band_width"
+    # States: "ask_add" → "get_values" → "band_color" → "band_width" (skipped in fill_mode)
     step = "ask_add"
     sorted_values: list[float] = []
     bands: list[dict] = []
@@ -326,13 +327,29 @@ def collect_false_color_bands(band_mode: str = "stops"):
 
             if use:
                 current_color = suggested_hex
-                step = "band_width"
             else:
                 color = pick_color(f"Color for {label} band", suggested_hex)
                 if color is BACK:
                     continue  # re-show suggestion for same band
                 current_color = color
-                step = "band_width"
+            step = "band_append" if fill_mode else "band_width"
+
+        # ── append band in fill mode (no width needed) ────────────────────
+        elif step == "band_append":
+            val = sorted_values[bi]
+            label = f"{val:.0f} IRE" if band_mode == "ire" else (
+                f"+{val:.1f}" if val >= 0 else f"{val:.1f}"
+            )
+            bands.append({"stop": val, "color": current_color, "width": 0.0})
+            console.print(Text.assemble(
+                ("  ✓ ", "green"),
+                (label, "bold"),
+                "  [fill zone]  ",
+                swatch(current_color),
+                (f"  {current_color}", "dim"),
+            ))
+            bi += 1
+            step = "band_color"
 
         # ── pick width for band[bi] ───────────────────────────────────────
         elif step == "band_width":
@@ -369,6 +386,7 @@ def print_exposure_preview(
     black_hex: str,
     white_clip: bool,
     white_hex: str,
+    fill_mode: bool = False,
 ) -> None:
     """
     Renders a horizontal stop bar in the terminal showing every exposure band
@@ -398,14 +416,18 @@ def print_exposure_preview(
         stop = lo + (pos / (BAR_WIDTH - 1)) * total
         color = UNASSIGNED
 
-        # Bands (last defined wins on overlap, matching engine behavior)
-        # The half_step buffer ensures every band paints at least one char.
-        for band in bands:
-            if (
-                stop >= band["stop"] - band["width"] - half_step
-                and stop <= band["stop"] + band["width"] + half_step
-            ):
-                color = band["color"]
+        # Bands — fill mode uses nearest-stop Voronoi; normal mode uses ±width mask.
+        if fill_mode and bands:
+            color = min(bands, key=lambda b: abs(b["stop"] - stop))["color"]
+        else:
+            # Last defined wins on overlap, matching engine behavior.
+            # The half_step buffer ensures every band paints at least one char.
+            for band in bands:
+                if (
+                    stop >= band["stop"] - band["width"] - half_step
+                    and stop <= band["stop"] + band["width"] + half_step
+                ):
+                    color = band["color"]
 
         # Clips override bands
         if black_clip and black_hex and stop <= lo:
@@ -456,11 +478,12 @@ def print_exposure_preview(
             label = (
                 f"+{band['stop']:.1f}" if band["stop"] >= 0 else f"{band['stop']:.1f}"
             )
+            suffix = "  [fill zone]" if fill_mode else f"  ±{band['width']}"
             console.print(
                 Text.assemble(
                     "  ",
                     swatch(band["color"]),
-                    (f"  {label} stops  ±{band['width']}", "dim"),
+                    (f"  {label} stops{suffix}", "dim"),
                 )
             )
         if white_clip and white_hex:
@@ -505,6 +528,7 @@ def config_from_session(
     monochrome: bool,
     output_filename: str,
     legal_range: bool,
+    fill_mode: bool = False,
 ) -> dict:
     return {
         "profile": profile_name,
@@ -512,6 +536,7 @@ def config_from_session(
         "cube_size": cube_size,
         "bands": bands,
         "band_mode": band_mode,
+        "fill_mode": fill_mode,
         "black_clip": black_clip,
         "black_hex": black_hex,
         "white_clip": white_clip,
@@ -665,6 +690,7 @@ def build(
         cube_size = cfg["cube_size"]
         bands = cfg.get("bands", [])
         band_mode = cfg.get("band_mode", "stops")
+        fill_mode = cfg.get("fill_mode", band_mode == "fill")
         black_clip = cfg.get("black_clip", False)
         black_hex = cfg.get("black_hex", "")
         white_clip = cfg.get("white_clip", False)
@@ -689,7 +715,8 @@ def build(
         console.print()
 
         print_exposure_preview(
-            profile_name, bands, black_clip, black_hex, white_clip, white_hex
+            profile_name, bands, black_clip, black_hex, white_clip, white_hex,
+            fill_mode=fill_mode,
         )
 
         with console.status("[bold green]Generating LUT..."):
@@ -707,6 +734,7 @@ def build(
                     monochrome=monochrome,
                     legal_range=legal_range,
                     output_filename=output_filename,
+                    fill_mode=fill_mode,
                 )
                 rprint(f"\n[bold green]✓ Done![/bold green]  {out_path}")
                 console.print(LEGAL_LEVELS_NOTE if legal_range else DATA_LEVELS_WARNING)
@@ -757,16 +785,25 @@ def build(
             [
                 "Stops (relative to 18% middle grey)",
                 "IRE (target display signal level 0-100)",
+                "Fill (every pixel gets a false color — full-coverage Voronoi zones)",
             ],
             allow_back=True,
         )
         if result is BACK:
             return BACK
-        return {**state, "band_mode": "ire" if "IRE" in result else "stops"}
+        if "IRE" in result:
+            return {**state, "band_mode": "ire", "fill_mode": False}
+        elif "Fill" in result:
+            return {**state, "band_mode": "stops", "fill_mode": True}
+        else:
+            return {**state, "band_mode": "stops", "fill_mode": False}
 
     def step_bands(state):
         console.print()
-        result = collect_false_color_bands(state["band_mode"])
+        result = collect_false_color_bands(
+            state["band_mode"],
+            fill_mode=state.get("fill_mode", False),
+        )
         if result is BACK:
             return BACK
         return {**state, "bands": result}
@@ -815,6 +852,9 @@ def build(
             return {**state, "white_clip": True, "white_hex": color}
 
     def step_mono(state):
+        if state.get("fill_mode", False):
+            # Every pixel is false-colored in fill mode; monochrome is meaningless.
+            return {**state, "monochrome": False}
         console.print()
         result = confirm_with_back(
             "Desaturate the underlying base image to monochrome?", default=True
@@ -869,6 +909,7 @@ def build(
     target_name = state["target_name"]
     cube_size = state["cube_size"]
     band_mode = state["band_mode"]
+    fill_mode = state.get("fill_mode", False)
     bands = state["bands"]
     black_clip = state["black_clip"]
     black_hex = state["black_hex"]
@@ -880,7 +921,8 @@ def build(
 
     # Preview
     print_exposure_preview(
-        profile_name, bands, black_clip, black_hex, white_clip, white_hex
+        profile_name, bands, black_clip, black_hex, white_clip, white_hex,
+        fill_mode=fill_mode,
     )
 
     # Generate
@@ -899,6 +941,7 @@ def build(
                 monochrome=monochrome,
                 legal_range=legal_range,
                 output_filename=output_filename,
+                fill_mode=fill_mode,
             )
             rprint(f"\n[bold green]✓ Done![/bold green]  {out_path}")
             console.print(LEGAL_LEVELS_NOTE if legal_range else DATA_LEVELS_WARNING)
@@ -926,6 +969,7 @@ def build(
                 monochrome,
                 output_filename,
                 legal_range,
+                fill_mode=fill_mode,
             ),
         )
 
