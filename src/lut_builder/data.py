@@ -24,8 +24,6 @@ CAMERA_PROFILES = {
     "Sony S-Log3": {
         "gamut": "S-Gamut3.Cine",
         "log": "S-Log3",
-        "white_clip_stops": 6.0,
-        "black_clip_stops": -9.0,
         "log_ceiling": 0.94,  # S-Log3 hard digital ceiling (~94 IRE)
         "log_floor": 0.0929,  # 0% black = 10-bit code 95 → 95/1023 (3.5% IRE)
         "sources": [
@@ -35,8 +33,6 @@ CAMERA_PROFILES = {
     "Panasonic V-Log": {
         "gamut": "V-Gamut",
         "log": "V-Log",
-        "white_clip_stops": 6.5,   # derived: log2(linear_clip / 0.18), clip = 911/1023
-        "black_clip_stops": -8.0,
         "log_ceiling": 0.8906,  # Varicam 35 clip = 10-bit code 911 → 911/1023 (~96.7 IRE legal)
         "log_floor": 0.1251,    # 0% reflectance = 10-bit code 128 → 128/1023
         "sources": [
@@ -46,17 +42,15 @@ CAMERA_PROFILES = {
     "Canon Log 3": {
         "gamut": "Cinema Gamut",
         "log": "Canon Log 3",
-        "white_clip_stops": 7.0,
-        "black_clip_stops": -7.5,
         "log_ceiling": 0.90,  # Canon Log 3 hard ceiling
         "log_floor": 0.04,  # Canon Log 3 digital black
-        "sources": [],
+        "sources": [
+            "https://downloads.canon.com/nw/camera/products/cinema-eos/c300-mark-ii/white-papers/canon-c300-mk-ii-image-performance-wp.pdf"
+        ],
     },
     "ARRI LogC3": {
         "gamut": "ARRI Wide Gamut 3",
         "log": "ARRI LogC3",
-        "white_clip_stops": 7.5,
-        "black_clip_stops": -7.0,
         "log_ceiling": 0.91,  # LogC3 hard ceiling (EI 800)
         "log_floor": 0.03,  # LogC3 digital black
         "sources": [
@@ -66,8 +60,6 @@ CAMERA_PROFILES = {
     "RED Log3G10": {
         "gamut": "REDWideGamutRGB",
         "log": "Log3G10",
-        "white_clip_stops": 10.0,
-        "black_clip_stops": -8.0,
         "log_ceiling": 1.0,  # Log3G10 uses the full 0–1 code range
         "log_floor": 0.0,  # Log3G10 has no raised digital black
         "sources": [

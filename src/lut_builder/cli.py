@@ -391,17 +391,29 @@ def print_exposure_preview(
     """
     Renders a horizontal stop bar in the terminal showing every exposure band
     and clip indicator colored in their chosen colors.
-
-    The bar spans from the camera's black_clip_stops to white_clip_stops.
-    Each character represents one position along that range. Positions inside
-    a band are painted that band's color. Clip regions use their clip color.
-    Unassigned regions are rendered as dim gray.
     """
     from .data import CAMERA_PROFILES
 
     profile = CAMERA_PROFILES[profile_name]
-    lo = profile["black_clip_stops"]  # e.g. -7.0
-    hi = profile["white_clip_stops"]  # e.g.  8.2
+
+    # Dynamically determine the range based on user's bands and clip settings
+    if fill_mode and bands:
+        lo_stops = min(band["stop"] for band in bands) - 1.0
+        hi_stops = max(band["stop"] for band in bands) + 1.0
+    elif bands:
+        lo_stops = min(band["stop"] - band["width"] for band in bands) - 1.0
+        hi_stops = max(band["stop"] + band["width"] for band in bands) + 1.0
+    else:
+        lo_stops, hi_stops = -7.0, 7.0
+
+    # Ensure we show the clip markers if they are enabled
+    if black_clip:
+        lo_stops = min(lo_stops, -8.0)
+    if white_clip:
+        hi_stops = max(hi_stops, 8.0)
+
+    lo = lo_stops
+    hi = hi_stops
     total = hi - lo
     BAR_WIDTH = 64
     UNASSIGNED = "#3f3f46"  # zinc-700 — dark gray for normal exposure
@@ -587,8 +599,6 @@ def list_profiles():
     cam_table.add_column("Camera", style="white")
     cam_table.add_column("Gamut", style="dim")
     cam_table.add_column("Log", style="dim")
-    cam_table.add_column("Black", style="dim", justify="right")
-    cam_table.add_column("White", style="dim", justify="right")
 
     from .data import CAMERA_PROFILES, TARGET_PROFILES
 
@@ -598,8 +608,6 @@ def list_profiles():
             name,
             p["gamut"],
             p["log"],
-            f"{p['black_clip_stops']:+.1f} stops",
-            f"{p['white_clip_stops']:+.1f} stops",
         )
 
     tgt_table = Table(title="Target Display Profiles", box=None, padding=(0, 3))

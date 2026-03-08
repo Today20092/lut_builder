@@ -56,17 +56,16 @@ Search the output for your camera's log format and wide gamut name. Some example
 
 ---
 
-### Step 2 — Find the clip stop values and log range
+### Step 2 — Find the log range
 
-`"white_clip_stops"` and `"black_clip_stops"` are hardware properties — where the sensor physically runs out of data. `"log_floor"` and `"log_ceiling"` are the corresponding raw log code values at those extremes. All four must come from an official manufacturer source, not estimation.
+`"log_floor"` and `"log_ceiling"` are the raw log code values (0–1 normalised) at the absolute bottom and top of the camera's log curve. These must come from an official manufacturer source.
 
 Every major manufacturer publishes a technical white paper or product spec for their log format. Search for:
 
 > `[Brand] [Log format] white paper PDF`
 
 What you are looking for is:
-- The **dynamic range in stops** above and below 18% middle grey (for clip stops)
-- The **log code values** (0–1 normalised) at those clip points (for floor/ceiling)
+- The **log code values** (0–1 normalised) at the darkest and brightest extremes of the log curve encoding (for floor/ceiling).
 
 | Manufacturer | Where to find specs |
 |---|---|
@@ -82,7 +81,7 @@ What you are looking for is:
 If you cannot find an official figure, say so clearly in your PR and add a comment in the code:
 
 ```python
-"white_clip_stops": 7.5,   # TODO: verify — sourced from forum discussion, not official spec
+"log_ceiling": 0.91,   # TODO: verify — sourced from forum discussion, not official spec
 ```
 
 An approximate value with a warning is better than a confidently wrong one.
@@ -97,8 +96,6 @@ A complete profile looks like this:
 "Nikon N-Log": {
     "gamut": "NIKON N-Gamut",        # exact colour.RGB_COLOURSPACES key
     "log": "N-Log",                  # exact colour.LOG_DECODINGS key
-    "white_clip_stops": 7.5,         # stops above 18% grey where highlights clip
-    "black_clip_stops": -7.0,        # stops below 18% grey at the noise floor
     "log_floor": 0.12,               # log code at black clip (0-1 normalised)
     "log_ceiling": 0.91,             # log code at white clip (0-1 normalised)
     "sources": [
@@ -108,7 +105,6 @@ A complete profile looks like this:
 ```
 
 - Add a URL to `"sources"` for every document you used. These appear in `uv run lut-builder list` so anyone can verify the figures.
-- `log_floor` and `log_ceiling` are used by the engine for physical clipping detection — they must correspond to the same exposure limits as the stop values.
 
 ---
 
@@ -183,7 +179,7 @@ This means the validator will catch your typo before it ever silently generates 
 ## Pull request guidelines
 
 - **One camera per PR** where possible — it keeps reviews focused and makes it easy to revert if a value turns out to be wrong.
-- **Include the source URL** for your clip stop and log floor/ceiling values in both the `"sources"` list and the PR description.
+- **Include the source URL** for your log floor/ceiling values in both the `"sources"` list and the PR description.
 - **If updating an existing profile** with more accurate values, explain what the previous value was based on and why yours is more accurate.
 - **Do not approximate** log curves or gamut matrices. If your camera isn't in `colour-science`, open an issue and we'll track the upstream request there.
 
@@ -197,11 +193,9 @@ This means the validator will catch your typo before it ever silently generates 
 |-------|------|------|---------------|
 | `gamut` | `str` | — | The wide colour space the camera records in. Used for the gamut-to-display matrix transform and for computing CIE Y luminance. Must be a key in `colour.RGB_COLOURSPACES`. |
 | `log` | `str` | — | The logarithmic transfer function the camera uses. Used to decode log values back to scene-linear light. Must be a key in `colour.LOG_DECODINGS`. |
-| `white_clip_stops` | `float` | stops above 18% grey | The maximum stop the sensor can encode before highlights clip to solid white. A pixel above this threshold has no recoverable detail. |
-| `black_clip_stops` | `float` | stops below 18% grey | The noise floor of the sensor. A pixel below this threshold is crushed to unrecoverable black. |
-| `log_floor` | `float` | 0–1 normalised log code | The raw log code corresponding to `black_clip_stops`. Used by the engine for physical clipping detection. |
-| `log_ceiling` | `float` | 0–1 normalised log code | The raw log code corresponding to `white_clip_stops`. Used by the engine for physical clipping detection. |
-| `sources` | `list[str]` | — | URLs to official manufacturer documents that back the clip stop and log range values. Displayed by `lut-builder list`. |
+| `log_floor` | `float` | 0–1 normalised log code | The raw log code corresponding to the sensor's noise floor. Used by the engine for physical clipping detection. |
+| `log_ceiling` | `float` | 0–1 normalised log code | The raw log code corresponding to the sensor's absolute highlight clip. Used by the engine for physical clipping detection. |
+| `sources` | `list[str]` | — | URLs to official manufacturer documents that back the log range values. Displayed by `lut-builder list`. |
 
 **Middle grey (0.18 linear / 18%)** is a universal photographic constant and does not need to be specified per camera. The `colour-science` library handles this automatically when decoding any log format.
 
