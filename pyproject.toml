@@ -24,3 +24,8 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/lut_builder"]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2",
+]

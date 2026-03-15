@@ -16,6 +16,8 @@ wheels/
 # Generated LUT files (don't commit test outputs)
 *.cube
 *.json
+output/luts/*.cube
+output/configs/*.json
 
 # macOS
 .DS_Store

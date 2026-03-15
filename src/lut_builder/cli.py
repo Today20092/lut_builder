@@ -167,19 +167,39 @@ def pick_color(prompt_label: str, default_hex: str):
     table.add_row("0", "← Back")
     table.add_row("1", "Enter hex code")
     table.add_row("2", "Pick Tailwind color")
+    table.add_row("3", "Enter family-shade (e.g. red-600)")
     console.print(table)
 
     while True:
-        raw = Prompt.ask("  Input method [0-2]")
+        raw = Prompt.ask("  Input method [0-3]")
         if raw == "0":
             return BACK
-        if raw in ("1", "2"):
+        if raw in ("1", "2", "3"):
             break
-        console.print("  [red]Enter 0, 1, or 2.[/red]")
+        console.print("  [red]Enter 0, 1, 2, or 3.[/red]")
 
     if raw == "1":
-        return Prompt.ask("  Hex code", default=default_hex)
-    return tailwind_color_picker()
+        while True:
+            hex_val = Prompt.ask("  Hex code", default=default_hex)
+            hex_val = hex_val.strip().lstrip("#")
+            if len(hex_val) == 6 and all(c in "0123456789abcdefABCDEF" for c in hex_val):
+                return f"#{hex_val}"
+            console.print("  [red]Invalid hex code. Enter 6 hex digits, e.g. #ff6600.[/red]")
+    if raw == "2":
+        return tailwind_color_picker()
+    # raw == "3": family-shade shorthand
+    families = list(TAILWIND_COLORS.keys())
+    while True:
+        raw2 = Prompt.ask("  family-shade")
+        parts = raw2.strip().lower().rsplit("-", 1)
+        if len(parts) == 2:
+            fam, shade = parts
+            if fam in TAILWIND_COLORS and shade in SHADES:
+                L, C, H = TAILWIND_COLORS[fam][shade]
+                hex_val = oklch_to_hex(L, C, H)
+                console.print(Text.assemble("  → ", (f"{fam}-{shade}", "bold"), "  ", swatch(hex_val), "  ", hex_val))
+                return hex_val
+        console.print(f"  [red]Enter a valid family-shade like 'red-600'. Families: {', '.join(list(families)[:5])}...[/red]")
 
 
 # ---------------------------------------------------------------------------
@@ -292,6 +312,12 @@ def collect_false_color_bands(band_mode: str = "stops", fill_mode: bool = False)
                 console.print("  [red]Enter at least one valid value.[/red]")
                 continue
             sorted_values = sorted(values)
+            if band_mode == "ire":
+                out_of_range = [v for v in sorted_values if not (0 <= v <= 100)]
+            else:
+                out_of_range = [v for v in sorted_values if not (-8 <= v <= 8)]
+            if out_of_range:
+                console.print(f"  [yellow]Warning: {out_of_range} may be outside the useful range for this camera.[/yellow]")
             bands = []
             bi = 0
             step = "band_color"
@@ -299,6 +325,13 @@ def collect_false_color_bands(band_mode: str = "stops", fill_mode: bool = False)
         # ── pick color for band[bi] ───────────────────────────────────────
         elif step == "band_color":
             if bi >= len(sorted_values):
+                for j in range(len(bands) - 1):
+                    a, b = bands[j], bands[j + 1]
+                    if a["stop"] + a["width"] > b["stop"] - b["width"]:
+                        console.print(
+                            f"  [yellow]Warning: band at {a['stop']} and {b['stop']} overlap — "
+                            f"the later band's color will win in the overlap zone.[/yellow]"
+                        )
                 return bands
 
             val = sorted_values[bi]
@@ -516,14 +549,25 @@ def print_exposure_preview(
 
 def load_config(path: Path) -> dict:
     """Load a JSON config file and return it as a dict."""
-    with open(path) as f:
-        return json.load(f)
+    try:
+        with open(path) as f:
+            data = json.load(f)
+    except FileNotFoundError:
+        console.print(f"[red]Config file not found: {path}[/red]")
+        raise typer.Exit(1)
+    except json.JSONDecodeError as e:
+        console.print(f"[red]Invalid JSON in config file: {e}[/red]")
+        raise typer.Exit(1)
+    if data.get("version", 0) != 1:
+        console.print("[yellow]Warning: config has no version field — it may be outdated.[/yellow]")
+    return data
 
 
 def save_config(path: Path, cfg: dict) -> None:
     """Save the current session config to a JSON file."""
+    cfg_with_version = {"version": 1, **cfg}
     with open(path, "w") as f:
-        json.dump(cfg, f, indent=2)
+        json.dump(cfg_with_version, f, indent=2)
     console.print(f"\n  [green]✓[/green] Config saved to [bold]{path}[/bold]")
 
 
@@ -643,6 +687,31 @@ def list_profiles():
 
 
 # ---------------------------------------------------------------------------
+# Colors command
+# ---------------------------------------------------------------------------
+
+
+@app.command(name="colors")
+def list_colors(search: Optional[str] = typer.Argument(None, help="Filter by family name")):
+    """Browse the Tailwind color palette. Optionally filter by family name."""
+    families = list(TAILWIND_COLORS.keys())
+    if search:
+        families = [f for f in families if search.lower() in f]
+    if not families:
+        console.print(f"  [yellow]No color families matching '{search}'.[/yellow]")
+        return
+    for family in families:
+        row = Text()
+        row.append(f"  {family:<12}", style="white")
+        for shade in SHADES:
+            L, C, H = TAILWIND_COLORS[family][shade]
+            hex_val = oklch_to_hex(L, C, H)
+            row.append("█", style=f"bold {hex_val}")
+        row.append(f"  {', '.join(SHADES)}", style="dim")
+        console.print(row)
+
+
+# ---------------------------------------------------------------------------
 # Main command
 # ---------------------------------------------------------------------------
 
@@ -744,7 +813,7 @@ def build(
                     output_filename=output_filename,
                     fill_mode=fill_mode,
                 )
-                rprint(f"\n[bold green]✓ Done![/bold green]  {out_path}")
+                rprint(f"\n[bold green]✓ Done![/bold green]  {Path(out_path).resolve()}")
                 console.print(LEGAL_LEVELS_NOTE if legal_range else DATA_LEVELS_WARNING)
             except Exception as e:
                 rprint(f"[bold red]Error:[/bold red] {e}")
@@ -883,7 +952,7 @@ def build(
 
     def step_output(state):
         default_name = (
-            f"{state['profile_name'].replace(' ', '')}_{state['target_name'].replace('.', '')}.cube"
+            f"output/luts/{state['profile_name'].replace(' ', '')}_{state['target_name'].replace('.', '')}.cube"
         )
         raw = Prompt.ask("\nOutput filename (b=back)", default=default_name)
         if raw.strip().lower() in ("b", "back"):
@@ -960,7 +1029,7 @@ def build(
     # Offer to save config
     console.print()
     if Confirm.ask("Save this setup as a config file for reuse?"):
-        default_cfg_name = Path(output_filename).stem + ".json"
+        default_cfg_name = f"output/configs/{Path(output_filename).stem}.json"
         cfg_path = Path(Prompt.ask("Config filename", default=default_cfg_name))
         save_config(
             cfg_path,

@@ -193,7 +193,7 @@ def generate_lut(
     # ------------------------------------------------------------------
     comments = [
         f"Generated   : {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
-        "Tool        : lut-builder  https://github.com/your-username/lut-builder",
+        "Tool        : lut-builder  https://github.com/Today20092/lut_builder",
         f"Cube size   : {cube_size}x{cube_size}x{cube_size}",
         f"Monochrome  : {'yes' if monochrome else 'no'}",
         f"Output range: {'Legal (64-940)' if legal_range else 'Full (0-1023)'}",
