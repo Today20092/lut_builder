@@ -24,6 +24,42 @@ const NEW_BAND_COLOR_NAMES = [
   "blue-500", "violet-500", "pink-500",
 ]
 
+const FALSE_COLOR_NAMES = [
+  "violet-800", "blue-600", "sky-400", "teal-400", "green-500",
+  "lime-400", "yellow-400", "orange-500", "red-600",
+]
+
+const STOP_COLOR_LIMITS = [-3, -2, -1, -0.3, 0.3, 1, 2, 3]
+const IRE_COLOR_LIMITS = [10, 25, 35, 38, 46, 55, 65, 80]
+
+function mixOklab(left: string, right: string, amount: number) {
+  const toLinear = (value: number) => value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4
+  const toOklab = (hex: string) => {
+    const [red, green, blue] = [1, 3, 5].map((start) => toLinear(Number.parseInt(hex.slice(start, start + 2), 16) / 255))
+    const l = Math.cbrt(0.4122214708 * red + 0.5363325363 * green + 0.0514459929 * blue)
+    const m = Math.cbrt(0.2119034982 * red + 0.6806995451 * green + 0.1073969566 * blue)
+    const s = Math.cbrt(0.0883024619 * red + 0.2817188376 * green + 0.6299787005 * blue)
+    return [
+      0.2104542553 * l + 0.793617785 * m - 0.0040720468 * s,
+      1.9779984951 * l - 2.428592205 * m + 0.4505937099 * s,
+      0.0259040371 * l + 0.7827717662 * m - 0.808675766 * s,
+    ]
+  }
+  const [l1, a1, b1] = toOklab(left)
+  const [l2, a2, b2] = toOklab(right)
+  const l = l1 + (l2 - l1) * amount
+  const a = a1 + (a2 - a1) * amount
+  const b = b1 + (b2 - b1) * amount
+  const ll = (l + 0.3963377774 * a + 0.2158037573 * b) ** 3
+  const mm = (l - 0.1055613458 * a - 0.0638541728 * b) ** 3
+  const ss = (l - 0.0894841775 * a - 1.291485548 * b) ** 3
+  const toHex = (value: number) => {
+    const srgb = value <= 0.0031308 ? 12.92 * value : 1.055 * value ** (1 / 2.4) - 0.055
+    return Math.round(Math.max(0, Math.min(1, srgb)) * 255).toString(16).padStart(2, "0")
+  }
+  return `#${toHex(4.0767416621 * ll - 3.3077115913 * mm + 0.2309699292 * ss)}${toHex(-1.2684380046 * ll + 2.6097574011 * mm - 0.3413193965 * ss)}${toHex(-0.0041960863 * ll - 0.7034186147 * mm + 1.707614701 * ss)}`
+}
+
 export const isHexColor = (value: string) => /^#[0-9a-f]{6}$/i.test(value)
 
 export function hexToHsv(hex: string) {
@@ -94,6 +130,30 @@ export function contrastTextColor(hex: string) {
   const whiteContrast = 1.05 / (luminance + 0.05)
   const darkContrast = (luminance + 0.05) / 0.059
   return whiteContrast >= darkContrast ? "#ffffff" : "#111827"
+}
+
+export function applyColorPreset(
+  setup: Setup,
+  palette: PaletteColor[],
+  preset: "false-color" | "gradient",
+) {
+  const colors = new Map(palette.map(({ name, hex }) => [name, hex]))
+  const limits = setup.band_mode === "ire" ? IRE_COLOR_LIMITS : STOP_COLOR_LIMITS
+  const gradient = FALSE_COLOR_NAMES.map((name) => colors.get(name)).filter((color): color is string => Boolean(color))
+  const minimum = Math.min(...setup.bands.map(({ stop }) => stop))
+  const range = Math.max(1, Math.max(...setup.bands.map(({ stop }) => stop)) - minimum)
+  return {
+    ...setup,
+    bands: setup.bands.map((band) => {
+      if (preset === "gradient" && gradient.length > 1) {
+        const position = (band.stop - minimum) / range * (gradient.length - 1)
+        const left = Math.min(Math.floor(position), gradient.length - 2)
+        return { ...band, color: mixOklab(gradient[left], gradient[left + 1], position - left) }
+      }
+      const colorIndex = limits.findIndex((limit) => band.stop <= limit)
+      return { ...band, color: colors.get(FALSE_COLOR_NAMES[colorIndex < 0 ? 8 : colorIndex]) ?? band.color }
+    }),
+  }
 }
 
 const creationOrder = new WeakMap<Band, number>()

@@ -2,6 +2,7 @@ import assert from "node:assert/strict"
 import test from "node:test"
 
 import {
+  applyColorPreset,
   bandId,
   changeMode,
   contrastTextColor,
@@ -18,6 +19,14 @@ import {
   updateFillBoundary,
   wheelStepDirection,
 } from "../src/editor.ts"
+
+const palette = [
+  "violet-800", "blue-600", "sky-400", "teal-400", "green-500",
+  "lime-400", "yellow-400", "orange-500", "red-600",
+].map((name, index) => ({
+  name,
+  hex: ["#5b21b6", "#2563eb", "#38bdf8", "#2dd4bf", "#22c55e", "#a3e635", "#facc15", "#f97316", "#dc2626"][index],
+}))
 
 const setup = {
   profile: "Sony S-Log3",
@@ -51,6 +60,21 @@ test("direct manipulation and discrete movement share the selected increment", (
   assert.equal(wheelStepDirection(0, false, false), 0)
   assert.equal(wheelStepDirection(-1, true, false), 0)
   assert.equal(wheelStepDirection(-1, false, true), 0)
+})
+
+test("color presets recolor every band by exposure or ordered ramp", () => {
+  const bands = [-4, -3.5, 0, 4].map((stop) => ({ stop, width: 0.3, color: "#ffffff" }))
+  const current = { ...setup, bands }
+
+  assert.deepEqual(
+    applyColorPreset(current, palette, "false-color").bands.map(({ color }) => color),
+    ["#5b21b6", "#5b21b6", "#22c55e", "#dc2626"],
+  )
+  const gradient = applyColorPreset(current, palette, "gradient").bands.map(({ color }) => color)
+  assert.equal(gradient[0], "#5b21b6")
+  assert.notEqual(gradient[1], gradient[0])
+  assert.notEqual(gradient[1], palette[1].hex)
+  assert.equal(gradient.at(-1), "#dc2626")
 })
 
 test("graph handles choose readable text for user colors", () => {

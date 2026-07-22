@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/card"
 import { Spinner } from "@/components/ui/spinner"
 import {
+  applyColorPreset,
   bandId,
   changeMode,
   contrastTextColor,
@@ -542,6 +543,21 @@ export function App() {
               <CardDescription>{setup.fill_mode ? "Drag a separator or edit its boundary. Every value is filled by a color zone." : "Drag a marker or edit its row. Higher bands win overlaps."}</CardDescription>
             </div>
             <div className="flex items-end gap-2">
+              <label className="grid gap-1 text-xs font-medium">Color all bands
+                <select
+                  aria-label="Color all bands"
+                  className={fieldClass}
+                  defaultValue=""
+                  onChange={(event) => {
+                    if (event.target.value) setSetup((current) => applyColorPreset(current, catalog.palette, event.target.value as "false-color" | "gradient"))
+                    event.target.value = ""
+                  }}
+                >
+                  <option value="" disabled>Choose preset</option>
+                  <option value="false-color">False color by exposure</option>
+                  <option value="gradient">Perceptual color ramp</option>
+                </select>
+              </label>
               {mode === "stops" && (
                 <label className="grid gap-1 text-xs font-medium">Movement
                   <select className={fieldClass} value={stopIncrement} onChange={(event) => setStopIncrement(Number(event.target.value) as 1 | 0.5 | 0.25)}>
