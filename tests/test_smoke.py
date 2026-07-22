@@ -4,7 +4,6 @@ import tempfile
 from pathlib import Path
 
 import colour
-import numpy as np
 import pytest
 
 from lut_builder.data import CAMERA_PROFILES, MIDDLE_GREY, oklch_to_hex, validate_profiles
@@ -116,17 +115,14 @@ def test_config_round_trip():
         path.unlink(missing_ok=True)
 
 
-@pytest.mark.parametrize(("profile_name", "code_value"), MIDDLE_GREY_CODES.items())
-def test_profile_middle_grey_decodes_to_scene_linear(profile_name, code_value):
+@pytest.mark.parametrize("profile_name", CAMERA_PROFILES)
+def test_profile_middle_grey_decodes_to_scene_linear(profile_name):
     decoded = colour.models.log_decoding(
-        code_value, function=str(CAMERA_PROFILES[profile_name]["log"])
+        MIDDLE_GREY_CODES[profile_name],
+        function=str(CAMERA_PROFILES[profile_name]["log"]),
     )
 
     assert decoded == pytest.approx(MIDDLE_GREY, abs=1e-6)
-
-
-def test_middle_grey_codes_cover_all_profiles():
-    assert MIDDLE_GREY_CODES.keys() == CAMERA_PROFILES.keys()
 
 
 def test_generated_profiles_do_not_all_use_cineon(tmp_path):
@@ -135,7 +131,7 @@ def test_generated_profiles_do_not_all_use_cineon(tmp_path):
         for profile_name in CAMERA_PROFILES
     ]
 
-    assert np.ptp(outputs) > 0.1
+    assert max(outputs) - min(outputs) > 0.1
 
 
 def test_profile_validation_rejects_unknown_log(monkeypatch):
@@ -161,4 +157,4 @@ def test_neutral_input_band_placement(tmp_path, band_mode, band_value, width):
         band_mode,
     )
 
-    np.testing.assert_allclose(output, [1, 0, 1], atol=1e-6)
+    assert output == pytest.approx([1, 0, 1], abs=1e-6)
