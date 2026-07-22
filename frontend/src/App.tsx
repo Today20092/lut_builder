@@ -26,8 +26,11 @@ import {
   createBand,
   exportSetup,
   filterPalette,
+  hexToHsv,
+  hsvToHex,
   importSetup,
   isHexColor,
+  resizeBandWidth,
   snapBandValue,
   stepBandValue,
   orderBands,
@@ -82,34 +85,52 @@ async function postJson<T>(path: string, setup: Setup): Promise<T> {
   return response.json() as Promise<T>
 }
 
-function ColorPicker({
+export function ColorPicker({
   label,
   value,
   palette,
   disabled = false,
+  hideLabel = false,
   onChange,
 }: {
   label: string
   value: string
   palette: PaletteColor[]
   disabled?: boolean
+  hideLabel?: boolean
   onChange: (value: string) => void
 }) {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState("")
+  const [showPresets, setShowPresets] = useState(false)
+  const [hue, setHue] = useState(() => hexToHsv(isHexColor(value) ? value : "#000000").hue)
   const originalValue = useRef(value)
   const matches = useMemo(
-    () => filterPalette(palette, search).slice(0, 24),
+    () => filterPalette(palette, search),
     [palette, search],
   )
+  const presetGroups = Object.entries(matches.reduce<Record<string, PaletteColor[]>>((groups, color) => {
+    const family = color.name.replace(/-\d+$/, "")
+    ;(groups[family] ??= []).push(color)
+    return groups
+  }, {}))
+  const paletteColumnCount = new Set(palette.map((color) => color.name.replace(/-\d+$/, ""))).size
+  const hsv = hexToHsv(isHexColor(value) ? value : "#000000")
+
+  function pickSaturation(event: PointerEvent<HTMLDivElement>) {
+    const bounds = event.currentTarget.getBoundingClientRect()
+    const saturation = Math.max(0, Math.min(1, (event.clientX - bounds.left) / bounds.width))
+    const brightness = Math.max(0, Math.min(1, 1 - (event.clientY - bounds.top) / bounds.height))
+    onChange(hsvToHex(hue, saturation, brightness))
+  }
 
   return (
     <fieldset className="grid gap-2" disabled={disabled}>
-      <legend className="text-sm font-medium">{label}</legend>
+      <legend className={hideLabel ? "sr-only" : "text-sm font-medium"}>{label}</legend>
       <Popover.Root
         open={open}
         onOpenChange={(nextOpen, eventDetails) => {
-          if (nextOpen) originalValue.current = value
+          if (nextOpen) { originalValue.current = value; setHue(hsv.hue) }
           if (!nextOpen && eventDetails.reason === "escape-key") {
             onChange(originalValue.current)
           }
@@ -137,47 +158,54 @@ function ColorPicker({
           >
             <Popover.Popup
               aria-label={`${label} picker`}
-              className="grid max-h-[var(--available-height)] w-72 max-w-[var(--available-width)] gap-3 overflow-y-auto rounded-lg border bg-popover p-3 text-popover-foreground shadow-lg outline-none"
+              className={`flex max-h-[var(--available-height)] max-w-[calc(100vw-2rem)] items-start gap-4 overflow-hidden rounded-lg border bg-popover p-3 text-popover-foreground shadow-lg outline-none ${showPresets ? "w-[78rem]" : "w-80"}`}
             >
+              <div className={`grid shrink-0 gap-3 ${showPresets ? "w-80" : "w-full"}`}>
+              <div
+                aria-label={`${label} saturation and brightness`}
+                className="relative h-44 w-full cursor-crosshair touch-none select-none overflow-hidden rounded-md border border-white/10"
+                style={{ backgroundColor: hsvToHex(hue, 1, 1), backgroundImage: "linear-gradient(to top, #000, transparent), linear-gradient(to right, #fff, transparent)" }}
+                onPointerDown={(event) => { event.preventDefault(); event.currentTarget.setPointerCapture(event.pointerId); pickSaturation(event) }}
+                onPointerMove={(event) => { if (event.currentTarget.hasPointerCapture(event.pointerId)) pickSaturation(event) }}
+              >
+                <span className="pointer-events-none absolute size-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white shadow-[0_0_0_1px_#000]" style={{ left: `${hsv.saturation * 100}%`, top: `${(1 - hsv.value) * 100}%` }} />
+              </div>
               <input
-                aria-label={`${label} visual picker`}
-                className="h-24 w-full cursor-pointer rounded border border-input bg-transparent p-1"
-                type="color"
-                value={isHexColor(value) ? value : "#000000"}
-                onChange={(event) => onChange(event.target.value)}
+                aria-label={`${label} hue`}
+                className="hue-slider"
+                type="range"
+                min="0"
+                max="359"
+                value={Math.round(hue)}
+                onChange={(event) => { const nextHue = Number(event.target.value); setHue(nextHue); onChange(hsvToHex(nextHue, hsv.saturation, hsv.value)) }}
               />
+              <div className="grid grid-cols-[auto_1fr] items-center gap-x-2 gap-y-1 text-xs">
+                <label htmlFor={`${label}-saturation`}>Saturation</label>
+                <input id={`${label}-saturation`} type="range" min="0" max="100" value={Math.round(hsv.saturation * 100)} onChange={(event) => onChange(hsvToHex(hue, Number(event.target.value) / 100, hsv.value))} />
+                <label htmlFor={`${label}-brightness`}>Brightness</label>
+                <input id={`${label}-brightness`} type="range" min="0" max="100" value={Math.round(hsv.value * 100)} onChange={(event) => onChange(hsvToHex(hue, hsv.saturation, Number(event.target.value) / 100))} />
+              </div>
               <input
                 aria-label={`${label} hex color`}
                 aria-invalid={!isHexColor(value)}
                 className={fieldClass}
                 value={value}
                 placeholder="#rrggbb"
-                onChange={(event) => onChange(event.target.value)}
+                onChange={(event) => { const next = event.target.value; if (isHexColor(next)) setHue(hexToHsv(next).hue); onChange(next) }}
               />
-              <input
-                aria-label={`Search ${label} palette`}
-                className={fieldClass}
-                value={search}
-                placeholder="Search red-500 or #ef44"
-                onChange={(event) => setSearch(event.target.value)}
-              />
-              <div className="grid max-h-40 grid-cols-2 gap-1 overflow-auto sm:grid-cols-3">
-                {matches.map((color) => (
-                  <button
-                    className="flex items-center gap-2 rounded px-2 py-1 text-left text-xs hover:bg-accent"
-                    key={color.name}
-                    type="button"
-                    onClick={() => onChange(color.hex)}
-                  >
-                    <span
-                      aria-hidden="true"
-                      className="size-4 shrink-0 rounded border border-black/10"
-                      style={{ backgroundColor: color.hex }}
-                    />
-                    {color.name}
-                  </button>
-                ))}
+              <Button type="button" size="sm" variant="outline" aria-expanded={showPresets} onClick={() => setShowPresets((shown) => !shown)}>Tailwind presets</Button>
               </div>
+              {showPresets && <div className="grid h-[30rem] min-w-0 flex-1 grid-rows-[auto_1fr] gap-3">
+                <input aria-label={`Search ${label} palette`} className={fieldClass} value={search} placeholder="Search red-500 or #ef44" onChange={(event) => setSearch(event.target.value)} />
+                <div className="grid h-full gap-2" style={{ gridTemplateColumns: `repeat(${paletteColumnCount}, minmax(0, 1fr))` }}>
+                  {presetGroups.map(([family, colors]) => <div className="grid min-w-0 grid-rows-[auto_repeat(11,minmax(0,1fr))] gap-2" key={family}>
+                    <span className="truncate text-center text-[10px] text-muted-foreground" title={family}>{family}</span>
+                    {colors.map((color) => (
+                      <button aria-label={color.name} aria-pressed={color.hex.toLowerCase() === value.toLowerCase()} className={`min-h-0 rounded border border-black/10 outline-none hover:scale-105 focus-visible:ring-2 focus-visible:ring-ring ${color.hex.toLowerCase() === value.toLowerCase() ? "ring-2 ring-white ring-offset-2 ring-offset-black" : ""}`} key={color.name} title={color.name} type="button" style={{ backgroundColor: color.hex }} onClick={() => { setHue(hexToHsv(color.hex).hue); onChange(color.hex) }} />
+                    ))}
+                  </div>)}
+                </div>
+              </div>}
             </Popover.Popup>
           </Popover.Positioner>
         </Popover.Portal>
@@ -193,6 +221,7 @@ export function ExposureGraph({
   selectedBand,
   onSelect,
   onChange,
+  onWidthChange,
 }: {
   setup: Setup
   preview: Preview
@@ -200,6 +229,7 @@ export function ExposureGraph({
   selectedBand: number
   onSelect: (index: number) => void
   onChange: (index: number, stop: number) => void
+  onWidthChange: (index: number, width: number) => void
 }) {
   const graph = useRef<HTMLDivElement>(null)
   const position = (value: number) =>
@@ -257,6 +287,14 @@ export function ExposureGraph({
     onChange(index, snapBandValue(value, increment, ...bounds))
   }
 
+  function handleWidthPointerMove(event: PointerEvent<HTMLButtonElement>, index: number) {
+    if (!event.currentTarget.hasPointerCapture(event.pointerId)) return
+    const graphBounds = event.currentTarget.parentElement!.getBoundingClientRect()
+    const ratio = (event.clientX - graphBounds.left) / graphBounds.width
+    const edge = preview.minimum + ratio * (preview.maximum - preview.minimum)
+    onWidthChange(index, resizeBandWidth(setup.bands[index].stop, edge))
+  }
+
   return (
     <div className="grid gap-1">
     <div
@@ -309,6 +347,31 @@ export function ExposureGraph({
           />
         )
       })}
+      {!setup.fill_mode && setup.bands.map((band, index) => [-1, 1].map((side) => (
+          <button
+            aria-label={`Resize ${side < 0 ? "left" : "right"} edge of band ${index + 1}`}
+            aria-valuemin={0.1}
+            aria-valuenow={band.width}
+            aria-valuetext={`${band.width} ${preview.unit} half-width`}
+            className={`absolute inset-y-0 z-20 w-3 -translate-x-1/2 cursor-ew-resize border-x border-background/70 bg-white/35 outline-none hover:bg-white/60 focus-visible:ring-2 focus-visible:ring-ring ${selectedBand === index ? "bg-white/60" : ""}`}
+            key={`${index}-${side}`}
+            role="slider"
+            style={{ left: `${position(band.stop + side * band.width)}%` }}
+            type="button"
+            onKeyDown={(event) => {
+              const direction = event.key === "ArrowRight" || event.key === "ArrowUp" ? 1 : event.key === "ArrowLeft" || event.key === "ArrowDown" ? -1 : 0
+              if (!direction) return
+              event.preventDefault()
+              onSelect(index)
+              onWidthChange(index, Math.max(0.1, Number((band.width + direction * side * 0.1).toFixed(1))))
+            }}
+            onPointerDown={(event) => {
+              onSelect(index)
+              event.currentTarget.setPointerCapture(event.pointerId)
+            }}
+            onPointerMove={(event) => handleWidthPointerMove(event, index)}
+          />
+      )))}
       {setup.bands.map((band, index) => {
         if (setup.fill_mode && index === setup.bands.length - 1) return null
         const below = band.stop < preview.minimum
@@ -501,13 +564,14 @@ export function App() {
                   onChange={(index, stop) => setSetup((current) => setup.fill_mode
                     ? updateFillBoundary(current, index, stop, movementIncrement)
                     : updateBand(current, index, { stop }))}
+                  onWidthChange={(index, width) => setSetup((current) => updateBand(current, index, { width }))}
                 />
                 <div className="overflow-x-auto rounded-lg border">
-                  <table className="w-full min-w-[34rem] text-sm">
-                    <thead className="bg-muted/50 text-left text-xs text-muted-foreground"><tr><th className="px-3 py-2">Color</th><th className="px-3 py-2">{setup.fill_mode ? "Boundary to next color" : mode === "ire" ? "IRE" : "Stops"}</th><th className="px-3 py-2">{setup.fill_mode ? "Coverage" : "Half-width"}</th><th className="px-3 py-2"><span className="sr-only">Actions</span></th></tr></thead>
+                  <table className="w-full table-fixed min-w-[34rem] text-sm">
+                    <thead className="bg-muted/50 text-left text-xs text-muted-foreground"><tr><th className="w-1/5 px-3 py-2">Color</th><th className="px-3 py-2">{setup.fill_mode ? "Boundary to next color" : mode === "ire" ? "IRE" : "Stops"}</th><th className="px-3 py-2">{setup.fill_mode ? "Coverage" : "Half-width"}</th><th className="w-24 px-3 py-2"><span className="sr-only">Actions</span></th></tr></thead>
                     <tbody>{setup.bands.map((band, index) => (
                       <tr className={`border-t ${selectedBand === index ? "bg-accent/60" : ""}`} key={bandId(band)} onFocus={() => selectBand(index)} onClick={() => selectBand(index)}>
-                        <td className="p-2"><ColorPicker label={`Band ${index + 1} color`} value={band.color} palette={catalog.palette} onChange={(color) => setSetup((current) => updateBand(current, index, { color }))} /></td>
+                        <td className="p-2"><ColorPicker hideLabel label={`Band ${index + 1} color`} value={band.color} palette={catalog.palette} onChange={(color) => setSetup((current) => updateBand(current, index, { color }))} /></td>
                         <td className="p-2">{setup.fill_mode && index === setup.bands.length - 1
                           ? <span className="text-muted-foreground">—</span>
                           : <input aria-label={setup.fill_mode ? `Boundary after color ${index + 1}` : `Band ${index + 1} ${mode === "ire" ? "IRE" : "stops"}`} className={fieldClass} type="number" step={movementIncrement} min={mode === "ire" ? 0 : undefined} max={mode === "ire" ? 100 : undefined} value={band.stop} onChange={(event) => setSetup((current) => setup.fill_mode ? updateFillBoundary(current, index, Number(event.target.value), movementIncrement) : updateBand(current, index, { stop: Number(event.target.value) }))} />}</td>

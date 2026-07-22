@@ -26,6 +26,34 @@ const NEW_BAND_COLOR_NAMES = [
 
 export const isHexColor = (value: string) => /^#[0-9a-f]{6}$/i.test(value)
 
+export function hexToHsv(hex: string) {
+  const [red, green, blue] = [1, 3, 5].map((start) => Number.parseInt(hex.slice(start, start + 2), 16) / 255)
+  const maximum = Math.max(red, green, blue)
+  const difference = maximum - Math.min(red, green, blue)
+  const hue = difference === 0 ? 0
+    : maximum === red ? 60 * (((green - blue) / difference) % 6)
+      : maximum === green ? 60 * ((blue - red) / difference + 2)
+        : 60 * ((red - green) / difference + 4)
+  return { hue: hue < 0 ? hue + 360 : hue, saturation: maximum === 0 ? 0 : difference / maximum, value: maximum }
+}
+
+export function hsvToHex(hue: number, saturation: number, value: number) {
+  hue = ((hue % 360) + 360) % 360
+  saturation = Math.max(0, Math.min(1, saturation))
+  value = Math.max(0, Math.min(1, value))
+  const chroma = value * saturation
+  const segment = hue / 60
+  const secondary = chroma * (1 - Math.abs(segment % 2 - 1))
+  const [red, green, blue] = segment < 1 ? [chroma, secondary, 0]
+    : segment < 2 ? [secondary, chroma, 0]
+      : segment < 3 ? [0, chroma, secondary]
+        : segment < 4 ? [0, secondary, chroma]
+          : segment < 5 ? [secondary, 0, chroma]
+            : [chroma, 0, secondary]
+  const match = value - chroma
+  return `#${[red, green, blue].map((channel) => Math.round((channel + match) * 255).toString(16).padStart(2, "0")).join("")}`
+}
+
 export function snapBandValue(
   value: number,
   increment: number,
@@ -75,6 +103,10 @@ function rememberCreationOrder(bands: Band[]) {
   for (const band of bands) {
     if (!creationOrder.has(band)) creationOrder.set(band, nextCreationOrder++)
   }
+}
+
+export function resizeBandWidth(stop: number, edge: number) {
+  return snapBandValue(Math.abs(edge - stop), 0.1, 0.1)
 }
 
 export function bandId(band: Band) {

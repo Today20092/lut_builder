@@ -12,6 +12,13 @@ const dom = new JSDOM("<!doctype html><html><body></body></html>", {
 })
 globalThis.window = dom.window
 globalThis.document = dom.window.document
+globalThis.Element = dom.window.Element
+globalThis.HTMLElement = dom.window.HTMLElement
+globalThis.Node = dom.window.Node
+globalThis.getComputedStyle = dom.window.getComputedStyle
+globalThis.ResizeObserver = class { observe() {} unobserve() {} disconnect() {} }
+globalThis.requestAnimationFrame = (callback) => setTimeout(callback, 0)
+globalThis.cancelAnimationFrame = clearTimeout
 globalThis.IS_REACT_ACT_ENVIRONMENT = true
 Object.defineProperty(globalThis, "navigator", { value: dom.window.navigator })
 after(() => dom.window.close())
@@ -26,13 +33,13 @@ dom.window.HTMLElement.prototype.hasPointerCapture = function (pointerId) {
 
 const bundle = await build({
   bundle: true,
-  external: ["react", "react/jsx-runtime", "react-dom/client"],
+  external: ["@base-ui/react/popover", "react", "react/jsx-runtime", "react-dom", "react-dom/client"],
   format: "esm",
   jsx: "automatic",
   platform: "node",
   stdin: {
     contents: `
-      export { ExposureGraph } from "./src/App.tsx";
+      export { ColorPicker, ExposureGraph } from "./src/App.tsx";
       export { default as React, act } from "react";
       export { createRoot } from "react-dom/client";
     `,
@@ -45,7 +52,7 @@ stop()
 const bundleDirectory = await mkdtemp(join(process.cwd(), "tests", ".graph-"))
 const bundlePath = join(bundleDirectory, "graph.mjs")
 await writeFile(bundlePath, bundle.outputFiles[0].text)
-const { ExposureGraph, React, act, createRoot } = await import(pathToFileURL(bundlePath).href)
+const { ColorPicker, ExposureGraph, React, act, createRoot } = await import(pathToFileURL(bundlePath).href)
 await rm(bundleDirectory, { recursive: true })
 
 const preview = {
@@ -71,6 +78,7 @@ async function mountGraph(overrides = {}) {
     selectedBand: 0,
     onSelect() {},
     onChange() {},
+    onWidthChange() {},
     ...overrides,
   })))
   return { container, root }
@@ -84,12 +92,15 @@ function pointerEvent(type, { clientX, pointerId }) {
 
 test("exposure graph dispatches stepped keyboard, wheel, and pointer edits", async () => {
   const changes = []
+  const widths = []
   const { container, root } = await mountGraph({
     onChange(index, value) { changes.push([index, value]) },
+    onWidthChange(index, value) { widths.push([index, value]) },
   })
   const graph = container.querySelector("[aria-label='Editable exposure graph from -7 to 7 stops']")
   const scale = container.querySelector("[aria-label='stops scale']")
   const handle = container.querySelector("[aria-label='Band 1, 0 stops']")
+  const rightEdge = container.querySelector("[aria-label='Resize right edge of band 1']")
   assert.equal(scale.children.length, 15)
   assert.equal(graph.querySelectorAll("[data-scale-guide]").length, 15)
   assert.equal(scale.firstElementChild.textContent.trim(), "-7")
@@ -115,9 +126,13 @@ test("exposure graph dispatches stepped keyboard, wheel, and pointer edits", asy
   await act(() => graph.dispatchEvent(browserWheel))
   await act(() => handle.dispatchEvent(pointerEvent("pointerdown", { clientX: 50, pointerId: 1 })))
   await act(() => handle.dispatchEvent(pointerEvent("pointermove", { clientX: 75, pointerId: 1 })))
+  await act(() => rightEdge.dispatchEvent(new window.KeyboardEvent("keydown", { bubbles: true, key: "ArrowRight" })))
+  await act(() => rightEdge.dispatchEvent(pointerEvent("pointerdown", { clientX: 52, pointerId: 2 })))
+  await act(() => rightEdge.dispatchEvent(pointerEvent("pointermove", { clientX: 75, pointerId: 2 })))
 
   assert.equal(browserWheel.defaultPrevented, false)
   assert.deepEqual(changes, [[0, 0.25], [0, 0.25], [0, 3.5]])
+  assert.deepEqual(widths, [[0, 0.4], [0, 3.5]])
   await act(() => root.unmount())
   container.remove()
 })
@@ -136,7 +151,7 @@ test("fill mode renders draggable separators instead of numbered band markers", 
 
   assert.equal(container.querySelectorAll("[aria-label^='Boundary between colors']").length, 2)
   assert.equal(container.querySelectorAll("[aria-label^='Band ']").length, 0)
-  assert.equal(container.textContent, "")
+  assert.equal(container.querySelector("[aria-label^='Editable exposure graph']").textContent, "")
   await act(() => root.unmount())
   container.remove()
 })
@@ -149,8 +164,30 @@ test("exposure graph summarizes crowded edge values and exposes the selected one
   const { container, root } = await mountGraph({ setup: edgeSetup, selectedBand: 2 })
 
   assert.ok(container.querySelector("[aria-label='4 bands above the visible range']"))
+  assert.equal(container.querySelectorAll("[role='slider']").length, 8)
   assert.equal(container.querySelectorAll("[aria-label*='outside visible range']").length, 1)
   assert.ok(container.querySelector("[aria-label='Band 3, 10 stops, outside visible range']"))
+  await act(() => root.unmount())
+  container.remove()
+})
+
+test("color picker hides the complete ordered preset grid until requested", async () => {
+  const palette = [
+    { name: "red-50", hex: "#fff1f2" },
+    { name: "red-500", hex: "#ef4444" },
+    { name: "blue-50", hex: "#eff6ff" },
+  ]
+  const container = document.createElement("div")
+  document.body.append(container)
+  const root = createRoot(container)
+  await act(() => root.render(React.createElement(ColorPicker, { label: "Test color", value: "#ef4444", palette, onChange() {} })))
+  await act(() => container.querySelector("[aria-label='Open Test color picker']").click())
+
+  assert.equal(document.querySelector("input[type='color']"), null)
+  assert.equal(document.querySelector("[aria-label='red-50']"), null)
+  await act(() => document.querySelector("button[aria-expanded='false']").click())
+  assert.deepEqual([...document.querySelectorAll("[aria-label='Test color picker'] button[title]")].map((item) => item.title), palette.map((color) => color.name))
+  assert.equal(document.querySelector("[aria-label='red-500']").getAttribute("aria-pressed"), "true")
   await act(() => root.unmount())
   container.remove()
 })

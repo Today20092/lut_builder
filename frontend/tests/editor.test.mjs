@@ -8,7 +8,10 @@ import {
   createBand,
   exportSetup,
   filterPalette,
+  hexToHsv,
+  hsvToHex,
   importSetup,
+  resizeBandWidth,
   snapBandValue,
   stepBandValue,
   updateBand,
@@ -41,6 +44,8 @@ test("direct manipulation and discrete movement share the selected increment", (
   assert.equal(stepBandValue(0.5, -1, 0.5), 0)
   assert.equal(snapBandValue(102, 1, 0, 100), 100)
   assert.equal(stepBandValue(100, 1, 1, 0, 100), 100)
+  assert.equal(resizeBandWidth(1, -0.24), 1.2)
+  assert.equal(resizeBandWidth(1, 1), 0.1)
   assert.equal(wheelStepDirection(-1, false, false), 1)
   assert.equal(wheelStepDirection(1, false, false), -1)
   assert.equal(wheelStepDirection(0, false, false), 0)
@@ -92,6 +97,17 @@ test("fill boundaries cannot cross or reorder their colors", () => {
   assert.deepEqual(edited.bands.map((band) => band.color), ["#111111", "#222222", "#333333"])
   assert.deepEqual(edited.bands.map((band) => band.stop), [-1.25, -1, 2])
   assert.equal(updateFillBoundary(fill, 2, 10, 0.25), fill)
+})
+
+test("custom color picker converts between hex and HSV", () => {
+  assert.deepEqual(hexToHsv("#ff0000"), { hue: 0, saturation: 1, value: 1 })
+  assert.equal(hsvToHex(120, 1, 1), "#00ff00")
+  assert.equal(hsvToHex(240, 1, 1), "#0000ff")
+  assert.equal(hsvToHex(360, 1, 1), "#ff0000")
+  assert.equal(hsvToHex(-120, 2, -1), "#000000")
+  const sample = "#7c3aed"
+  const hsv = hexToHsv(sample)
+  assert.equal(hsvToHex(hsv.hue, hsv.saturation, hsv.value), sample)
 })
 
 test("bands at equal positions retain their creation order", () => {
