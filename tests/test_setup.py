@@ -28,8 +28,8 @@ def test_setup_defaults():
     assert setup.bands == []
     assert setup.band_mode == "stops"
     assert setup.fill_mode is False
-    assert setup.black_clip is False
-    assert setup.white_clip is False
+    assert setup.low_signal_warning is False
+    assert setup.high_signal_warning is False
     assert setup.legal_range is False
     assert setup.output_filename == "SonyS-Log3_Custom.cube"
 
@@ -63,7 +63,7 @@ def test_setup_rejects_invalid_values():
         )
 
 
-def test_exposure_mapping_uses_last_band_then_clipping_priority():
+def test_exposure_mapping_uses_last_band_then_warning_priority():
     setup = LutSetup(
         "Sony S-Log3",
         "Rec.709",
@@ -71,17 +71,17 @@ def test_exposure_mapping_uses_last_band_then_clipping_priority():
             {"stop": 0, "color": "#ff0000", "width": 1},
             {"stop": 0.5, "color": "#00ff00", "width": 1},
         ],
-        black_clip=True,
-        black_hex="#0000ff",
-        white_clip=True,
-        white_hex="#ffffff",
+        low_signal_warning=True,
+        low_signal_hex="#0000ff",
+        high_signal_warning=True,
+        high_signal_hex="#ffffff",
     )
 
     colors = map_exposure(
         np.array([-0.75, 0.0, 0.75]),
         setup,
-        black_clip_mask=np.array([True, False, False]),
-        white_clip_mask=np.array([True, False, True]),
+        low_signal_mask=np.array([True, False, False]),
+        high_signal_mask=np.array([True, False, True]),
     )
 
     assert colors.tolist() == ["#ffffff", "#00ff00", "#ffffff"]

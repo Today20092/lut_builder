@@ -1,6 +1,8 @@
 # lut-builder
 
-A command-line tool for generating **false color exposure LUTs** for professional cameras.
+A command-line tool for generating **diagnostic false-color scene-exposure LUTs** for professional cameras.
+
+These LUTs are monitoring diagnostics, not finished Rec.709/Rec.2020 viewing transforms. The base path decodes camera log, converts gamut, and applies the selected OETF; it does not apply an output rendering transform, tone mapping, or highlight roll-off.
 
 Load the `.cube` file into DaVinci Resolve, FCPX, Premiere, or directly onto your camera's monitor via LUT View Assist, and every stop of exposure is painted a distinct color — so you can nail exposure on set without guessing.
 
@@ -24,7 +26,7 @@ Camera Source:
 - Decodes your camera's log format (S-Log3, V-Log, LogC3, etc.) back to scene-linear light
 - Maps each exposure stop — or IRE display level — to a color you choose, using either a hex code or the full Tailwind v4 palette
 - Optionally desaturates the underlying image to monochrome so only the false color bands are visible
-- Optionally highlights crushed blacks and clipped whites in distinct colors
+- Optionally warns when any encoded RGB channel crosses configurable low or high signal thresholds
 - Writes a standards-compliant `.cube` file you can drop into any NLE or monitor
 - Saves your setup to a JSON config for one-command regeneration later
 
@@ -102,14 +104,14 @@ uv run lut-builder
 The tool walks you through ten steps, and you can press `b` at any prompt to go back:
 
 1. **Camera source** — pick your camera's log format
-2. **Target display** — Rec.709 or Rec.2020
+2. **Diagnostic output encoding** — Rec.709 or Rec.2020 (not a finished viewing transform)
 3. **Cube size** — 17 (fast preview), 33 (standard), 65 (recommended — sharper band edges)
-4. **Band mode** — *Stops* (relative to 18% middle grey) or *IRE* (target display signal level 0–100)
+4. **Band mode** — *Stops* (relative to 18% middle grey) or *IRE* (0–100 within the selected full/legal signal range)
 5. **False color bands** — enter stop or IRE values as a comma-separated list, e.g. `-2, -1, 0, 1, 2`
    - For each value, pick a color from the **Tailwind v4 palette** or enter a hex code
    - Set the band width using named presets: Razor / Thin / Narrow / **Standard** / Wide / Custom
-6. **Crushed blacks** — optional color for pixels below the sensor noise floor
-7. **Clipped whites** — optional color for blown highlights
+6. **Low encoded-signal warning** — optional color when any channel crosses the configured low threshold
+7. **High encoded-signal warning** — optional color when any channel crosses the configured high threshold
 8. **Monochrome base** — desaturate everything outside the false color bands (default: yes)
 9. **Legal / full range** — output 64–940 (broadcast) or 0–1023 (full range, default)
 10. **Output filename** — defaults to something like `SonyS-Log3_Rec709.cube`
@@ -144,9 +146,9 @@ Stops:        -2, -1, 0, 1, 2
 -1.0 stops:   sky-400     (#38bdf8)  — underexposed
  0.0 stops:   green-500   (#22c55e)  — middle grey (correct exposure)
 +1.0 stops:   yellow-400  (#facc15)  — bright
-+2.0 stops:   orange-500  (#f97316)  — near clipping
-Highlights:   red-600     (#dc2626)  — clipped whites
-Blacks:       violet-600  (#7c3aed)  — crushed shadows
++2.0 stops:   orange-500  (#f97316)  — high exposure
+High signal:  red-600     (#dc2626)  — any channel above the encoded threshold
+Low signal:   violet-600  (#7c3aed)  — any channel below the encoded threshold
 Width preset: Standard (±0.3 stops)
 Monochrome:   yes
 ```
@@ -160,6 +162,8 @@ Monochrome:   yes
 **FCPX / Premiere:** Import as a custom LUT in your color workspace
 
 > **Note:** Ensure your camera or monitor HDMI/SDI output is set to **Data / Full Range** (0–1023) unless you generated with the legal range option, in which case set it to **Legal / Video Range**.
+
+IRE follows the selected range convention: full range maps 0 IRE to code 0 and 100 IRE to code 1023; legal range maps 0 IRE to code 64 and 100 IRE to code 940. IRE bands use the same 0–100 scale in either mode. The warning thresholds inspect channels independently, so a saturated color with one low or high channel can trigger a warning.
 
 ---
 
@@ -193,11 +197,13 @@ Stops from middle grey             log2(Y / 0.18)
 Linear RGB (camera gamut)
         ↓  gamut transform         camera gamut → display gamut (Rec.709 / Rec.2020)
         ↓  oetf()                  apply display transfer function
-Rec.709 / Rec.2020 output
+Diagnostic Rec.709 / Rec.2020 encoded signal
         ↓  write_LUT()             save as .cube file
 ```
 
 CIE Y is derived from the camera's own RGB→XYZ matrix (wide gamut such as S-Gamut3.Cine or V-Gamut), not the fixed BT.709 coefficients, which would give wrong results for wide-gamut sources.
+
+The base image is intentionally only a diagnostic scene-exposure transform. It is not suitable as a final creative or display rendering without the output rendering, tone mapping, and highlight handling required by that workflow.
 
 The Tailwind color picker converts OKLCH values to sRGB hex at runtime using `colour.models.Oklab_to_XYZ` → `colour.XYZ_to_sRGB` — no internet connection required.
 

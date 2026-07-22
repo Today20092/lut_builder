@@ -6,7 +6,7 @@ from pathlib import Path
 import colour
 import pytest
 
-from lut_builder.data import CAMERA_PROFILES, MIDDLE_GREY, oklch_to_hex, validate_profiles
+from lut_builder.data import MIDDLE_GREY, PROFILE_CATALOG, ProfileCatalog, oklch_to_hex
 from lut_builder.engine import generate_lut
 from lut_builder.setup import LutSetup
 
@@ -23,21 +23,19 @@ MIDDLE_GREY_CODES = {
 def generate_neutral_sample(tmp_path, profile_name, bands=None, band_mode="stops"):
     output_path = tmp_path / f"{profile_name}-{band_mode}.cube"
     generate_lut(
-        profile_name=profile_name,
-        target_name="Rec.709",
-        cube_size=3,
-        bands=bands or [],
-        band_mode=band_mode,
-        black_clip=False,
-        black_hex="",
-        white_clip=False,
-        white_hex="",
-        monochrome=False,
-        output_filename=str(output_path),
+        LutSetup(
+            profile_name=profile_name,
+            target_name="Rec.709",
+            cube_size=17,
+            bands=bands or [],
+            band_mode=band_mode,
+            output_filename=str(output_path),
+        )
     )
     lut = colour.read_LUT(str(output_path))
     assert isinstance(lut, colour.LUT3D)
-    return lut.table[1, 1, 1]
+    center = lut.table.shape[0] // 2
+    return lut.table[center, center, center]
 
 
 def test_oklch_to_hex():
@@ -71,10 +69,10 @@ def test_engine_runs():
             cube_size=17,
             bands=[{"stop": 0.0, "color": "#ff0000", "width": 0.25}],
             band_mode="stops",
-            black_clip=False,
-            black_hex="",
-            white_clip=False,
-            white_hex="",
+            low_signal_warning=False,
+            low_signal_hex="",
+            high_signal_warning=False,
+            high_signal_hex="",
             monochrome=True,
             output_filename=str(out),
             legal_range=False,
@@ -93,10 +91,10 @@ def test_config_round_trip():
         cube_size=33,
         bands=[{"stop": 1.0, "color": "#00ff00", "width": 0.5}],
         band_mode="stops",
-        black_clip=True,
-        black_hex="#0000ff",
-        white_clip=False,
-        white_hex="",
+        low_signal_warning=True,
+        low_signal_hex="#0000ff",
+        high_signal_warning=False,
+        high_signal_hex="",
         monochrome=False,
         output_filename="test.cube",
         legal_range=False,
@@ -115,11 +113,11 @@ def test_config_round_trip():
         path.unlink(missing_ok=True)
 
 
-@pytest.mark.parametrize("profile_name", CAMERA_PROFILES)
+@pytest.mark.parametrize("profile_name", PROFILE_CATALOG.source_names())
 def test_profile_middle_grey_decodes_to_scene_linear(profile_name):
     decoded = colour.models.log_decoding(
         MIDDLE_GREY_CODES[profile_name],
-        function=str(CAMERA_PROFILES[profile_name]["log"]),
+        function=PROFILE_CATALOG.source(profile_name).log,
     )
 
     assert decoded == pytest.approx(MIDDLE_GREY, abs=1e-6)
@@ -128,21 +126,27 @@ def test_profile_middle_grey_decodes_to_scene_linear(profile_name):
 def test_generated_profiles_do_not_all_use_cineon(tmp_path):
     outputs = [
         generate_neutral_sample(tmp_path, profile_name)[0]
-        for profile_name in CAMERA_PROFILES
+        for profile_name in PROFILE_CATALOG.source_names()
     ]
 
     assert max(outputs) - min(outputs) > 0.1
 
 
-def test_profile_validation_rejects_unknown_log(monkeypatch):
-    monkeypatch.setitem(
-        CAMERA_PROFILES,
-        "Invalid",
-        {**CAMERA_PROFILES["Sony S-Log3"], "log": "not-a-log-decoder"},
+def test_profile_validation_rejects_unknown_log():
+    catalog = ProfileCatalog(
+        sources={
+            "Invalid": {
+                "gamut": "S-Gamut3.Cine",
+                "log": "not-a-log-decoder",
+                "encoded_signal_floor": 0.0,
+                "encoded_signal_ceiling": 1.0,
+            }
+        },
+        targets={},
     )
 
-    with pytest.raises(ValueError, match="Unknown log method"):
-        validate_profiles()
+    with pytest.raises(ValueError, match="log.*not supported"):
+        catalog.validate()
 
 
 @pytest.mark.parametrize(

@@ -18,10 +18,10 @@ class LutSetup:
     cube_size: int = 33
     bands: list[dict] = field(default_factory=list)
     band_mode: str = "stops"
-    black_clip: bool = False
-    black_hex: str = ""
-    white_clip: bool = False
-    white_hex: str = ""
+    low_signal_warning: bool = False
+    low_signal_hex: str = ""
+    high_signal_warning: bool = False
+    high_signal_hex: str = ""
     monochrome: bool = False
     output_filename: str = ""
     legal_range: bool = False
@@ -59,11 +59,11 @@ class LutSetup:
         self.bands = normalized
 
         for enabled, color, name in (
-            (self.black_clip, self.black_hex, "black_hex"),
-            (self.white_clip, self.white_hex, "white_hex"),
+            (self.low_signal_warning, self.low_signal_hex, "low_signal_hex"),
+            (self.high_signal_warning, self.high_signal_hex, "high_signal_hex"),
         ):
             if enabled and not HEX_COLOR.fullmatch(color):
-                raise ValueError(f"{name} must be a hex color when clipping is enabled")
+                raise ValueError(f"{name} must be a hex color when its warning is enabled")
 
     @classmethod
     def from_config(cls, config: Mapping[str, Any]) -> "LutSetup":
@@ -71,10 +71,14 @@ class LutSetup:
             "cube_size": "cube_size",
             "bands": "bands",
             "band_mode": "band_mode",
-            "black_clip": "black_clip",
-            "black_hex": "black_hex",
-            "white_clip": "white_clip",
-            "white_hex": "white_hex",
+            "black_clip": "low_signal_warning",
+            "black_hex": "low_signal_hex",
+            "white_clip": "high_signal_warning",
+            "white_hex": "high_signal_hex",
+            "low_signal_warning": "low_signal_warning",
+            "low_signal_hex": "low_signal_hex",
+            "high_signal_warning": "high_signal_warning",
+            "high_signal_hex": "high_signal_hex",
             "monochrome": "monochrome",
             "output": "output_filename",
             "legal_range": "legal_range",
@@ -98,10 +102,10 @@ class LutSetup:
             "bands": self.bands,
             "band_mode": self.band_mode,
             "fill_mode": self.fill_mode,
-            "black_clip": self.black_clip,
-            "black_hex": self.black_hex,
-            "white_clip": self.white_clip,
-            "white_hex": self.white_hex,
+            "low_signal_warning": self.low_signal_warning,
+            "low_signal_hex": self.low_signal_hex,
+            "high_signal_warning": self.high_signal_warning,
+            "high_signal_hex": self.high_signal_hex,
             "monochrome": self.monochrome,
             "legal_range": self.legal_range,
             "output": self.output_filename,
@@ -112,8 +116,8 @@ def map_exposure(
     values: np.ndarray,
     setup: LutSetup,
     *,
-    black_clip_mask: np.ndarray | None = None,
-    white_clip_mask: np.ndarray | None = None,
+    low_signal_mask: np.ndarray | None = None,
+    high_signal_mask: np.ndarray | None = None,
     width_buffer: float = 0.0,
 ) -> np.ndarray:
     """Return the configured overlay color for each exposure value."""
@@ -134,8 +138,8 @@ def map_exposure(
             )
             colors[mask] = band["color"]
 
-    if setup.black_clip and black_clip_mask is not None:
-        colors[np.asarray(black_clip_mask)] = setup.black_hex
-    if setup.white_clip and white_clip_mask is not None:
-        colors[np.asarray(white_clip_mask)] = setup.white_hex
+    if setup.low_signal_warning and low_signal_mask is not None:
+        colors[np.asarray(low_signal_mask)] = setup.low_signal_hex
+    if setup.high_signal_warning and high_signal_mask is not None:
+        colors[np.asarray(high_signal_mask)] = setup.high_signal_hex
     return colors

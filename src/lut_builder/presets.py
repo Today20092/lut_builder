@@ -4,8 +4,8 @@
 #
 #   1. STOP_COLOR_MAP  — suggests a Tailwind color for a given stop value,
 #      following the industry-standard false color convention:
-#      deep blue (crushed) → blue → cyan → green (middle grey) →
-#      yellow → orange → red (clipped)
+#      deep blue → blue → cyan → green (middle grey) →
+#      yellow → orange → red (high exposure)
 #
 #   2. WIDTH_PRESETS — named band widths with plain-English descriptions
 #      of how much of a typical image will be painted in false color.
@@ -31,7 +31,7 @@ from .colors import TAILWIND_COLORS
 #   Middle grey zone → green
 #   Slightly over  → yellow
 #   Bright     → orange
-#   Near clip  → red
+#   High exposure → red
 
 _STOP_THRESHOLDS: list[tuple[float, str, str]] = [
     (-3.0, "violet", "800"),  # ≤ -3.0 stops — deep underexposure
@@ -43,7 +43,7 @@ _STOP_THRESHOLDS: list[tuple[float, str, str]] = [
     (2.0, "yellow", "400"),  #  1.0 to  2.0 — bright
     (3.0, "orange", "500"),  #  2.0 to  3.0 — very bright
 ]
-_FALLBACK = ("red", "600")  #  > 3.0 stops — near clipping
+_FALLBACK = ("red", "600")  #  > 3.0 stops — high exposure
 
 
 def suggest_color_for_stop(stop: float) -> tuple[str, str, str]:
@@ -79,7 +79,7 @@ _IRE_THRESHOLDS: list[tuple[float, str, str]] = [
     (65, "yellow", "400"),  # 55–65 IRE — skin tones / bright
     (80, "orange", "500"),  # 65–80 IRE — highlights
 ]
-_IRE_FALLBACK = ("red", "600")  # > 80 IRE — near clip
+_IRE_FALLBACK = ("red", "600")  # > 80 IRE — high signal
 
 
 def suggest_color_for_ire(ire: float) -> tuple[str, str, str]:

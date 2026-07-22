@@ -10,8 +10,8 @@ def test_catalog_returns_source_and_target_facts():
     assert source.name == "Sony S-Log3"
     assert source.gamut == "S-Gamut3.Cine"
     assert source.log == "S-Log3"
-    assert source.log_floor == pytest.approx(0.0929)
-    assert source.log_ceiling == pytest.approx(0.94)
+    assert source.encoded_signal_floor == pytest.approx(0.0929)
+    assert source.encoded_signal_ceiling == pytest.approx(0.94)
     assert target.name == "Rec.709"
     assert target.gamut == "ITU-R BT.709"
     assert target.transfer == "ITU-R BT.709"
@@ -24,8 +24,8 @@ def test_catalog_validation_reports_invalid_profile_entries():
             "Broken camera": {
                 "gamut": [],
                 "log": {},
-                "log_floor": 1.1,
-                "log_ceiling": -0.1,
+                "encoded_signal_floor": 1.1,
+                "encoded_signal_ceiling": -0.1,
             }
         },
         targets={
@@ -46,5 +46,12 @@ def test_catalog_validation_reports_invalid_profile_entries():
         catalog.validate()
 
     message = str(exc_info.value)
-    for field in ("gamut", "log", "log_floor", "log_ceiling", "encoding", "transfer"):
+    for field in (
+        "gamut",
+        "log",
+        "encoded_signal_floor",
+        "encoded_signal_ceiling",
+        "encoding",
+        "transfer",
+    ):
         assert field in message

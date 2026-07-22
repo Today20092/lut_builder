@@ -19,7 +19,7 @@ LUMA_WEIGHTS = np.array([0.2126, 0.7152, 0.0722])
 # Camera Profiles
 #
 # Each profile may include an optional "sources" list of URLs or document
-# titles citing where the numeric values (clip codes, stop ranges) were
+# titles citing where the numeric values (warning thresholds, stop ranges) were
 # derived from. Add or extend this list when referencing a new spec sheet.
 # ---------------------------------------------------------------------------
 
@@ -27,8 +27,8 @@ _SOURCE_DATA = {
     "Sony S-Log3": {
         "gamut": "S-Gamut3.Cine",
         "log": "S-Log3",
-        "log_ceiling": 0.94,  # S-Log3 hard digital ceiling (~94 IRE)
-        "log_floor": 0.0929,  # 0% black = 10-bit code 95 → 95/1023 (3.5% IRE)
+        "encoded_signal_ceiling": 0.94,
+        "encoded_signal_floor": 0.0929,
         "sources": [
             "https://pro.sony/s3/cms-static-content/uploadfile/06/1237494271406.pdf",
         ],
@@ -36,8 +36,8 @@ _SOURCE_DATA = {
     "Panasonic V-Log": {
         "gamut": "V-Gamut",
         "log": "V-Log",
-        "log_ceiling": 0.8906,  # Varicam 35 clip = 10-bit code 911 → 911/1023 (~96.7 IRE legal)
-        "log_floor": 0.1251,    # 0% reflectance = 10-bit code 128 → 128/1023
+        "encoded_signal_ceiling": 0.8906,
+        "encoded_signal_floor": 0.1251,
         "sources": [
             "https://pro-av.panasonic.net/en/cinema_camera_varicam_eva/support/pdf/VARICAM_V-Log_V-Gamut.pdf",
         ],
@@ -45,8 +45,8 @@ _SOURCE_DATA = {
     "Canon Log 3": {
         "gamut": "Cinema Gamut",
         "log": "Canon Log 3",
-        "log_ceiling": 0.90,  # Canon Log 3 hard ceiling
-        "log_floor": 0.04,  # Canon Log 3 digital black
+        "encoded_signal_ceiling": 0.90,
+        "encoded_signal_floor": 0.04,
         "sources": [
             "https://downloads.canon.com/nw/camera/products/cinema-eos/c300-mark-ii/white-papers/canon-c300-mk-ii-image-performance-wp.pdf"
         ],
@@ -54,8 +54,8 @@ _SOURCE_DATA = {
     "ARRI LogC3": {
         "gamut": "ARRI Wide Gamut 3",
         "log": "ARRI LogC3",
-        "log_ceiling": 0.91,  # LogC3 hard ceiling (EI 800)
-        "log_floor": 0.03,  # LogC3 digital black
+        "encoded_signal_ceiling": 0.91,
+        "encoded_signal_floor": 0.03,
         "sources": [
             "https://www.arri.com/resource/blob/31918/66f56e6abb6e5b6553929edf9aa7483e/2012-01-arrilog-c-logarithmic-cine-camera-image-encoding-data.pdf",
         ],
@@ -63,8 +63,8 @@ _SOURCE_DATA = {
     "RED Log3G10": {
         "gamut": "REDWideGamutRGB",
         "log": "Log3G10",
-        "log_ceiling": 1.0,  # Log3G10 uses the full 0–1 code range
-        "log_floor": 0.0,  # Log3G10 has no raised digital black
+        "encoded_signal_ceiling": 1.0,
+        "encoded_signal_floor": 0.0,
         "sources": [
             "https://www.red.com/download/ipp2-technical-paper",
         ],
@@ -145,8 +145,8 @@ class CameraSource:
     name: str
     gamut: str
     log: str
-    log_floor: float
-    log_ceiling: float
+    encoded_signal_floor: float
+    encoded_signal_ceiling: float
     sources: tuple[str, ...]
 
 @dataclass(frozen=True)
@@ -172,8 +172,8 @@ class ProfileCatalog:
         for name, source in self._sources.items():
             gamut = source.get("gamut")
             log = source.get("log")
-            floor = source.get("log_floor")
-            ceiling = source.get("log_ceiling")
+            floor = source.get("encoded_signal_floor")
+            ceiling = source.get("encoded_signal_ceiling")
 
             if not isinstance(gamut, str):
                 errors.append(f"source [{name}] gamut must be a string; got {gamut!r}")
@@ -189,11 +189,11 @@ class ProfileCatalog:
                 )
             if not _is_normalized_number(floor):
                 errors.append(
-                    f"source [{name}] log_floor must be a number from 0 to 1; got {floor!r}"
+                    f"source [{name}] encoded_signal_floor must be a number from 0 to 1; got {floor!r}"
                 )
             if not _is_normalized_number(ceiling):
                 errors.append(
-                    f"source [{name}] log_ceiling must be a number from 0 to 1; got {ceiling!r}"
+                    f"source [{name}] encoded_signal_ceiling must be a number from 0 to 1; got {ceiling!r}"
                 )
             if (
                 _is_normalized_number(floor)
@@ -201,7 +201,7 @@ class ProfileCatalog:
                 and cast(float, floor) >= cast(float, ceiling)
             ):
                 errors.append(
-                    f"source [{name}] log_floor must be below log_ceiling"
+                    f"source [{name}] encoded_signal_floor must be below encoded_signal_ceiling"
                 )
 
         for name, target in self._targets.items():
@@ -238,8 +238,8 @@ class ProfileCatalog:
             name=name,
             gamut=cast(str, source["gamut"]),
             log=cast(str, source["log"]),
-            log_floor=cast(float, source["log_floor"]),
-            log_ceiling=cast(float, source["log_ceiling"]),
+            encoded_signal_floor=cast(float, source["encoded_signal_floor"]),
+            encoded_signal_ceiling=cast(float, source["encoded_signal_ceiling"]),
             sources=tuple(cast(Iterable[str], source.get("sources", ()))),
         )
 

@@ -29,7 +29,7 @@ from .presets import (
     IRE_WIDTH_PRESETS,
 )
 
-app = typer.Typer(help="Interactive Custom Camera LUT Generator")
+app = typer.Typer(help="Interactive diagnostic scene-exposure LUT generator")
 console = Console()
 
 SHADES = ["50", "100", "200", "300", "400", "500", "600", "700", "800", "900", "950"]
@@ -59,13 +59,13 @@ DATA_LEVELS_WARNING = (
     "\n  [bold yellow]⚠  Monitor Configuration[/bold yellow]\n"
     "  Ensure your camera/monitor HDMI/SDI output is set to\n"
     "  [bold]Data / Full Range[/bold] (0-255 / 0-1023).\n"
-    "  If set to 'Legal / Video Range', the physical black/white\n"
-    "  clipping indicators will not align correctly.\n"
+    "  Full-range IRE maps 0–100 IRE to codes 0–1023.\n"
 )
 
 LEGAL_LEVELS_NOTE = (
     "\n  [bold cyan]ℹ  Legal Range Output[/bold cyan]\n"
     "  This LUT outputs legal/video range (10-bit codes 64–940).\n"
+    "  Legal-range IRE maps 0–100 IRE to codes 64–940.\n"
     "  Set your camera/monitor HDMI/SDI output to\n"
     "  [bold]Legal / Video Range[/bold] for correct alignment.\n"
 )
@@ -418,16 +418,17 @@ def collect_false_color_bands(band_mode: str = "stops", fill_mode: bool = False)
 def print_exposure_preview(setup: LutSetup) -> None:
     """
     Renders a horizontal stop bar in the terminal showing every exposure band
-    and clip indicator colored in their chosen colors.
+    and encoded-signal warning colored in their chosen colors.
     """
     bands = setup.bands
-    black_clip = setup.black_clip
-    black_hex = setup.black_hex
-    white_clip = setup.white_clip
-    white_hex = setup.white_hex
+    profile = PROFILE_CATALOG.source(setup.profile_name)
+    low_signal_warning = setup.low_signal_warning
+    low_signal_hex = setup.low_signal_hex
+    high_signal_warning = setup.high_signal_warning
+    high_signal_hex = setup.high_signal_hex
     fill_mode = setup.fill_mode
 
-    # Dynamically determine the range based on user's bands and clip settings
+    # Dynamically determine the range from the user's exposure bands.
     if setup.band_mode == "ire":
         lo_stops, hi_stops = 0.0, 100.0
     elif fill_mode and bands:
@@ -438,12 +439,6 @@ def print_exposure_preview(setup: LutSetup) -> None:
         hi_stops = max(band["stop"] + band["width"] for band in bands) + 1.0
     else:
         lo_stops, hi_stops = -7.0, 7.0
-
-    # Ensure we show the clip markers if they are enabled
-    if black_clip and setup.band_mode == "stops":
-        lo_stops = min(lo_stops, -8.0)
-    if white_clip and setup.band_mode == "stops":
-        hi_stops = max(hi_stops, 8.0)
 
     lo = lo_stops
     hi = hi_stops
@@ -457,13 +452,9 @@ def print_exposure_preview(setup: LutSetup) -> None:
 
     # Build a color lookup for each bar position
     values = np.linspace(lo, hi, BAR_WIDTH)
-    black_mask = np.arange(BAR_WIDTH) == 0 if black_clip else None
-    white_mask = np.arange(BAR_WIDTH) == BAR_WIDTH - 1 if white_clip else None
     mapped = map_exposure(
         values,
         setup,
-        black_clip_mask=black_mask,
-        white_clip_mask=white_mask,
         width_buffer=half_step,
     )
     bar_colors = [color or UNASSIGNED for color in mapped]
@@ -499,20 +490,19 @@ def print_exposure_preview(setup: LutSetup) -> None:
     console.print(Text.assemble("  ", label_line))
 
     # Legend
-    if bands or (black_clip and black_hex) or (white_clip and white_hex):
-        lo_clip_label = (
-            f"{lo:.0f} IRE" if setup.band_mode == "ire" else f"{lo:+.1f} stops"
-        )
-        hi_clip_label = (
-            f"{hi:.0f} IRE" if setup.band_mode == "ire" else f"{hi:+.1f} stops"
-        )
+    if bands or (low_signal_warning and low_signal_hex) or (high_signal_warning and high_signal_hex):
         console.print()
-        if black_clip and black_hex:
+        if low_signal_warning and low_signal_hex:
             console.print(
                 Text.assemble(
                     "  ",
-                    swatch(black_hex),
-                    (f"  crushed blacks  ≤ {lo_clip_label}", "dim"),
+                    swatch(low_signal_hex),
+                    (
+                        "  low warning when any channel ≤ "
+                        f"{profile.encoded_signal_floor:.3f} encoded signal "
+                        "(not shown on stop axis)",
+                        "dim",
+                    ),
                 )
             )
         for band in sorted(bands, key=lambda b: b["stop"]):
@@ -534,12 +524,17 @@ def print_exposure_preview(setup: LutSetup) -> None:
                     (f"  {label}{suffix}", "dim"),
                 )
             )
-        if white_clip and white_hex:
+        if high_signal_warning and high_signal_hex:
             console.print(
                 Text.assemble(
                     "  ",
-                    swatch(white_hex),
-                    (f"  clipped whites  ≥ {hi_clip_label}", "dim"),
+                    swatch(high_signal_hex),
+                    (
+                        "  high warning when any channel ≥ "
+                        f"{profile.encoded_signal_ceiling:.3f} encoded signal "
+                        "(not shown on stop axis)",
+                        "dim",
+                    ),
                 )
             )
     console.print()
@@ -561,7 +556,7 @@ def load_config(path: Path) -> LutSetup:
     except json.JSONDecodeError as e:
         console.print(f"[red]Invalid JSON in config file: {e}[/red]")
         raise typer.Exit(1)
-    if data.get("version", 0) != 1:
+    if data.get("version", 0) not in (1, 2):
         console.print("[yellow]Warning: config has no version field — it may be outdated.[/yellow]")
     try:
         return LutSetup.from_config(data)
@@ -572,7 +567,7 @@ def load_config(path: Path) -> LutSetup:
 
 def save_config(path: Path, setup: LutSetup) -> None:
     """Save the current session config to a JSON file."""
-    cfg_with_version = {"version": 1, **setup.to_config()}
+    cfg_with_version = {"version": 2, **setup.to_config()}
     with open(path, "w") as f:
         json.dump(cfg_with_version, f, indent=2)
     console.print(f"\n  [green]✓[/green] Config saved to [bold]{path}[/bold]")
@@ -612,7 +607,7 @@ def numbered_choice(title: str, options: list[str], allow_back: bool = False) ->
 
 @app.command(name="list")
 def list_profiles():
-    """List all supported camera and target display profiles."""
+    """List all supported camera profiles and diagnostic output encodings."""
     cam_table = Table(title="Camera Profiles", box=None, padding=(0, 3))
     cam_table.add_column("#", style="bold cyan", justify="right")
     cam_table.add_column("Camera", style="white")
@@ -630,7 +625,7 @@ def list_profiles():
             source.log,
         )
 
-    tgt_table = Table(title="Target Display Profiles", box=None, padding=(0, 3))
+    tgt_table = Table(title="Diagnostic Output Encodings", box=None, padding=(0, 3))
     tgt_table.add_column("#", style="bold cyan", justify="right")
     tgt_table.add_column("Target", style="white")
     tgt_table.add_column("Gamut", style="dim")
@@ -710,7 +705,7 @@ def build(
     ),
 ):
     """
-    Generate a false color exposure LUT for your camera.
+    Generate a diagnostic false-color scene-exposure LUT for your camera.
 
     Run without arguments for an interactive session, pass --config to
     regenerate non-interactively, and --output-dir to control where the
@@ -781,7 +776,7 @@ def build(
         return {**state, "profile_name": result}
 
     def step_target(state):
-        console.print("[bold]Target Display:[/bold]")
+        console.print("[bold]Diagnostic output encoding:[/bold]")
         result = numbered_choice("Select", list(PROFILE_CATALOG.target_names()), allow_back=True)
         if result is BACK:
             return BACK
@@ -806,7 +801,7 @@ def build(
             "Select",
             [
                 "Stops (relative to 18% middle grey)",
-                "IRE (target display signal level 0-100)",
+                "IRE (0-100 within the selected full/legal signal range)",
                 "Fill (every pixel gets a false color — full-coverage Voronoi zones)",
             ],
             allow_back=True,
@@ -830,14 +825,14 @@ def build(
             return BACK
         return {**state, "bands": result}
 
-    def step_black_clip(state):
+    def step_low_signal_warning(state):
         console.print()
         while True:
-            result = confirm_with_back("Highlight crushed blacks?")
+            result = confirm_with_back("Warn when any channel crosses the low encoded-signal threshold?")
             if result is BACK:
                 return BACK
             if not result:
-                return {**state, "black_clip": False, "black_hex": ""}
+                return {**state, "low_signal_warning": False, "low_signal_hex": ""}
             _, _, suggested = suggest_color_for_stop(-99)
             console.print(Text.assemble(
                 "\n  Suggested: violet-800  ",
@@ -846,19 +841,19 @@ def build(
             ))
             use = confirm_with_back("  Use this color?", default=True)
             if use is BACK:
-                continue  # redo from "Highlight crushed blacks?"
-            color = suggested if use else pick_color("Color for crushed blacks", suggested)
+                continue
+            color = suggested if use else pick_color("Low encoded-signal warning color", suggested)
             if color is BACK:
                 continue
-            return {**state, "black_clip": True, "black_hex": color}
+            return {**state, "low_signal_warning": True, "low_signal_hex": color}
 
-    def step_white_clip(state):
+    def step_high_signal_warning(state):
         while True:
-            result = confirm_with_back("\nHighlight clipped whites?")
+            result = confirm_with_back("\nWarn when any channel crosses the high encoded-signal threshold?")
             if result is BACK:
                 return BACK
             if not result:
-                return {**state, "white_clip": False, "white_hex": ""}
+                return {**state, "high_signal_warning": False, "high_signal_hex": ""}
             _, _, suggested = suggest_color_for_stop(99)
             console.print(Text.assemble(
                 "\n  Suggested: red-600  ",
@@ -868,10 +863,10 @@ def build(
             use = confirm_with_back("  Use this color?", default=True)
             if use is BACK:
                 continue
-            color = suggested if use else pick_color("Color for clipped whites", suggested)
+            color = suggested if use else pick_color("High encoded-signal warning color", suggested)
             if color is BACK:
                 continue
-            return {**state, "white_clip": True, "white_hex": color}
+            return {**state, "high_signal_warning": True, "high_signal_hex": color}
 
     def step_mono(state):
         if state.get("fill_mode", False):
@@ -910,8 +905,8 @@ def build(
         step_cube,
         step_band_mode,
         step_bands,
-        step_black_clip,
-        step_white_clip,
+        step_low_signal_warning,
+        step_high_signal_warning,
         step_mono,
         step_legal,
         step_output,

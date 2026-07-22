@@ -18,10 +18,10 @@ def generate_lut(setup: LutSetup) -> Path:
     cube_size = setup.cube_size
     bands = setup.bands
     band_mode = setup.band_mode
-    black_clip = setup.black_clip
-    black_hex = setup.black_hex
-    white_clip = setup.white_clip
-    white_hex = setup.white_hex
+    low_signal_warning = setup.low_signal_warning
+    low_signal_hex = setup.low_signal_hex
+    high_signal_warning = setup.high_signal_warning
+    high_signal_hex = setup.high_signal_hex
     monochrome = setup.monochrome
     output_filename = setup.output_filename
     legal_range = setup.legal_range
@@ -129,43 +129,38 @@ def generate_lut(setup: LutSetup) -> Path:
     band_values = ire if band_mode == "ire" else stops
 
     # ------------------------------------------------------------------
-    # 8. Clipping indicators — based on raw log signal, NOT linear stops
+    # 8. Encoded-signal warnings
     #
-    # Physical sensor clipping is a property of the raw digital signal.
-    # Each camera profile defines log_ceiling / log_floor: the code-value
-    # limits (0.0–1.0) beyond which the sensor has run out of data.
-    #
-    # We evaluate clipping against the *samples* array (the raw log input
-    # grid), not the decoded linear data, because linear-domain thresholds
-    # can miss real sensor saturation.
+    # These configurable code-value thresholds flag the encoded LUT input.
+    # They cannot prove physical sensor clipping from processed RGB.
     #
     # Because a 33-pt LUT has evenly-spaced nodes that rarely land exactly
-    # on the ceiling/floor, we apply a small tolerance (half a grid step)
-    # so the clip bands render solidly on-screen.
+    # on the thresholds, we apply a small tolerance (half a grid step)
+    # so the warnings render solidly on-screen.
     # ------------------------------------------------------------------
-    log_ceiling = profile.log_ceiling
-    log_floor = profile.log_floor
+    signal_ceiling = profile.encoded_signal_ceiling
+    signal_floor = profile.encoded_signal_floor
     grid_step = 1.0 / (cube_size - 1)
-    clip_tol = grid_step / 2.0
+    warning_tolerance = grid_step / 2.0
 
-    black_mask = None
-    if black_clip:
+    low_mask = None
+    if low_signal_warning:
         channel_min = np.min(samples, axis=1)
-        black_mask = channel_min <= (log_floor + clip_tol)
+        low_mask = channel_min <= (signal_floor + warning_tolerance)
 
-    white_mask = None
-    if white_clip:
+    high_mask = None
+    if high_signal_warning:
         channel_max = np.max(samples, axis=1)
-        white_mask = channel_max >= (log_ceiling - clip_tol)
+        high_mask = channel_max >= (signal_ceiling - warning_tolerance)
 
     overlay_colors = map_exposure(
         band_values,
         setup,
-        black_clip_mask=black_mask,
-        white_clip_mask=white_mask,
+        low_signal_mask=low_mask,
+        high_signal_mask=high_mask,
     )
     for color in dict.fromkeys(
-        [band["color"] for band in bands] + [black_hex, white_hex]
+        [band["color"] for band in bands] + [low_signal_hex, high_signal_hex]
     ):
         if color:
             final_data[overlay_colors == color] = hex_to_rgb(color)
@@ -182,12 +177,18 @@ def generate_lut(setup: LutSetup) -> Path:
         f"Cube size   : {cube_size}x{cube_size}x{cube_size}",
         f"Monochrome  : {'yes' if monochrome else 'no'}",
         f"Output range: {'Legal (64-940)' if legal_range else 'Full (0-1023)'}",
+        (
+            "IRE         : 0=code 64, 100=code 940 (legal-range convention)"
+            if legal_range
+            else "IRE         : 0=code 0, 100=code 1023 (full-range convention)"
+        ),
+        "Purpose     : diagnostic scene-exposure transform; not a finished viewing transform",
         "",
         f"Source      : {profile_name}",
         f"  Gamut     : {profile.gamut}",
         f"  Log       : {profile.log}",
-        f"  Log floor : {log_floor:.3f}  (sensor digital black)",
-        f"  Log ceil  : {log_ceiling:.3f}  (sensor digital ceiling)",
+        f"  Signal low: {signal_floor:.3f}  (encoded-signal warning threshold)",
+        f"  Signal high: {signal_ceiling:.3f}  (encoded-signal warning threshold)",
         "",
         f"Target      : {target_name}",
         f"  Gamut     : {target.gamut}",
@@ -233,17 +234,17 @@ def generate_lut(setup: LutSetup) -> Path:
 
     comments.append("")
 
-    clip_lines = []
-    if black_clip and black_hex:
-        clip_lines.append(f"  Crushed blacks  ->  {black_hex}")
-    if white_clip and white_hex:
-        clip_lines.append(f"  Clipped whites  ->  {white_hex}")
+    warning_lines = []
+    if low_signal_warning and low_signal_hex:
+        warning_lines.append(f"  Low channel  ->  {low_signal_hex}")
+    if high_signal_warning and high_signal_hex:
+        warning_lines.append(f"  High channel ->  {high_signal_hex}")
 
-    if clip_lines:
-        comments.append("Clipping Indicators:")
-        comments.extend(clip_lines)
+    if warning_lines:
+        comments.append("Encoded-Signal Warnings (any channel crossing threshold):")
+        comments.extend(warning_lines)
     else:
-        comments.append("Clipping Indicators: none")
+        comments.append("Encoded-Signal Warnings: none")
 
     lut.comments = comments
 
@@ -253,8 +254,8 @@ def generate_lut(setup: LutSetup) -> Path:
     # Scales the full-range [0, 1] output to the broadcast legal window:
     #   10-bit codes 64–940 out of 1023  →  [64/1023, 940/1023]
     #
-    # Applied after all false color and clip overlays so those colors
-    # are also correctly scaled (a clipping indicator at #ff0000 will
+    # Applied after all false color and warning overlays so those colors
+    # are also correctly scaled (a warning color at #ff0000 will
     # land at the legal-range equivalent, not full-range 1.0).
     # ------------------------------------------------------------------
     if legal_range:
