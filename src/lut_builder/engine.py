@@ -5,33 +5,42 @@ import numpy as np
 from datetime import datetime
 from pathlib import Path
 from .data import (
-    CAMERA_PROFILES,
-    TARGET_PROFILES,
     MIDDLE_GREY,
+    PROFILE_CATALOG,
     hex_to_rgb,
 )
+from .setup import LutSetup, map_exposure
 
 
-def generate_lut(
-    profile_name: str,
-    target_name: str,
-    cube_size: int,
-    bands: list[dict],
-    # Each dict: {"stop": float, "color": "#rrggbb", "width": float}
-    # Bands are applied in order — later entries overwrite earlier ones on overlap.
-    # In fill_mode, "width" is ignored; every pixel is assigned to its nearest stop.
-    band_mode: str,  # "stops" or "ire"
-    black_clip: bool,
-    black_hex: str,
-    white_clip: bool,
-    white_hex: str,
-    monochrome: bool,
-    output_filename: str,
-    legal_range: bool = False,
-    fill_mode: bool = False,
-) -> Path:
-    profile = CAMERA_PROFILES[profile_name]
-    target = TARGET_PROFILES[target_name]
+def _srgb_overlay_to_target(hex_code: str, target, target_space) -> np.ndarray:
+    """Convert an sRGB hex color to the target gamut and transfer function."""
+    srgb_values = np.asarray(hex_to_rgb(hex_code))
+    if target.gamut == "ITU-R BT.709":
+        return srgb_values
+    srgb = colour.RGB_COLOURSPACES["sRGB"]
+    linear_srgb = colour.cctf_decoding(srgb_values, function="sRGB")
+    target_linear = colour.RGB_to_RGB(linear_srgb, srgb, target_space)
+    if target.encoding == "oetf":
+        return colour.models.oetf(target_linear, function=target.transfer)
+    return colour.models.log_encoding(target_linear, function=target.transfer)
+
+
+def generate_lut(setup: LutSetup) -> Path:
+    profile_name = setup.profile_name
+    target_name = setup.target_name
+    cube_size = setup.cube_size
+    bands = setup.bands
+    band_mode = setup.band_mode
+    low_signal_warning = setup.low_signal_warning
+    low_signal_hex = setup.low_signal_hex
+    high_signal_warning = setup.high_signal_warning
+    high_signal_hex = setup.high_signal_hex
+    monochrome = setup.monochrome
+    output_filename = setup.output_filename
+    legal_range = setup.legal_range
+    fill_mode = setup.fill_mode
+    profile = PROFILE_CATALOG.source(profile_name)
+    target = PROFILE_CATALOG.target(target_name)
 
     # ------------------------------------------------------------------
     # 1. Initialize LUT
@@ -43,8 +52,8 @@ def generate_lut(
     # ------------------------------------------------------------------
     # 2. Colour spaces
     # ------------------------------------------------------------------
-    src_cs = colour.RGB_COLOURSPACES[profile["gamut"]]
-    tgt_cs = colour.RGB_COLOURSPACES[target["gamut"]]
+    src_cs = colour.RGB_COLOURSPACES[profile.gamut]
+    tgt_cs = colour.RGB_COLOURSPACES[target.gamut]
 
     # ------------------------------------------------------------------
     # 3. Log -> scene-linear
@@ -52,7 +61,7 @@ def generate_lut(
     # to middle grey will decode to exactly MIDDLE_GREY (0.18) in
     # scene-linear space — no per-camera config is needed for this.
     # ------------------------------------------------------------------
-    linear_data = colour.models.log_decoding(samples, method=profile["log"])
+    linear_data = colour.models.log_decoding(samples, function=profile.log)
 
     # ------------------------------------------------------------------
     # 4. Scene luminance -> stops
@@ -101,11 +110,11 @@ def generate_lut(
     # log encoding. Using log_encoding() here was the original bug —
     # it would silently apply the wrong curve and shift all values.
     # ------------------------------------------------------------------
-    encoding = target.get("encoding", "oetf")
+    encoding = target.encoding
     if encoding == "oetf":
-        final_data = colour.models.oetf(rgb_linear_tgt, function=target["gamma"])
+        final_data = colour.models.oetf(rgb_linear_tgt, function=target.transfer)
     else:
-        final_data = colour.models.log_encoding(rgb_linear_tgt, method=target["gamma"])
+        final_data = colour.models.log_encoding(rgb_linear_tgt, method=target.transfer)
 
     # ------------------------------------------------------------------
     # 6b. Compute IRE values (only when band_mode == "ire")
@@ -132,58 +141,44 @@ def generate_lut(
     # ------------------------------------------------------------------
     band_values = ire if band_mode == "ire" else stops
 
-    if fill_mode and bands:
-        # Voronoi partition: every pixel gets the color of its nearest stop.
-        # Outermost stops' colors extend to -inf / +inf with no uncolored pixels.
-        sorted_bands = sorted(bands, key=lambda b: b["stop"])
-        centers = np.array([b["stop"] for b in sorted_bands])
-        colors = [hex_to_rgb(b["color"]) for b in sorted_bands]
-        # Shape: (N_pixels, N_bands) — argmin over axis=1 gives nearest band index
-        diffs = np.abs(band_values[:, None] - centers[None, :])
-        nearest = np.argmin(diffs, axis=1)
-        for idx, rgb in enumerate(colors):
-            final_data[nearest == idx] = rgb
-    else:
-        for band in bands:
-            center = band["stop"]  # stop value or IRE target
-            width = band["width"]
-            rgb = hex_to_rgb(band["color"])
-            mask = (band_values >= (center - width)) & (band_values <= (center + width))
-            final_data[mask] = rgb
-
     # ------------------------------------------------------------------
-    # 8. Clipping indicators — based on raw log signal, NOT linear stops
+    # 8. Encoded-signal warnings
     #
-    # Physical sensor clipping is a property of the raw digital signal.
-    # Each camera profile defines log_ceiling / log_floor: the code-value
-    # limits (0.0–1.0) beyond which the sensor has run out of data.
-    #
-    # We evaluate clipping against the *samples* array (the raw log input
-    # grid), not the decoded linear data, because linear-domain thresholds
-    # can miss real sensor saturation.
+    # These configurable code-value thresholds flag the encoded LUT input.
+    # They cannot prove physical sensor clipping from processed RGB.
     #
     # Because a 33-pt LUT has evenly-spaced nodes that rarely land exactly
-    # on the ceiling/floor, we apply a small tolerance (half a grid step)
-    # so the clip bands render solidly on-screen.
+    # on the thresholds, we apply a small tolerance (half a grid step)
+    # so the warnings render solidly on-screen.
     # ------------------------------------------------------------------
-    log_ceiling = profile.get("log_ceiling", 1.0)
-    log_floor = profile.get("log_floor", 0.0)
+    signal_ceiling = profile.encoded_signal_ceiling
+    signal_floor = profile.encoded_signal_floor
     grid_step = 1.0 / (cube_size - 1)
-    clip_tol = grid_step / 2.0
+    warning_tolerance = grid_step / 2.0
 
-    if black_clip and black_hex:
-        black_rgb = hex_to_rgb(black_hex)
-        # Clip when the minimum channel sits at or below the sensor floor
+    low_mask = None
+    if low_signal_warning:
         channel_min = np.min(samples, axis=1)
-        black_mask = channel_min <= (log_floor + clip_tol)
-        final_data[black_mask] = black_rgb
+        low_mask = channel_min <= (signal_floor + warning_tolerance)
 
-    if white_clip and white_hex:
-        white_rgb = hex_to_rgb(white_hex)
-        # Clip when the maximum channel hits or exceeds the sensor ceiling
+    high_mask = None
+    if high_signal_warning:
         channel_max = np.max(samples, axis=1)
-        white_mask = channel_max >= (log_ceiling - clip_tol)
-        final_data[white_mask] = white_rgb
+        high_mask = channel_max >= (signal_ceiling - warning_tolerance)
+
+    overlay_colors = map_exposure(
+        band_values,
+        setup,
+        low_signal_mask=low_mask,
+        high_signal_mask=high_mask,
+    )
+    for color in dict.fromkeys(
+        [band["color"] for band in bands] + [low_signal_hex, high_signal_hex]
+    ):
+        if color:
+            final_data[overlay_colors == color] = _srgb_overlay_to_target(
+                color, target, tgt_cs
+            )
 
     # ------------------------------------------------------------------
     # 9. Build comment header
@@ -197,20 +192,26 @@ def generate_lut(
         f"Cube size   : {cube_size}x{cube_size}x{cube_size}",
         f"Monochrome  : {'yes' if monochrome else 'no'}",
         f"Output range: {'Legal (64-940)' if legal_range else 'Full (0-1023)'}",
+        (
+            "IRE         : 0=code 64, 100=code 940 (legal-range convention)"
+            if legal_range
+            else "IRE         : 0=code 0, 100=code 1023 (full-range convention)"
+        ),
+        "Purpose     : diagnostic scene-exposure transform; not a finished viewing transform",
         "",
         f"Source      : {profile_name}",
-        f"  Gamut     : {profile['gamut']}",
-        f"  Log       : {profile['log']}",
-        f"  Log floor : {log_floor:.3f}  (sensor digital black)",
-        f"  Log ceil  : {log_ceiling:.3f}  (sensor digital ceiling)",
+        f"  Gamut     : {profile.gamut}",
+        f"  Log       : {profile.log}",
+        f"  Signal low: {signal_floor:.3f}  (encoded-signal warning threshold)",
+        f"  Signal high: {signal_ceiling:.3f}  (encoded-signal warning threshold)",
         "",
         f"Target      : {target_name}",
-        f"  Gamut     : {target['gamut']}",
-        f"  Transfer  : {target['gamma']} ({target.get('encoding', 'oetf').upper()})",
+        f"  Gamut     : {target.gamut}",
+        f"  Transfer  : {target.transfer} ({target.encoding.upper()})",
         "",
     ]
 
-    sources = profile.get("sources", [])
+    sources = profile.sources
     if sources:
         comments.append("References  :")
         for url in sources:
@@ -223,10 +224,15 @@ def generate_lut(
         comments.append(f"False Color Bands ({mode_label}{fill_label}):")
         for band in sorted(bands, key=lambda b: b["stop"]):
             if fill_mode:
-                sign = "+" if band["stop"] >= 0 else ""
-                comments.append(
-                    f"  Stop {sign}{band['stop']:.1f}  ->  {band['color']}  (fill zone)"
-                )
+                if band_mode == "ire":
+                    comments.append(
+                        f"  {band['stop']:.0f} IRE  ->  {band['color']}  (fill zone)"
+                    )
+                else:
+                    sign = "+" if band["stop"] >= 0 else ""
+                    comments.append(
+                        f"  Stop {sign}{band['stop']:.1f}  ->  {band['color']}  (fill zone)"
+                    )
             elif band_mode == "ire":
                 comments.append(
                     f"  {band['stop']:.0f} IRE  "
@@ -243,17 +249,17 @@ def generate_lut(
 
     comments.append("")
 
-    clip_lines = []
-    if black_clip and black_hex:
-        clip_lines.append(f"  Crushed blacks  ->  {black_hex}")
-    if white_clip and white_hex:
-        clip_lines.append(f"  Clipped whites  ->  {white_hex}")
+    warning_lines = []
+    if low_signal_warning and low_signal_hex:
+        warning_lines.append(f"  Low channel  ->  {low_signal_hex}")
+    if high_signal_warning and high_signal_hex:
+        warning_lines.append(f"  High channel ->  {high_signal_hex}")
 
-    if clip_lines:
-        comments.append("Clipping Indicators:")
-        comments.extend(clip_lines)
+    if warning_lines:
+        comments.append("Encoded-Signal Warnings (any channel crossing threshold):")
+        comments.extend(warning_lines)
     else:
-        comments.append("Clipping Indicators: none")
+        comments.append("Encoded-Signal Warnings: none")
 
     lut.comments = comments
 
@@ -263,8 +269,8 @@ def generate_lut(
     # Scales the full-range [0, 1] output to the broadcast legal window:
     #   10-bit codes 64–940 out of 1023  →  [64/1023, 940/1023]
     #
-    # Applied after all false color and clip overlays so those colors
-    # are also correctly scaled (a clipping indicator at #ff0000 will
+    # Applied after all false color and warning overlays so those colors
+    # are also correctly scaled (a warning color at #ff0000 will
     # land at the legal-range equivalent, not full-range 1.0).
     # ------------------------------------------------------------------
     if legal_range:

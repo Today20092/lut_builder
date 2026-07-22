@@ -2,6 +2,9 @@
 
 import colour
 import numpy as np
+from collections.abc import Iterable, Mapping
+from dataclasses import dataclass
+from typing import cast
 
 # ---------------------------------------------------------------------------
 # Universal Constants
@@ -16,16 +19,16 @@ LUMA_WEIGHTS = np.array([0.2126, 0.7152, 0.0722])
 # Camera Profiles
 #
 # Each profile may include an optional "sources" list of URLs or document
-# titles citing where the numeric values (clip codes, stop ranges) were
+# titles citing where the numeric values (warning thresholds, stop ranges) were
 # derived from. Add or extend this list when referencing a new spec sheet.
 # ---------------------------------------------------------------------------
 
-CAMERA_PROFILES = {
+_SOURCE_DATA = {
     "Sony S-Log3": {
         "gamut": "S-Gamut3.Cine",
         "log": "S-Log3",
-        "log_ceiling": 0.94,  # S-Log3 hard digital ceiling (~94 IRE)
-        "log_floor": 0.0929,  # 0% black = 10-bit code 95 → 95/1023 (3.5% IRE)
+        "encoded_signal_ceiling": 0.94,
+        "encoded_signal_floor": 0.0929,
         "sources": [
             "https://pro.sony/s3/cms-static-content/uploadfile/06/1237494271406.pdf",
         ],
@@ -33,8 +36,8 @@ CAMERA_PROFILES = {
     "Panasonic V-Log": {
         "gamut": "V-Gamut",
         "log": "V-Log",
-        "log_ceiling": 0.8906,  # Varicam 35 clip = 10-bit code 911 → 911/1023 (~96.7 IRE legal)
-        "log_floor": 0.1251,    # 0% reflectance = 10-bit code 128 → 128/1023
+        "encoded_signal_ceiling": 0.8906,
+        "encoded_signal_floor": 0.1251,
         "sources": [
             "https://pro-av.panasonic.net/en/cinema_camera_varicam_eva/support/pdf/VARICAM_V-Log_V-Gamut.pdf",
         ],
@@ -42,8 +45,8 @@ CAMERA_PROFILES = {
     "Canon Log 3": {
         "gamut": "Cinema Gamut",
         "log": "Canon Log 3",
-        "log_ceiling": 0.90,  # Canon Log 3 hard ceiling
-        "log_floor": 0.04,  # Canon Log 3 digital black
+        "encoded_signal_ceiling": 0.90,
+        "encoded_signal_floor": 0.04,
         "sources": [
             "https://downloads.canon.com/nw/camera/products/cinema-eos/c300-mark-ii/white-papers/canon-c300-mk-ii-image-performance-wp.pdf"
         ],
@@ -51,8 +54,8 @@ CAMERA_PROFILES = {
     "ARRI LogC3": {
         "gamut": "ARRI Wide Gamut 3",
         "log": "ARRI LogC3",
-        "log_ceiling": 0.91,  # LogC3 hard ceiling (EI 800)
-        "log_floor": 0.03,  # LogC3 digital black
+        "encoded_signal_ceiling": 0.91,
+        "encoded_signal_floor": 0.03,
         "sources": [
             "https://www.arri.com/resource/blob/31918/66f56e6abb6e5b6553929edf9aa7483e/2012-01-arrilog-c-logarithmic-cine-camera-image-encoding-data.pdf",
         ],
@@ -60,15 +63,15 @@ CAMERA_PROFILES = {
     "RED Log3G10": {
         "gamut": "REDWideGamutRGB",
         "log": "Log3G10",
-        "log_ceiling": 1.0,  # Log3G10 uses the full 0–1 code range
-        "log_floor": 0.0,  # Log3G10 has no raised digital black
+        "encoded_signal_ceiling": 1.0,
+        "encoded_signal_floor": 0.0,
         "sources": [
             "https://www.red.com/download/ipp2-technical-paper",
         ],
     },
 }
 
-TARGET_PROFILES = {
+_TARGET_DATA = {
     "Rec.709": {
         "gamut": "ITU-R BT.709",
         "gamma": "ITU-R BT.709",
@@ -133,65 +136,142 @@ def oklch_to_rgb(L: float, C: float, H: float) -> list[float]:
 
 
 # ---------------------------------------------------------------------------
-# Startup Validation
+# Profile catalog
 # ---------------------------------------------------------------------------
 
 
-def validate_profiles() -> None:
-    """
-    Validates gamut and log strings against the colour-science library.
-    Runs automatically on import so typos are caught before generation.
-    """
-    errors = []
+@dataclass(frozen=True)
+class CameraSource:
+    name: str
+    gamut: str
+    log: str
+    encoded_signal_floor: float
+    encoded_signal_ceiling: float
+    sources: tuple[str, ...]
 
-    for name, profile in CAMERA_PROFILES.items():
-        if profile["gamut"] not in colour.RGB_COLOURSPACES:
-            errors.append(
-                f"  [{name}] Unknown gamut: '{profile['gamut']}'\n"
-                f"    Run: list(colour.RGB_COLOURSPACES.keys()) to see valid names."
-            )
-        try:
-            colour.models.log_decoding(
-                np.array([[0.5, 0.5, 0.5]]), method=profile["log"]
-            )
-        except Exception:
-            errors.append(
-                f"  [{name}] Unknown log method: '{profile['log']}'\n"
-                f"    Run: list(colour.LOG_DECODINGS.keys()) to see valid names."
-            )
+@dataclass(frozen=True)
+class TargetDisplay:
+    name: str
+    gamut: str
+    transfer: str
+    encoding: str
 
-    for name, target in TARGET_PROFILES.items():
-        if target["gamut"] not in colour.RGB_COLOURSPACES:
-            errors.append(
-                f"  [{name}] Unknown target gamut: '{target['gamut']}'\n"
-                f"    Run: list(colour.RGB_COLOURSPACES.keys()) to see valid names."
-            )
-        if target["encoding"] == "oetf":
-            try:
-                colour.models.oetf(
-                    np.array([[0.5, 0.5, 0.5]]), function=target["gamma"]
-                )
-            except Exception:
+
+class ProfileCatalog:
+    def __init__(
+        self,
+        sources: Mapping[str, Mapping[str, object]],
+        targets: Mapping[str, Mapping[str, object]],
+    ) -> None:
+        self._sources = sources
+        self._targets = targets
+
+    def validate(self) -> None:
+        errors = []
+
+        for name, source in self._sources.items():
+            gamut = source.get("gamut")
+            log = source.get("log")
+            floor = source.get("encoded_signal_floor")
+            ceiling = source.get("encoded_signal_ceiling")
+
+            if not isinstance(gamut, str):
+                errors.append(f"source [{name}] gamut must be a string; got {gamut!r}")
+            elif gamut not in colour.RGB_COLOURSPACES:
                 errors.append(
-                    f"  [{name}] Unknown OETF function: '{target['gamma']}'\n"
-                    f"    Run: list(colour.OETFS.keys()) to see valid names."
+                    f"source [{name}] gamut {gamut!r} is not supported; choose a colour.RGB_COLOURSPACES key"
                 )
-        else:
-            try:
-                colour.models.log_encoding(
-                    np.array([[0.5, 0.5, 0.5]]), method=target["gamma"]
-                )
-            except Exception:
+            if not isinstance(log, str):
+                errors.append(f"source [{name}] log must be a string; got {log!r}")
+            elif log not in colour.LOG_DECODINGS:
                 errors.append(
-                    f"  [{name}] Unknown log encoding: '{target['gamma']}'\n"
-                    f"    Run: list(colour.LOG_ENCODINGS.keys()) to see valid names."
+                    f"source [{name}] log {log!r} is not supported; choose a colour.LOG_DECODINGS key"
+                )
+            if not _is_normalized_number(floor):
+                errors.append(
+                    f"source [{name}] encoded_signal_floor must be a number from 0 to 1; got {floor!r}"
+                )
+            if not _is_normalized_number(ceiling):
+                errors.append(
+                    f"source [{name}] encoded_signal_ceiling must be a number from 0 to 1; got {ceiling!r}"
+                )
+            if (
+                _is_normalized_number(floor)
+                and _is_normalized_number(ceiling)
+                and cast(float, floor) >= cast(float, ceiling)
+            ):
+                errors.append(
+                    f"source [{name}] encoded_signal_floor must be below encoded_signal_ceiling"
                 )
 
-    if errors:
-        raise ValueError(
-            "Invalid profile entries found in data.py — fix these before running:\n\n"
-            + "\n".join(errors)
+        for name, target in self._targets.items():
+            gamut = target.get("gamut")
+            transfer = target.get("gamma")
+            encoding = target.get("encoding")
+
+            if not isinstance(gamut, str):
+                errors.append(f"target [{name}] gamut must be a string; got {gamut!r}")
+            elif gamut not in colour.RGB_COLOURSPACES:
+                errors.append(
+                    f"target [{name}] gamut {gamut!r} is not supported; choose a colour.RGB_COLOURSPACES key"
+                )
+            if not isinstance(encoding, str) or encoding not in {"oetf", "log"}:
+                errors.append(
+                    f"target [{name}] encoding must be 'oetf' or 'log'; got {encoding!r}"
+                )
+            elif not isinstance(transfer, str):
+                errors.append(
+                    f"target [{name}] transfer must be a string; got {transfer!r}"
+                )
+            elif transfer not in (colour.OETFS if encoding == "oetf" else colour.LOG_ENCODINGS):
+                errors.append(
+                    f"target [{name}] transfer {transfer!r} is not supported for {encoding} encoding; choose a colour.{'OETFS' if encoding == 'oetf' else 'LOG_ENCODINGS'} key"
+                )
+
+        if errors:
+            raise ValueError("Invalid profile catalog:\n- " + "\n- ".join(errors))
+
+    def source(self, name: str) -> CameraSource:
+        self.validate()
+        source = self._sources[name]
+        return CameraSource(
+            name=name,
+            gamut=cast(str, source["gamut"]),
+            log=cast(str, source["log"]),
+            encoded_signal_floor=cast(float, source["encoded_signal_floor"]),
+            encoded_signal_ceiling=cast(float, source["encoded_signal_ceiling"]),
+            sources=tuple(cast(Iterable[str], source.get("sources", ()))),
         )
 
+    def target(self, name: str) -> TargetDisplay:
+        self.validate()
+        target = self._targets[name]
+        return TargetDisplay(
+            name=name,
+            gamut=cast(str, target["gamut"]),
+            transfer=cast(str, target["gamma"]),
+            encoding=cast(str, target["encoding"]),
+        )
 
-validate_profiles()
+    def sources(self) -> tuple[CameraSource, ...]:
+        self.validate()
+        return tuple(self.source(name) for name in self._sources)
+
+    def targets(self) -> tuple[TargetDisplay, ...]:
+        self.validate()
+        return tuple(self.target(name) for name in self._targets)
+
+    def source_names(self) -> tuple[str, ...]:
+        self.validate()
+        return tuple(self._sources)
+
+    def target_names(self) -> tuple[str, ...]:
+        self.validate()
+        return tuple(self._targets)
+
+
+def _is_normalized_number(value: object) -> bool:
+    return not isinstance(value, bool) and isinstance(value, (int, float)) and 0 <= value <= 1
+
+
+PROFILE_CATALOG = ProfileCatalog(_SOURCE_DATA, _TARGET_DATA)

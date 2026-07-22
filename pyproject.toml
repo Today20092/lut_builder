@@ -1,7 +1,7 @@
 [project]
 name = "lut-builder"
 version = "0.1.0"
-description = "Generate custom false-color exposure LUTs for any camera log format"
+description = "Generate diagnostic false-color scene-exposure LUTs"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [

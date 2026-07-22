@@ -1,219 +1,281 @@
-# lut-builder
+# LUT Builder
 
-A command-line tool for generating **false color exposure LUTs** for professional cameras.
+> **Work in progress:** LUT Builder works today and is evolving through real camera and monitor testing. Try it, inspect the generated LUTs, and report profiles or workflows that need better coverage.
 
-Load the `.cube` file into DaVinci Resolve, FCPX, Premiere, or directly onto your camera's monitor via LUT View Assist, and every stop of exposure is painted a distinct color — so you can nail exposure on set without guessing.
+[![Python](https://img.shields.io/badge/Python-3.12%2B-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
+[![uv](https://img.shields.io/badge/uv-managed-DE5FE9?style=for-the-badge&logo=astral&logoColor=white)](https://docs.astral.sh/uv/)
+[![Colour Science](https://img.shields.io/badge/Colour-Science_0.4.7%2B-20232A?style=for-the-badge)](https://www.colour-science.org/)
+[![Cube LUT](https://img.shields.io/badge/Output-.cube-7C3AED?style=for-the-badge)](https://github.com/Today20092/lut_builder)
+[![MIT License](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)](LICENSE)
 
-```
-╭──────────────────────────────────────╮
-│          LUT Builder                 │
-╰──────────────────────────────────────╯
+LUT Builder is an open-source CLI for creating diagnostic false-color scene-exposure LUTs for professional camera log formats.
 
-Camera Source:
-   1  Sony S-Log3
-   2  Panasonic V-Log
-   3  Canon Log 3
-   4  ARRI LogC3
-   5  RED Log3G10
-```
+It decodes the selected log curve, measures scene exposure, converts into the target gamut, and writes a portable `.cube` LUT for on-set monitoring or post-production tools.
 
----
+Use the result in DaVinci Resolve, Final Cut Pro, Premiere Pro, a field monitor, or a supported camera LUT View Assist workflow.
 
-## What it does
+## Why LUT Builder?
 
-- Decodes your camera's log format (S-Log3, V-Log, LogC3, etc.) back to scene-linear light
-- Maps each exposure stop — or IRE display level — to a color you choose, using either a hex code or the full Tailwind v4 palette
-- Optionally desaturates the underlying image to monochrome so only the false color bands are visible
-- Optionally highlights crushed blacks and clipped whites in distinct colors
-- Writes a standards-compliant `.cube` file you can drop into any NLE or monitor
-- Saves your setup to a JSON config for one-command regeneration later
+- Build custom false-color bands around the exposure values that matter to you.
+- Work in stops, IRE, or full-coverage Fill mode.
+- Choose colors by hex value or from the bundled Tailwind palette.
+- Generate Rec.709 or Rec.2020 diagnostic output.
+- Warn when any encoded RGB channel crosses a profile threshold.
+- Save a setup as JSON and regenerate it without answering prompts.
+- Keep every generated LUT local and offline.
 
-The false color is computed from **CIE Y luminance** using the camera's own gamut matrix (not a fixed BT.709 approximation), so the stops you see match what your eye actually perceives regardless of camera.
-
-
-## Supported cameras
-
-| Camera | Log Format | Gamut |
-|--------|-----------|-------|
-| Sony FX3 / FX6 / FX9 / A7S III / Venice | S-Log3 | S-Gamut3.Cine |
-| Panasonic S5 II / GH6 / BGH1 | V-Log | V-Gamut |
-| Canon C70 / C300 III / C500 II | Canon Log 3 | Cinema Gamut |
-| ARRI Alexa / AMIRA / LF | LogC3 | ARRI Wide Gamut 3 |
-| RED V-RAPTOR / KOMODO / MONSTRO | Log3G10 | REDWideGamutRGB |
-
-Adding more cameras is straightforward — see [Contributing.md](Contributing.md).
-
----
+These are diagnostic transforms, not finished Rec.709 or Rec.2020 viewing transforms. They do not include an output rendering transform, tone mapping, or highlight roll-off.
 
 ## Requirements
 
-- Python 3.12+
-- [uv](https://docs.astral.sh/uv/) (recommended) — or pip
+- Windows or macOS
+- [Git](https://git-scm.com/)
+- [uv](https://docs.astral.sh/uv/getting-started/installation/)
 
----
+The project requires Python 3.12 or newer. `uv` installs and manages the compatible Python runtime and project dependencies.
 
-## Quick Start (Easy Build)
-
-For users who do not want to use the command line directly, you can easily build LUTs using our double-clickable scripts. First, ensure you have the required `.json` profile and base LUT in the project folder.
-
-**Windows:**
-1. Install [uv](https://docs.astral.sh/uv/getting-started/installation/) if you haven't already. (Open PowerShell and run: `irm https://astral.sh/uv/install.ps1 | iex`)
-2. Double-click `build.bat`.
-3. The script will automatically install any missing dependencies and run the build process.
-
-**macOS:**
-1. Install [uv](https://docs.astral.sh/uv/getting-started/installation/) if you haven't already. (Open Terminal and run: `curl -LsSf https://astral.sh/uv/install.sh | sh`)
-2. You first need to make the script executable. Open Terminal, type `chmod +x ` (with a space at the end), drag and drop the `build.command` file into the Terminal, and press Enter. You only need to do this once.
-3. Double-click `build.command`.
-4. The script will automatically install any missing dependencies and run the build process.
-
----
-
-## Command Line Usage
-
-### Installation
-
-**Clone and install with uv:**
+## Quick Start
 
 ```bash
-git clone https://github.com/your-username/lut-builder.git
-cd lut-builder
+git clone https://github.com/Today20092/lut_builder.git
+cd lut_builder
 uv sync
+uv run lut-builder build
 ```
 
-**Or install with pip:**
+The interactive builder walks through the camera profile, diagnostic output, LUT size, exposure mode, colors, signal warnings, output range, and filename.
 
-```bash
-git clone https://github.com/your-username/lut-builder.git
-cd lut-builder
-pip install -e .
+Bare filenames are written to `output/luts/`. Enter an explicit path or use `--output-dir` when the LUT should go somewhere else.
+
+### Double-click launchers
+
+| Platform | Launcher | First use |
+| --- | --- | --- |
+| Windows | `build.bat` | Double-click it after installing uv. |
+| macOS | `build.command` | Run `chmod +x build.command` once, then double-click it. |
+
+Both launchers sync dependencies and start the same interactive CLI.
+
+## Commands
+
+| Command | Purpose |
+| --- | --- |
+| `uv run lut-builder build` | Build a LUT interactively. |
+| `uv run lut-builder build --config setup.json` | Regenerate a saved setup without prompts. |
+| `uv run lut-builder build --config setup.json --output-dir ~/luts` | Regenerate into a chosen directory. |
+| `uv run lut-builder list` | List camera profiles, output encodings, and profile sources. |
+| `uv run lut-builder colors` | Browse the bundled Tailwind color palette. |
+| `uv run lut-builder colors blue` | Filter the palette by family name. |
+
+Run `uv run lut-builder --help` or add `--help` after a command for the current options.
+
+## Interactive Workflow
+
+You can enter `b` at supported prompts to return to the previous step.
+
+1. Select a camera log profile.
+2. Select Rec.709 or Rec.2020 diagnostic output.
+3. Choose a 17, 33, or 65 point cube.
+4. Choose Stops, IRE, or Fill mode.
+5. Define exposure values, colors, and band widths.
+6. Enable optional low and high encoded-signal warnings.
+7. Choose a monochrome or color base where applicable.
+8. Choose full or legal output range.
+9. Name the `.cube` file.
+10. Optionally save the setup as JSON.
+
+Cube size 65 gives sharp transitions the most lattice resolution. Sizes 17 and 33 are faster and smaller, but host interpolation can soften narrow false-color boundaries.
+
+## Exposure Modes
+
+### Stops
+
+Stops are calculated from scene-linear CIE Y relative to 18% middle grey:
+
+```text
+stops = log2(Y / 0.18)
 ```
 
----
+CIE Y uses the selected camera gamut's RGB-to-XYZ matrix instead of applying fixed Rec.709 luma weights to wide-gamut camera RGB.
 
-## Usage
+### IRE
 
-### Interactive mode
+IRE bands use target-encoded luma on a 0–100 scale.
 
-```bash
-uv run lut-builder
+| Output range | 0 IRE | 100 IRE |
+| --- | ---: | ---: |
+| Full/data | Code 0 | Code 1023 |
+| Legal/video | Code 64 | Code 940 |
+
+Match the camera, monitor, and host range settings to the LUT. A legal-range LUT can be scaled twice if the host also performs a legal/full conversion.
+
+### Fill
+
+Fill mode assigns every input to the nearest configured stop color. It creates full-coverage false color with no unpainted base image.
+
+### Encoded-signal warnings
+
+Low and high warnings inspect each encoded input channel independently. One channel crossing its profile threshold is enough to trigger the warning color.
+
+These warnings identify encoded-signal boundaries. They do not prove physical sensor clipping, which can vary by camera model, recording mode, exposure index, and processing pipeline.
+
+## Example Setup
+
+```text
+Mode:          Stops
+Stops:         -2, -1, 0, +1, +2
+-2 stops:      blue-800    #1e40af
+-1 stop:       sky-400     #38bdf8
+ 0 stops:      green-500   #22c55e
++1 stop:       yellow-400  #facc15
++2 stops:      orange-500  #f97316
+Low warning:   violet-600  #7c3aed
+High warning:  red-600     #dc2626
+Band width:    Standard, ±0.3 stops
+Base:          Monochrome
+Range:         Full/data
 ```
 
-The tool walks you through ten steps, and you can press `b` at any prompt to go back:
+Later bands win where normal bands overlap. Encoded-signal warnings are applied after exposure bands and therefore have final priority.
 
-1. **Camera source** — pick your camera's log format
-2. **Target display** — Rec.709 or Rec.2020
-3. **Cube size** — 17 (fast preview), 33 (standard), 65 (recommended — sharper band edges)
-4. **Band mode** — *Stops* (relative to 18% middle grey) or *IRE* (target display signal level 0–100)
-5. **False color bands** — enter stop or IRE values as a comma-separated list, e.g. `-2, -1, 0, 1, 2`
-   - For each value, pick a color from the **Tailwind v4 palette** or enter a hex code
-   - Set the band width using named presets: Razor / Thin / Narrow / **Standard** / Wide / Custom
-6. **Crushed blacks** — optional color for pixels below the sensor noise floor
-7. **Clipped whites** — optional color for blown highlights
-8. **Monochrome base** — desaturate everything outside the false color bands (default: yes)
-9. **Legal / full range** — output 64–940 (broadcast) or 0–1023 (full range, default)
-10. **Output filename** — defaults to something like `SonyS-Log3_Rec709.cube`
+## Supported Camera Profiles
 
-After generating you're offered the option to save your setup as a JSON config file.
+| Profile | Camera gamut | Common camera families |
+| --- | --- | --- |
+| Sony S-Log3 | S-Gamut3.Cine | FX3, FX6, FX9, a7S III, VENICE |
+| Panasonic V-Log | V-Gamut | Lumix S series, GH6, BGH1, VariCam |
+| Canon Log 3 | Cinema Gamut | C70, C300 Mark III, C500 Mark II |
+| ARRI LogC3 | ARRI Wide Gamut 3 | ALEXA, AMIRA, ALEXA LF |
+| RED Log3G10 | REDWideGamutRGB | V-RAPTOR, KOMODO, MONSTRO |
 
-### List supported cameras
+Run `uv run lut-builder list` for the catalog currently installed with your checkout and the source URLs associated with each profile.
+
+Profile names describe signal encodings, not guarantees for every camera mode. Verify the selected gamut, log curve, range, and monitoring path against your camera settings.
+
+## Diagnostic Outputs
+
+| Output | Primaries | Transfer function |
+| --- | --- | --- |
+| Rec.709 | ITU-R BT.709 | ITU-R BT.709 OETF |
+| Rec.2020 | ITU-R BT.2020 | ITU-R BT.2020 OETF |
+
+Configured overlay colors have sRGB meaning. LUT Builder converts them into the selected target gamut before writing them, while preserving the intended Rec.709 values.
+
+## Output Files
+
+| Input | Result |
+| --- | --- |
+| `my_lut` | `output/luts/my_lut.cube` |
+| `my_lut.cube` | `output/luts/my_lut.cube` |
+| `custom/my_lut.cube` | `custom/my_lut.cube` |
+| `--output-dir D:\LUTs` | `D:\LUTs\<filename>.cube` |
+
+The CLI creates required parent directories. Generated `.cube` files and saved JSON configs are ignored by Git.
+
+### Saved configurations
+
+New setups are saved as version 2 JSON. Existing version 1 configs remain supported and normalize into the same validated setup used by interactive sessions.
+
+```json
+{
+  "version": 2,
+  "profile": "Panasonic V-Log",
+  "target": "Rec.709",
+  "cube_size": 33,
+  "bands": [
+    {"stop": 0.0, "color": "#22c55e", "width": 0.3}
+  ],
+  "band_mode": "stops",
+  "fill_mode": false,
+  "low_signal_warning": true,
+  "low_signal_hex": "#7c3aed",
+  "high_signal_warning": true,
+  "high_signal_hex": "#dc2626",
+  "monochrome": true,
+  "legal_range": false,
+  "output": "panasonic_false_color.cube"
+}
+```
+
+Regenerate it with:
 
 ```bash
+uv run lut-builder build --config setup.json
+```
+
+## Loading the LUT
+
+### DaVinci Resolve
+
+Open the Color page, open the LUT folder from the LUTs panel, copy the `.cube` file into it, and refresh the LUT list.
+
+### Panasonic Lumix
+
+Copy the LUT to the camera's supported custom-LUT location, then assign it through LUT View Assist. Confirm the camera's supported cube size and file naming rules first.
+
+### Premiere Pro and Final Cut Pro
+
+Import the `.cube` file as a custom LUT in the application's color workflow. Use it as a monitoring diagnostic, not as the final creative grade.
+
+## How It Works
+
+```mermaid
+flowchart TD
+  Input["Camera log RGB"] --> Decode["Configured log decoder"]
+  Decode --> Linear["Scene-linear camera-gamut RGB"]
+  Linear --> Exposure["CIE Y exposure measurement"]
+  Linear --> Gamut["Target-gamut conversion"]
+  Gamut --> Transfer["Rec.709 or Rec.2020 OETF"]
+  Exposure --> Bands["Stops, IRE, or Fill mapping"]
+  Transfer --> Bands
+  Bands --> Warnings["Encoded-signal warning priority"]
+  Warnings --> Range["Full or legal range encoding"]
+  Range --> Cube["Adobe/IRIDAS .cube LUT"]
+```
+
+The profile catalog validates camera and target facts explicitly. Interactive prompts and JSON files are adapters into the same `LutSetup`, and preview and generation share one exposure-mapping implementation.
+
+Colour transitions inside a finite 3D LUT depend on cube resolution and the host's interpolation. Tests exercise neutral ramps at sizes 17, 33, and 65, including band edges and the current half-grid warning tolerance.
+
+For the standards audit and source references, see [False-color LUT correctness](docs/research/false-color-lut-correctness.md).
+
+## Project Layout
+
+```text
+lut_builder/
+├── src/lut_builder/
+│   ├── cli.py       # Commands, prompts, preview, config I/O
+│   ├── colors.py    # Tailwind OKLCH palette
+│   ├── data.py      # Validated camera and target catalog
+│   ├── engine.py    # Decode, transform, overlay, and LUT output
+│   ├── presets.py   # Suggested colors and band widths
+│   └── setup.py     # Shared setup validation and exposure mapping
+├── tests/           # Numerical, semantic, CLI, and regression checks
+├── docs/            # Research and agent guidance
+├── build.bat        # Windows launcher
+├── build.command    # macOS launcher
+└── pyproject.toml   # Package metadata and dependencies
+```
+
+## Development
+
+```bash
+uv sync
+uv run pytest -q
+uv run lut-builder --help
 uv run lut-builder list
 ```
 
-Prints every camera profile and its source documentation URLs.
+The current suite covers config compatibility, catalog validation, log decoding, exposure mapping, signal-range semantics, target-gamut overlays, interpolation boundaries, and CLI output paths.
 
-### Non-interactive mode (config file)
+## Contributing
 
-```bash
-uv run lut-builder --config my_setup.json
-uv run lut-builder --config my_setup.json --output-dir ~/luts
-```
+Read [Contributing.md](Contributing.md) before adding a profile or changing LUT behavior. Camera and transfer-function facts should have primary-source documentation and numerical coverage.
 
-Pass a previously saved JSON config to regenerate the LUT without any prompts. `--output-dir` controls where the `.cube` file is written (created if it doesn't exist).
+Coding agents should start with [AGENTS.md](AGENTS.md). Repository-specific issue, triage, domain, and research guidance lives under [`docs/`](docs/).
 
----
-
-### Example: a standard false color setup
-
-```
-Band mode:    Stops
-Stops:        -2, -1, 0, 1, 2
--2.0 stops:   blue-800    (#1e40af)  — deep underexposure
--1.0 stops:   sky-400     (#38bdf8)  — underexposed
- 0.0 stops:   green-500   (#22c55e)  — middle grey (correct exposure)
-+1.0 stops:   yellow-400  (#facc15)  — bright
-+2.0 stops:   orange-500  (#f97316)  — near clipping
-Highlights:   red-600     (#dc2626)  — clipped whites
-Blacks:       violet-600  (#7c3aed)  — crushed shadows
-Width preset: Standard (±0.3 stops)
-Monochrome:   yes
-```
-
-### Loading the LUT
-
-**DaVinci Resolve:** Color page → LUTs panel → right-click → "Open LUT Folder" → paste your `.cube` file → refresh
-
-**Panasonic Lumix (LUT View Assist):** Copy the `.cube` to your SD card under `PRIVATE/PANA_GRP/LUMIX/CUSTOMLUT/`, then assign it in Camera Menu → LUT View Assist
-
-**FCPX / Premiere:** Import as a custom LUT in your color workspace
-
-> **Note:** Ensure your camera or monitor HDMI/SDI output is set to **Data / Full Range** (0–1023) unless you generated with the legal range option, in which case set it to **Legal / Video Range**.
-
----
-
-## Project structure
-
-```
-lut-builder/
-├── src/lut_builder/
-│   ├── __init__.py
-│   ├── cli.py        # Interactive CLI — prompts, color picker, config save/load
-│   ├── colors.py     # Tailwind v4 color palette (OKLCH values from official docs)
-│   ├── data.py       # Camera profiles, target profiles, OKLCH→hex conversion
-│   ├── engine.py     # LUT generation — log decode, gamut transform, false color
-│   └── presets.py    # Color suggestions and band-width presets per stop / IRE value
-├── pyproject.toml
-├── README.md
-└── Contributing.md
-```
-
----
-
-## How the conversion works
-
-```
-Log values (e.g. S-Log3)
-        ↓  log_decoding()          colour-science decodes the log curve
-Scene-linear RGB (camera gamut)
-        ↓  dot(RGB→XYZ matrix)     gamut-specific CIE Y luminance
-Stops from middle grey             log2(Y / 0.18)
-        ↓  band matching           paint stops with chosen colors
-Linear RGB (camera gamut)
-        ↓  gamut transform         camera gamut → display gamut (Rec.709 / Rec.2020)
-        ↓  oetf()                  apply display transfer function
-Rec.709 / Rec.2020 output
-        ↓  write_LUT()             save as .cube file
-```
-
-CIE Y is derived from the camera's own RGB→XYZ matrix (wide gamut such as S-Gamut3.Cine or V-Gamut), not the fixed BT.709 coefficients, which would give wrong results for wide-gamut sources.
-
-The Tailwind color picker converts OKLCH values to sRGB hex at runtime using `colour.models.Oklab_to_XYZ` → `colour.XYZ_to_sRGB` — no internet connection required.
-
----
-
-## Dependencies
-
-| Package | Purpose |
-|---------|---------|
-| [colour-science](https://www.colour-science.org/) | Log decoding, gamut transforms, LUT I/O |
-| [numpy](https://numpy.org/) | Vectorized LUT math |
-| [rich](https://rich.readthedocs.io/) | Terminal UI, color swatches |
-| [typer](https://typer.tiangolo.com/) | CLI entry point |
-
----
+Bug reports and profile requests belong in [GitHub Issues](https://github.com/Today20092/lut_builder/issues).
 
 ## License
 
-MIT
+MIT. See [LICENSE](LICENSE).
