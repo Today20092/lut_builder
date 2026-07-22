@@ -16,7 +16,7 @@ import {
   filterPalette,
   importSetup,
   isHexColor,
-  moveBand,
+  orderBands,
   updateBand,
   type Mode,
   type PaletteColor,
@@ -290,15 +290,15 @@ export function App() {
             <CardHeader className="flex-row items-center justify-between">
               <div>
                 <CardTitle>Exposure bands</CardTitle>
-                <CardDescription>Later bands win where ranges overlap.</CardDescription>
+                <CardDescription>Bands follow exposure order; higher bands win overlaps.</CardDescription>
               </div>
-              <Button type="button" variant="outline" onClick={() => patchSetup({ bands: [...setup.bands, { stop: mode === "ire" ? 50 : 0, width: mode === "ire" ? 2 : 0.3, color: "#eab308" }] })}>Add band</Button>
+              <Button type="button" variant="outline" onClick={() => patchSetup({ bands: orderBands([...setup.bands, { stop: mode === "ire" ? 50 : 0, width: mode === "ire" ? 2 : 0.3, color: "#eab308" }]) })}>Add band</Button>
             </CardHeader>
             <CardContent className="grid gap-4">
               {setup.bands.length === 0 && <p className="text-sm text-muted-foreground">No bands yet.</p>}
               {setup.bands.map((band, index) => (
                 <fieldset className="grid gap-3 rounded-lg border p-3" key={index}>
-                  <legend className="px-1 text-sm font-medium">Band {index + 1}</legend>
+                  <legend className="px-1 text-sm font-medium">Exposure band</legend>
                   <div className="grid gap-3 sm:grid-cols-2">
                     <label className="grid gap-1 text-sm font-medium">
                       {mode === "ire" ? "IRE" : "Stops"}
@@ -311,8 +311,6 @@ export function App() {
                   </div>
                   <ColorPicker label="Band color" value={band.color} palette={catalog.palette} onChange={(color) => setSetup((current) => updateBand(current, index, { color }))} />
                   <div className="flex flex-wrap gap-2">
-                    <Button type="button" size="sm" variant="outline" disabled={index === 0} onClick={() => setSetup((current) => moveBand(current, index, index - 1))}>Move up</Button>
-                    <Button type="button" size="sm" variant="outline" disabled={index === setup.bands.length - 1} onClick={() => setSetup((current) => moveBand(current, index, index + 1))}>Move down</Button>
                     <Button type="button" size="sm" variant="destructive" onClick={() => patchSetup({ bands: setup.bands.filter((_, current) => current !== index) })}>Remove</Button>
                   </div>
                 </fieldset>

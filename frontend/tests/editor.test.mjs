@@ -6,7 +6,6 @@ import {
   exportSetup,
   filterPalette,
   importSetup,
-  moveBand,
   updateBand,
 } from "../src/editor.ts"
 
@@ -42,13 +41,29 @@ test("mode transitions preserve bands and disable meaningless fill options", () 
   assert.equal(ire.band_mode, "ire")
 })
 
-test("bands can be edited and reordered without mutating prior state", () => {
-  const edited = updateBand(setup, 0, { stop: -2, color: "#123456" })
-  const moved = moveBand(edited, 0, 1)
+test("editing a band orders it by position without mutating prior state", () => {
+  const edited = updateBand(setup, 1, { stop: -2, color: "#123456" })
 
   assert.equal(setup.bands[0].stop, -1)
-  assert.deepEqual(moved.bands.map((band) => band.stop), [1, -2])
-  assert.equal(moved.bands[1].color, "#123456")
+  assert.deepEqual(edited.bands.map((band) => band.stop), [-2, -1])
+  assert.equal(edited.bands[0].color, "#123456")
+})
+
+test("bands at equal positions retain their creation order", () => {
+  const created = {
+    ...setup,
+    bands: [
+      { stop: 0, width: 0.3, color: "#ef4444" },
+      { stop: 1, width: 0.5, color: "#22c55e" },
+    ],
+  }
+  const crossed = updateBand(created, 0, { stop: 2 })
+  const tied = updateBand(crossed, 1, { stop: 1 })
+
+  assert.deepEqual(tied.bands.map((band) => band.color), [
+    "#ef4444",
+    "#22c55e",
+  ])
 })
 
 test("palette search returns selectable names and validated hex colors", () => {
@@ -63,7 +78,8 @@ test("palette search returns selectable names and validated hex colors", () => {
 })
 
 test("version-1 import/export round trips and invalid imports preserve state", async () => {
-  const text = exportSetup(setup)
+  const unordered = { ...setup, bands: [...setup.bands].reverse() }
+  const text = exportSetup(unordered)
   const imported = await importSetup(text, async (candidate) => candidate)
   assert.deepEqual(imported, setup)
 

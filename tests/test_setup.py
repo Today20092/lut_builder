@@ -63,13 +63,31 @@ def test_setup_rejects_invalid_values():
         )
 
 
-def test_exposure_mapping_uses_last_band_then_warning_priority():
+def test_setup_orders_bands_by_position_and_preserves_creation_order_at_ties():
     setup = LutSetup(
         "Sony S-Log3",
         "Rec.709",
         bands=[
-            {"stop": 0, "color": "#ff0000", "width": 1},
+            {"stop": 1, "color": "#00ff00", "width": 1},
+            {"stop": -1, "color": "#ff0000", "width": 1},
+            {"stop": 1, "color": "#0000ff", "width": 1},
+        ],
+    )
+
+    assert setup.bands == [
+        {"stop": -1.0, "color": "#ff0000", "width": 1.0},
+        {"stop": 1.0, "color": "#00ff00", "width": 1.0},
+        {"stop": 1.0, "color": "#0000ff", "width": 1.0},
+    ]
+
+
+def test_exposure_mapping_uses_stop_order_then_warning_priority():
+    setup = LutSetup(
+        "Sony S-Log3",
+        "Rec.709",
+        bands=[
             {"stop": 0.5, "color": "#00ff00", "width": 1},
+            {"stop": 0, "color": "#ff0000", "width": 1},
         ],
         low_signal_warning=True,
         low_signal_hex="#0000ff",

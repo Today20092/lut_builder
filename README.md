@@ -138,7 +138,7 @@ Base:          Monochrome
 Range:         Full/data
 ```
 
-Later bands win where normal bands overlap. Encoded-signal warnings are applied after exposure bands and therefore have final priority.
+Bands are applied from low to high exposure, so higher-position bands win where ranges overlap. Bands at the same position retain creation order. Encoded-signal warnings are applied after exposure bands and therefore have final priority.
 
 ## Supported Camera Profiles
 
