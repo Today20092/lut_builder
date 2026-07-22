@@ -3,7 +3,7 @@ import numpy as np
 import colour
 
 from lut_builder.engine import generate_lut
-from lut_builder.setup import LutSetup, map_exposure
+from lut_builder.setup import LutSetup, exposure_preview, map_exposure
 
 
 def test_version_1_config_normalizes_to_interactive_setup():
@@ -19,6 +19,22 @@ def test_version_1_config_normalizes_to_interactive_setup():
         target_name="Rec.709",
         bands=[{"stop": 0.0, "color": "#ff0000", "width": 0.25}],
     )
+
+
+def test_exposure_preview_keeps_fixed_mode_viewports():
+    stops = exposure_preview(
+        LutSetup(
+            "Sony S-Log3",
+            "Rec.709",
+            bands=[{"stop": 12, "color": "#ff0000", "width": 4}],
+        )
+    )
+    ire = exposure_preview(
+        LutSetup("Sony S-Log3", "Rec.709", band_mode="ire")
+    )
+
+    assert (stops["minimum"], stops["maximum"]) == (-7, 7)
+    assert (ire["minimum"], ire["maximum"]) == (0, 100)
 
 
 def test_setup_defaults():

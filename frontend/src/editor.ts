@@ -21,6 +21,48 @@ export type PaletteColor = { name: string; hex: string }
 
 export const isHexColor = (value: string) => /^#[0-9a-f]{6}$/i.test(value)
 
+export function snapBandValue(
+  value: number,
+  increment: number,
+  minimum = -Infinity,
+  maximum = Infinity,
+) {
+  const snapped = Number((Math.round(value / increment) * increment).toFixed(6))
+  return Math.max(minimum, Math.min(maximum, snapped))
+}
+
+export function stepBandValue(
+  value: number,
+  direction: -1 | 1,
+  increment: number,
+  minimum = -Infinity,
+  maximum = Infinity,
+) {
+  return snapBandValue(value + direction * increment, increment, minimum, maximum)
+}
+
+export function wheelStepDirection(
+  deltaY: number,
+  ctrlKey: boolean,
+  metaKey: boolean,
+): -1 | 0 | 1 {
+  if (ctrlKey || metaKey || deltaY === 0) return 0
+  return deltaY < 0 ? 1 : -1
+}
+
+export function contrastTextColor(hex: string) {
+  const channels = [1, 3, 5].map((start) => {
+    const value = Number.parseInt(hex.slice(start, start + 2), 16) / 255
+    return value <= 0.04045
+      ? value / 12.92
+      : ((value + 0.055) / 1.055) ** 2.4
+  })
+  const luminance = 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2]
+  const whiteContrast = 1.05 / (luminance + 0.05)
+  const darkContrast = (luminance + 0.05) / 0.059
+  return whiteContrast >= darkContrast ? "#ffffff" : "#111827"
+}
+
 export function changeMode(setup: Setup, mode: Mode): Setup {
   return {
     ...setup,

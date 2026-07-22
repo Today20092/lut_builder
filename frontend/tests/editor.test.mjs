@@ -3,11 +3,15 @@ import test from "node:test"
 
 import {
   changeMode,
+  contrastTextColor,
   exportSetup,
   filterPalette,
   importSetup,
   moveBand,
+  snapBandValue,
+  stepBandValue,
   updateBand,
+  wheelStepDirection,
 } from "../src/editor.ts"
 
 const setup = {
@@ -28,6 +32,25 @@ const setup = {
   legal_range: false,
   output: "SonySLog3_Rec709.cube",
 }
+
+test("direct manipulation and discrete movement share the selected increment", () => {
+  assert.equal(snapBandValue(0.62, 0.25), 0.5)
+  assert.equal(stepBandValue(0.5, 1, 0.25), 0.75)
+  assert.equal(stepBandValue(0.5, -1, 0.5), 0)
+  assert.equal(snapBandValue(102, 1, 0, 100), 100)
+  assert.equal(stepBandValue(100, 1, 1, 0, 100), 100)
+  assert.equal(wheelStepDirection(-1, false, false), 1)
+  assert.equal(wheelStepDirection(1, false, false), -1)
+  assert.equal(wheelStepDirection(0, false, false), 0)
+  assert.equal(wheelStepDirection(-1, true, false), 0)
+  assert.equal(wheelStepDirection(-1, false, true), 0)
+})
+
+test("graph handles choose readable text for user colors", () => {
+  assert.equal(contrastTextColor("#ffffff"), "#111827")
+  assert.equal(contrastTextColor("#facc15"), "#111827")
+  assert.equal(contrastTextColor("#1e3a8a"), "#ffffff")
+})
 
 test("mode transitions preserve bands and disable meaningless fill options", () => {
   const fill = changeMode(setup, "fill")
