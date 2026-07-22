@@ -18,6 +18,10 @@ export type Setup = {
 }
 
 export type PaletteColor = { name: string; hex: string }
+export type OklchAnchor = { l: number; c: number; h: number }
+export type LightnessProfile = "ascending" | "even" | "custom"
+export type FillPreset = "standard" | "detailed"
+export type BandPreset = "standard" | "detailed"
 
 const NEW_BAND_COLOR_NAMES = [
   "red-500", "amber-500", "lime-500", "cyan-500",
@@ -31,33 +35,148 @@ const FALSE_COLOR_NAMES = [
 
 const STOP_COLOR_LIMITS = [-3, -2, -1, -0.3, 0.3, 1, 2, 3]
 const IRE_COLOR_LIMITS = [10, 25, 35, 38, 46, 55, 65, 80]
+const STANDARD_FILL_COLOR_NAMES = ["blue-600", "sky-400", "lime-400", "yellow-400", "red-600"]
 
-function mixOklab(left: string, right: string, amount: number) {
-  const toLinear = (value: number) => value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4
-  const toOklab = (hex: string) => {
-    const [red, green, blue] = [1, 3, 5].map((start) => toLinear(Number.parseInt(hex.slice(start, start + 2), 16) / 255))
-    const l = Math.cbrt(0.4122214708 * red + 0.5363325363 * green + 0.0514459929 * blue)
-    const m = Math.cbrt(0.2119034982 * red + 0.6806995451 * green + 0.1073969566 * blue)
-    const s = Math.cbrt(0.0883024619 * red + 0.2817188376 * green + 0.6299787005 * blue)
-    return [
-      0.2104542553 * l + 0.793617785 * m - 0.0040720468 * s,
-      1.9779984951 * l - 2.428592205 * m + 0.4505937099 * s,
-      0.0259040371 * l + 0.7827717662 * m - 0.808675766 * s,
-    ]
-  }
-  const [l1, a1, b1] = toOklab(left)
-  const [l2, a2, b2] = toOklab(right)
-  const l = l1 + (l2 - l1) * amount
-  const a = a1 + (a2 - a1) * amount
-  const b = b1 + (b2 - b1) * amount
+const toLinear = (value: number) => value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4
+
+function hexToOklab(hex: string) {
+  const [red, green, blue] = [1, 3, 5].map((start) => toLinear(Number.parseInt(hex.slice(start, start + 2), 16) / 255))
+  const l = Math.cbrt(0.4122214708 * red + 0.5363325363 * green + 0.0514459929 * blue)
+  const m = Math.cbrt(0.2119034982 * red + 0.6806995451 * green + 0.1073969566 * blue)
+  const s = Math.cbrt(0.0883024619 * red + 0.2817188376 * green + 0.6299787005 * blue)
+  return [
+    0.2104542553 * l + 0.793617785 * m - 0.0040720468 * s,
+    1.9779984951 * l - 2.428592205 * m + 0.4505937099 * s,
+    0.0259040371 * l + 0.7827717662 * m - 0.808675766 * s,
+  ]
+}
+
+function oklabRgb([l, a, b]: number[]) {
   const ll = (l + 0.3963377774 * a + 0.2158037573 * b) ** 3
   const mm = (l - 0.1055613458 * a - 0.0638541728 * b) ** 3
   const ss = (l - 0.0894841775 * a - 1.291485548 * b) ** 3
-  const toHex = (value: number) => {
-    const srgb = value <= 0.0031308 ? 12.92 * value : 1.055 * value ** (1 / 2.4) - 0.055
-    return Math.round(Math.max(0, Math.min(1, srgb)) * 255).toString(16).padStart(2, "0")
+  return [
+    4.0767416621 * ll - 3.3077115913 * mm + 0.2309699292 * ss,
+    -1.2684380046 * ll + 2.6097574011 * mm - 0.3413193965 * ss,
+    -0.0041960863 * ll - 0.7034186147 * mm + 1.707614701 * ss,
+  ]
+}
+
+function oklabToHex(lab: number[]) {
+  let [l, a, b] = lab
+  for (let attempt = 0; attempt < 16; attempt += 1) {
+    const rgb = oklabRgb([l, a, b])
+    if (rgb.every((channel) => channel >= 0 && channel <= 1)) {
+      return `#${rgb.map((value) => {
+        const srgb = value <= 0.0031308 ? 12.92 * value : 1.055 * value ** (1 / 2.4) - 0.055
+        return Math.round(srgb * 255).toString(16).padStart(2, "0")
+      }).join("")}`
+    }
+    a *= 0.9
+    b *= 0.9
   }
-  return `#${toHex(4.0767416621 * ll - 3.3077115913 * mm + 0.2309699292 * ss)}${toHex(-1.2684380046 * ll + 2.6097574011 * mm - 0.3413193965 * ss)}${toHex(-0.0041960863 * ll - 0.7034186147 * mm + 1.707614701 * ss)}`
+  return oklabToHex([Math.max(0, Math.min(1, l)), 0, 0])
+}
+
+export function hexToOklch(hex: string): OklchAnchor {
+  const [l, a, b] = hexToOklab(hex)
+  return { l, c: Math.hypot(a, b), h: (Math.atan2(b, a) * 180 / Math.PI + 360) % 360 }
+}
+
+export function oklchToHex({ l, c, h }: OklchAnchor) {
+  return oklabToHex(oklchToOklab({ l, c, h }))
+}
+
+function oklchToOklab({ l, c, h }: OklchAnchor) {
+  const radians = ((h % 360) + 360) % 360 * Math.PI / 180
+  return [Math.max(0, Math.min(1, l)), Math.max(0, c) * Math.cos(radians), Math.max(0, c) * Math.sin(radians)]
+}
+
+export function maxSrgbChroma(anchor: OklchAnchor) {
+  let low = 0
+  let high = 0.5
+  for (let attempt = 0; attempt < 14; attempt += 1) {
+    const middle = (low + high) / 2
+    const rgb = oklabRgb(oklchToOklab({ ...anchor, c: middle }))
+    if (rgb.every((channel) => channel >= 0 && channel <= 1)) low = middle
+    else high = middle
+  }
+  return low
+}
+
+export function oklabSeparation(left: OklchAnchor, right: OklchAnchor) {
+  const first = oklchToOklab(left)
+  const second = oklchToOklab(right)
+  return Math.hypot(...first.map((value, index) => value - second[index]))
+}
+
+let widestSrgbRampCache: [OklchAnchor, OklchAnchor] | undefined
+
+export function widestSrgbRamp(): [OklchAnchor, OklchAnchor] {
+  if (widestSrgbRampCache) return widestSrgbRampCache.map((anchor) => ({ ...anchor })) as [OklchAnchor, OklchAnchor]
+  const candidates: OklchAnchor[] = []
+  for (let l = 0.35; l <= 0.85; l += 0.05) {
+    for (let h = 0; h < 360; h += 15) {
+      const anchor = { l, c: 0, h }
+      const c = maxSrgbChroma(anchor)
+      if (c >= 0.1) candidates.push({ ...anchor, c })
+    }
+  }
+  let best: [OklchAnchor, OklchAnchor] = [candidates[0], candidates[1]]
+  let bestSeparation = 0
+  // ponytail: coarse grid keeps this instant; refine the grid if endpoint precision becomes visible.
+  for (let left = 0; left < candidates.length - 1; left += 1) {
+    for (let right = left + 1; right < candidates.length; right += 1) {
+      const sharedChroma = Math.min(candidates[left].c, candidates[right].c)
+      const pair: [OklchAnchor, OklchAnchor] = [
+        { ...candidates[left], c: sharedChroma },
+        { ...candidates[right], c: sharedChroma },
+      ]
+      const separation = oklabSeparation(...pair)
+      if (separation > bestSeparation) {
+        best = pair
+        bestSeparation = separation
+      }
+    }
+  }
+  widestSrgbRampCache = best
+  return best.map((anchor) => ({ ...anchor })) as [OklchAnchor, OklchAnchor]
+}
+
+export function applyLightnessProfile(anchors: OklchAnchor[], profile: LightnessProfile) {
+  if (profile === "custom" || anchors.length < 2) return anchors
+  if (profile === "even") {
+    const lightness = anchors.reduce((sum, anchor) => sum + anchor.l, 0) / anchors.length
+    return anchors.map((anchor) => ({ ...anchor, l: lightness }))
+  }
+  return anchors.map((anchor, index) => ({ ...anchor, l: 0.48 + 0.34 * index / (anchors.length - 1) }))
+}
+
+export function vividRampAnchors(palette: PaletteColor[]) {
+  const colors = new Map(palette.map(({ name, hex }) => [name, hex]))
+  return FALSE_COLOR_NAMES.map((name) => colors.get(name)).filter((color): color is string => Boolean(color)).map(hexToOklch)
+}
+
+export function sampleOklabRamp(anchors: OklchAnchor[], amount: number) {
+  if (anchors.length === 0) return "#000000"
+  if (anchors.length === 1) return oklchToHex(anchors[0])
+  const position = Math.max(0, Math.min(1, amount)) * (anchors.length - 1)
+  const left = Math.min(Math.floor(position), anchors.length - 2)
+  const fraction = position - left
+  const first = oklchToOklab(anchors[left])
+  const second = oklchToOklab(anchors[left + 1])
+  return oklabToHex(first.map((value, index) => value + (second[index] - value) * fraction))
+}
+
+export function activeRampAnchors(
+  anchors: OklchAnchor[],
+  profile: LightnessProfile,
+  lowWarning: boolean,
+  highWarning: boolean,
+  reserveEndpoints = true,
+) {
+  const profiled = applyLightnessProfile(anchors, profile)
+  return reserveEndpoints ? profiled.slice(lowWarning ? 1 : 0, highWarning ? -1 : undefined) : profiled
 }
 
 export const isHexColor = (value: string) => /^#[0-9a-f]{6}$/i.test(value)
@@ -110,15 +229,6 @@ export function stepBandValue(
   return snapBandValue(value + direction * increment, increment, minimum, maximum)
 }
 
-export function wheelStepDirection(
-  deltaY: number,
-  ctrlKey: boolean,
-  metaKey: boolean,
-): -1 | 0 | 1 {
-  if (ctrlKey || metaKey || deltaY === 0) return 0
-  return deltaY < 0 ? 1 : -1
-}
-
 export function contrastTextColor(hex: string) {
   const channels = [1, 3, 5].map((start) => {
     const value = Number.parseInt(hex.slice(start, start + 2), 16) / 255
@@ -136,24 +246,59 @@ export function applyColorPreset(
   setup: Setup,
   palette: PaletteColor[],
   preset: "false-color" | "gradient",
+  rampAnchors = vividRampAnchors(palette),
+  lightnessProfile: LightnessProfile = "custom",
+  reserveEndpoints = true,
 ) {
   const colors = new Map(palette.map(({ name, hex }) => [name, hex]))
   const limits = setup.band_mode === "ire" ? IRE_COLOR_LIMITS : STOP_COLOR_LIMITS
-  const gradient = FALSE_COLOR_NAMES.map((name) => colors.get(name)).filter((color): color is string => Boolean(color))
+  const gradient = activeRampAnchors(rampAnchors, lightnessProfile, setup.low_signal_warning, setup.high_signal_warning, reserveEndpoints)
   const minimum = Math.min(...setup.bands.map(({ stop }) => stop))
   const range = Math.max(1, Math.max(...setup.bands.map(({ stop }) => stop)) - minimum)
   return {
     ...setup,
     bands: setup.bands.map((band) => {
-      if (preset === "gradient" && gradient.length > 1) {
-        const position = (band.stop - minimum) / range * (gradient.length - 1)
-        const left = Math.min(Math.floor(position), gradient.length - 2)
-        return { ...band, color: mixOklab(gradient[left], gradient[left + 1], position - left) }
+      if (preset === "gradient") {
+        return gradient.length > 0
+          ? { ...band, color: sampleOklabRamp(gradient, (band.stop - minimum) / range) }
+          : band
       }
       const colorIndex = limits.findIndex((limit) => band.stop <= limit)
       return { ...band, color: colors.get(FALSE_COLOR_NAMES[colorIndex < 0 ? 8 : colorIndex]) ?? band.color }
     }),
   }
+}
+
+export function applyFillPreset(setup: Setup, palette: PaletteColor[], preset: FillPreset) {
+  const colors = new Map(palette.map(({ name, hex }) => [name, hex]))
+  const detailed = preset === "detailed"
+  const boundaries = detailed
+    ? setup.band_mode === "ire" ? IRE_COLOR_LIMITS : STOP_COLOR_LIMITS
+    : setup.band_mode === "ire" ? [10, 35, 55, 80] : [-1.25, -0.5, 0.5, 1.25]
+  const names = detailed ? FALSE_COLOR_NAMES : STANDARD_FILL_COLOR_NAMES
+  const finalStop = boundaries.at(-1)! + (setup.band_mode === "ire" ? 10 : 1)
+  return {
+    ...setup,
+    fill_mode: true,
+    monochrome: false,
+    bands: names.map((name, index) => ({
+      stop: boundaries[index] ?? finalStop,
+      width: 0,
+      color: colors.get(name) ?? setup.bands[index]?.color ?? "#ffffff",
+    })),
+  }
+}
+
+export function applyBandPreset(setup: Setup, palette: PaletteColor[], preset: BandPreset) {
+  const detailed = preset === "detailed"
+  const centers = setup.band_mode === "ire"
+    ? detailed ? [10, 25, 35, 38, 46, 55, 65, 80, 95] : [10, 25, 40, 50, 60, 75, 90]
+    : detailed ? [-4, -3, -2, -1, 0, 1, 2, 3, 4, 5] : [-3, -2, -1, 0, 1, 2, 3]
+  return applyColorPreset({
+    ...setup,
+    fill_mode: false,
+    bands: centers.map((stop) => ({ stop, width: setup.band_mode === "ire" ? 3 : 0.3, color: "#ffffff" })),
+  }, palette, "false-color")
 }
 
 const creationOrder = new WeakMap<Band, number>()
@@ -222,13 +367,18 @@ export function orderBands(bands: Band[]) {
   )
 }
 
-export function changeMode(setup: Setup, mode: Mode): Setup {
-  return {
+export function changeMode(setup: Setup, mode: Mode, palette?: PaletteColor[]): Setup {
+  const changed: Setup = {
     ...setup,
     band_mode: mode === "ire" ? "ire" : "stops",
     fill_mode: mode === "fill",
     monochrome: mode === "fill" ? false : setup.monochrome,
   }
+  if (!palette) return changed
+  if (mode === "fill") return applyFillPreset(changed, palette, "standard")
+  return setup.band_mode === changed.band_mode && !setup.fill_mode
+    ? changed
+    : applyBandPreset(changed, palette, "standard")
 }
 
 export function updateBand(
@@ -248,6 +398,10 @@ export function updateBand(
       }),
     ),
   }
+}
+
+export function removeBand(setup: Setup, index: number): Setup {
+  return { ...setup, bands: setup.bands.filter((_, current) => current !== index) }
 }
 
 export function updateFillBoundary(

@@ -3,6 +3,8 @@ import test from "node:test"
 
 import {
   applyColorPreset,
+  applyBandPreset,
+  applyFillPreset,
   bandId,
   changeMode,
   contrastTextColor,
@@ -13,11 +15,11 @@ import {
   hsvToHex,
   importSetup,
   resizeBandWidth,
+  removeBand,
   snapBandValue,
   stepBandValue,
   updateBand,
   updateFillBoundary,
-  wheelStepDirection,
 } from "../src/editor.ts"
 
 const palette = [
@@ -55,11 +57,6 @@ test("direct manipulation and discrete movement share the selected increment", (
   assert.equal(stepBandValue(100, 1, 1, 0, 100), 100)
   assert.equal(resizeBandWidth(1, -0.24), 1.2)
   assert.equal(resizeBandWidth(1, 1), 0.1)
-  assert.equal(wheelStepDirection(-1, false, false), 1)
-  assert.equal(wheelStepDirection(1, false, false), -1)
-  assert.equal(wheelStepDirection(0, false, false), 0)
-  assert.equal(wheelStepDirection(-1, true, false), 0)
-  assert.equal(wheelStepDirection(-1, false, true), 0)
 })
 
 test("color presets recolor every band by exposure or ordered ramp", () => {
@@ -75,6 +72,35 @@ test("color presets recolor every band by exposure or ordered ramp", () => {
   assert.notEqual(gradient[1], gradient[0])
   assert.notEqual(gradient[1], palette[1].hex)
   assert.equal(gradient.at(-1), "#dc2626")
+
+  const fullRamp = applyColorPreset(
+    { ...setup, bands: Array.from({ length: 15 }, (_, index) => ({ stop: index - 7, width: 0.3, color: "#ffffff" })) },
+    palette,
+    "gradient",
+  ).bands.map(({ color }) => color)
+  assert.equal(new Set(fullRamp).size, 15)
+})
+
+test("fill presets replace geometry and colors for stops and IRE", () => {
+  const standard = applyFillPreset(setup, palette, "standard")
+  assert.equal(standard.fill_mode, true)
+  assert.equal(standard.monochrome, false)
+  assert.deepEqual(standard.bands.slice(0, -1).map(({ stop }) => stop), [-1.25, -0.5, 0.5, 1.25])
+  assert.equal(standard.bands.length, 5)
+
+  const detailed = applyFillPreset({ ...setup, band_mode: "ire" }, palette, "detailed")
+  assert.deepEqual(detailed.bands.slice(0, -1).map(({ stop }) => stop), [10, 25, 35, 38, 46, 55, 65, 80])
+  assert.equal(detailed.bands.length, 9)
+})
+
+test("band presets provide useful stops and IRE defaults", () => {
+  const stops = applyBandPreset(setup, palette, "standard")
+  assert.deepEqual(stops.bands.map(({ stop }) => stop), [-3, -2, -1, 0, 1, 2, 3])
+  assert.ok(stops.bands.every(({ width }) => width === 0.3))
+
+  const ire = changeMode(setup, "ire", palette)
+  assert.deepEqual(ire.bands.map(({ stop }) => stop), [10, 25, 40, 50, 60, 75, 90])
+  assert.ok(ire.bands.every(({ width }) => width === 3))
 })
 
 test("graph handles choose readable text for user colors", () => {
@@ -104,6 +130,13 @@ test("editing a band orders it by position without mutating prior state", () => 
   assert.deepEqual(edited.bands.map((band) => band.stop), [-2, -1])
   assert.equal(edited.bands[0].color, "#123456")
   assert.equal(bandId(edited.bands[0]), selectedId)
+})
+
+test("removing a band leaves the prior setup unchanged", () => {
+  const removed = removeBand(setup, 0)
+
+  assert.deepEqual(removed.bands, [setup.bands[1]])
+  assert.equal(setup.bands.length, 2)
 })
 
 test("fill boundaries cannot cross or reorder their colors", () => {

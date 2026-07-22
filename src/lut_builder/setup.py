@@ -3,8 +3,9 @@ import re
 from typing import Any, Mapping
 
 import numpy as np
+import colour
 
-from .data import PROFILE_CATALOG
+from .data import MIDDLE_GREY, PROFILE_CATALOG
 
 
 CUBE_SIZES = {17, 33, 65}
@@ -156,11 +157,26 @@ def exposure_preview(setup: LutSetup) -> dict:
     values = np.linspace(minimum, maximum, width)
     width_buffer = ((maximum - minimum) / (width - 1)) / 2.0
     colors = map_exposure(values, setup, width_buffer=width_buffer)
+    encoded_values = np.linspace(0.0, 1.0, 256)
+    if setup.band_mode == "ire":
+        encoded_exposure = encoded_values * 100.0
+    else:
+        profile = PROFILE_CATALOG.source(setup.profile_name)
+        source_space = colour.RGB_COLOURSPACES[profile.gamut]
+        linear = colour.models.log_decoding(
+            np.column_stack([encoded_values] * 3), function=profile.log
+        )
+        luminance = np.dot(linear, source_space.matrix_RGB_to_XYZ[1, :])
+        encoded_exposure = np.log2(np.maximum(luminance, 1e-6) / MIDDLE_GREY)
+    input_overlays = map_exposure(encoded_exposure, setup)
     return {
         "minimum": minimum,
         "maximum": maximum,
         "unit": "IRE" if setup.band_mode == "ire" else "stops",
         "values": values.tolist(),
         "colors": [color or "#3f3f46" for color in colors],
+        "overlays": colors.tolist(),
+        "input_overlays": input_overlays.tolist(),
+        "input_exposure": encoded_exposure.tolist(),
         "width_buffer": width_buffer,
     }
