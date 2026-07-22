@@ -149,7 +149,6 @@ class CameraSource:
     log_ceiling: float
     sources: tuple[str, ...]
 
-
 @dataclass(frozen=True)
 class TargetDisplay:
     name: str

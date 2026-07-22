@@ -3,11 +3,42 @@ import json
 import tempfile
 from pathlib import Path
 
+import colour
+import numpy as np
 import pytest
 
-from lut_builder.data import oklch_to_hex
+from lut_builder.data import CAMERA_PROFILES, MIDDLE_GREY, oklch_to_hex, validate_profiles
 from lut_builder.engine import generate_lut
 from lut_builder.setup import LutSetup
+
+
+MIDDLE_GREY_CODES = {
+    "Sony S-Log3": 0.41055718475073316,
+    "Panasonic V-Log": 0.42331144876013616,
+    "Canon Log 3": 0.3433893703739355,
+    "ARRI LogC3": 0.39100683203408376,
+    "RED Log3G10": 0.33333291202599186,
+}
+
+
+def generate_neutral_sample(tmp_path, profile_name, bands=None, band_mode="stops"):
+    output_path = tmp_path / f"{profile_name}-{band_mode}.cube"
+    generate_lut(
+        profile_name=profile_name,
+        target_name="Rec.709",
+        cube_size=3,
+        bands=bands or [],
+        band_mode=band_mode,
+        black_clip=False,
+        black_hex="",
+        white_clip=False,
+        white_hex="",
+        monochrome=False,
+        output_filename=str(output_path),
+    )
+    lut = colour.read_LUT(str(output_path))
+    assert isinstance(lut, colour.LUT3D)
+    return lut.table[1, 1, 1]
 
 
 def test_oklch_to_hex():
@@ -83,3 +114,51 @@ def test_config_round_trip():
         assert loaded == setup
     finally:
         path.unlink(missing_ok=True)
+
+
+@pytest.mark.parametrize(("profile_name", "code_value"), MIDDLE_GREY_CODES.items())
+def test_profile_middle_grey_decodes_to_scene_linear(profile_name, code_value):
+    decoded = colour.models.log_decoding(
+        code_value, function=str(CAMERA_PROFILES[profile_name]["log"])
+    )
+
+    assert decoded == pytest.approx(MIDDLE_GREY, abs=1e-6)
+
+
+def test_middle_grey_codes_cover_all_profiles():
+    assert MIDDLE_GREY_CODES.keys() == CAMERA_PROFILES.keys()
+
+
+def test_generated_profiles_do_not_all_use_cineon(tmp_path):
+    outputs = [
+        generate_neutral_sample(tmp_path, profile_name)[0]
+        for profile_name in CAMERA_PROFILES
+    ]
+
+    assert np.ptp(outputs) > 0.1
+
+
+def test_profile_validation_rejects_unknown_log(monkeypatch):
+    monkeypatch.setitem(
+        CAMERA_PROFILES,
+        "Invalid",
+        {**CAMERA_PROFILES["Sony S-Log3"], "log": "not-a-log-decoder"},
+    )
+
+    with pytest.raises(ValueError, match="Unknown log method"):
+        validate_profiles()
+
+
+@pytest.mark.parametrize(
+    ("band_mode", "band_value", "width"),
+    [("stops", 1.206029787487263, 0.001), ("ire", 64.10197890890636, 0.01)],
+)
+def test_neutral_input_band_placement(tmp_path, band_mode, band_value, width):
+    output = generate_neutral_sample(
+        tmp_path,
+        "Sony S-Log3",
+        [{"stop": band_value, "color": "#ff00ff", "width": width}],
+        band_mode,
+    )
+
+    np.testing.assert_allclose(output, [1, 0, 1], atol=1e-6)

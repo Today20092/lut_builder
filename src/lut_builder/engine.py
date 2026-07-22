@@ -48,7 +48,7 @@ def generate_lut(setup: LutSetup) -> Path:
     # to middle grey will decode to exactly MIDDLE_GREY (0.18) in
     # scene-linear space — no per-camera config is needed for this.
     # ------------------------------------------------------------------
-    linear_data = colour.models.log_decoding(samples, method=profile.log)
+    linear_data = colour.models.log_decoding(samples, function=profile.log)
 
     # ------------------------------------------------------------------
     # 4. Scene luminance -> stops
