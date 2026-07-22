@@ -187,6 +187,13 @@ class ProfileCatalog:
                 errors.append(
                     f"source [{name}] log {log!r} is not supported; choose a colour.LOG_DECODINGS key"
                 )
+            else:
+                try:
+                    colour.models.log_decoding(0.5, function=log)
+                except Exception as error:
+                    errors.append(
+                        f"source [{name}] log {log!r} could not decode a sample: {error}"
+                    )
             if not _is_normalized_number(floor):
                 errors.append(
                     f"source [{name}] encoded_signal_floor must be a number from 0 to 1; got {floor!r}"
