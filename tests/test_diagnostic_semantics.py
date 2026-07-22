@@ -86,3 +86,30 @@ def test_black_middle_grey_and_white_follow_selected_range(
     comments = output.read_text()
     assert "diagnostic scene-exposure transform" in comments
     assert ("0=code 64, 100=code 940" if legal_range else "0=code 0, 100=code 1023") in comments
+
+
+@pytest.mark.parametrize("profile_name", PROFILE_CATALOG.source_names())
+@pytest.mark.parametrize("target_name", PROFILE_CATALOG.target_names())
+def test_legal_range_constrains_non_neutral_gamut_excursions(
+    tmp_path, profile_name, target_name
+):
+    luts = {}
+    for legal_range in (False, True):
+        output = tmp_path / f"{profile_name}-{target_name}-{legal_range}.cube"
+        generate_lut(
+            LutSetup(
+                profile_name=profile_name,
+                target_name=target_name,
+                cube_size=17,
+                output_filename=str(output),
+                legal_range=legal_range,
+            )
+        )
+        luts[legal_range] = colour.read_LUT(output)
+
+    non_neutral = np.ptp(colour.LUT3D(size=17).table, axis=-1) > 0
+    excursions = non_neutral & np.any(np.isin(luts[False].table, [0, 1]), axis=-1)
+    legal_low, legal_high = 64 / 1023, 940 / 1023
+    assert np.any(excursions)
+    assert np.min(luts[True].table) >= legal_low
+    assert np.max(luts[True].table) <= legal_high
