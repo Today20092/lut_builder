@@ -7,6 +7,7 @@ import {
   type PointerEvent,
   type WheelEvent,
 } from "react"
+import { Popover } from "@base-ui/react/popover"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -91,7 +92,9 @@ function ColorPicker({
   disabled?: boolean
   onChange: (value: string) => void
 }) {
+  const [open, setOpen] = useState(false)
   const [search, setSearch] = useState("")
+  const originalValue = useRef(value)
   const matches = useMemo(
     () => filterPalette(palette, search).slice(0, 24),
     [palette, search],
@@ -100,53 +103,82 @@ function ColorPicker({
   return (
     <fieldset className="grid gap-2" disabled={disabled}>
       <legend className="text-sm font-medium">{label}</legend>
-      <div className="grid grid-cols-[2.5rem_1fr] gap-2">
-        <input
-          aria-label={`${label} visual picker`}
-          className="h-9 w-10 cursor-pointer rounded border border-input bg-transparent p-1"
-          type="color"
-          value={isHexColor(value) ? value : "#000000"}
-          onChange={(event) => onChange(event.target.value)}
-        />
-        <input
-          aria-invalid={!isHexColor(value)}
-          className={fieldClass}
-          value={value}
-          placeholder="#rrggbb"
-          onChange={(event) => onChange(event.target.value)}
-        />
-      </div>
-      <details>
-        <summary className="cursor-pointer text-xs text-muted-foreground">
-          Search Tailwind palette
-        </summary>
-        <div className="mt-2 grid gap-2">
-          <input
-            aria-label={`Search ${label} palette`}
-            className={fieldClass}
-            value={search}
-            placeholder="red-500 or #ef44"
-            onChange={(event) => setSearch(event.target.value)}
+      <Popover.Root
+        open={open}
+        onOpenChange={(nextOpen, eventDetails) => {
+          if (nextOpen) originalValue.current = value
+          if (!nextOpen && eventDetails.reason === "escape-key") {
+            onChange(originalValue.current)
+          }
+          setOpen(nextOpen)
+        }}
+      >
+        <Popover.Trigger
+          aria-label={`Open ${label} picker`}
+          className="flex h-9 w-full items-center gap-2 rounded-md border border-input px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 disabled:cursor-not-allowed disabled:opacity-50"
+          disabled={disabled}
+        >
+          <span
+            aria-hidden="true"
+            className="size-5 shrink-0 rounded border border-black/10"
+            style={{ backgroundColor: isHexColor(value) ? value : "#000000" }}
           />
-          <div className="grid max-h-40 grid-cols-2 gap-1 overflow-auto sm:grid-cols-3">
-            {matches.map((color) => (
-              <button
-                className="flex items-center gap-2 rounded px-2 py-1 text-left text-xs hover:bg-accent"
-                key={color.name}
-                type="button"
-                onClick={() => onChange(color.hex)}
-              >
-                <span
-                  aria-hidden="true"
-                  className="size-4 shrink-0 rounded border border-black/10"
-                  style={{ backgroundColor: color.hex }}
-                />
-                {color.name}
-              </button>
-            ))}
-          </div>
-        </div>
-      </details>
+          {value}
+        </Popover.Trigger>
+        <Popover.Portal>
+          <Popover.Positioner
+            align="start"
+            className="z-50"
+            collisionAvoidance={{ side: "flip", align: "shift", fallbackAxisSide: "end" }}
+            sideOffset={8}
+          >
+            <Popover.Popup
+              aria-label={`${label} picker`}
+              className="grid max-h-[var(--available-height)] w-72 max-w-[var(--available-width)] gap-3 overflow-y-auto rounded-lg border bg-popover p-3 text-popover-foreground shadow-lg outline-none"
+            >
+              <input
+                aria-label={`${label} visual picker`}
+                className="h-24 w-full cursor-pointer rounded border border-input bg-transparent p-1"
+                type="color"
+                value={isHexColor(value) ? value : "#000000"}
+                onChange={(event) => onChange(event.target.value)}
+              />
+              <input
+                aria-label={`${label} hex color`}
+                aria-invalid={!isHexColor(value)}
+                className={fieldClass}
+                value={value}
+                placeholder="#rrggbb"
+                onChange={(event) => onChange(event.target.value)}
+              />
+              <input
+                aria-label={`Search ${label} palette`}
+                className={fieldClass}
+                value={search}
+                placeholder="Search red-500 or #ef44"
+                onChange={(event) => setSearch(event.target.value)}
+              />
+              <div className="grid max-h-40 grid-cols-2 gap-1 overflow-auto sm:grid-cols-3">
+                {matches.map((color) => (
+                  <button
+                    className="flex items-center gap-2 rounded px-2 py-1 text-left text-xs hover:bg-accent"
+                    key={color.name}
+                    type="button"
+                    onClick={() => onChange(color.hex)}
+                  >
+                    <span
+                      aria-hidden="true"
+                      className="size-4 shrink-0 rounded border border-black/10"
+                      style={{ backgroundColor: color.hex }}
+                    />
+                    {color.name}
+                  </button>
+                ))}
+              </div>
+            </Popover.Popup>
+          </Popover.Positioner>
+        </Popover.Portal>
+      </Popover.Root>
     </fieldset>
   )
 }
