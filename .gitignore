@@ -16,6 +16,7 @@ wheels/
 # Generated LUT files (don't commit test outputs)
 *.cube
 *.json
+!frontend/*.json
 output/luts/*.cube
 output/configs/*.json
 

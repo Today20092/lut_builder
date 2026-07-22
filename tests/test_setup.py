@@ -3,7 +3,7 @@ import numpy as np
 import colour
 
 from lut_builder.engine import generate_lut
-from lut_builder.setup import LutSetup, map_exposure
+from lut_builder.setup import LutSetup, exposure_preview, map_exposure
 
 
 def test_version_1_config_normalizes_to_interactive_setup():
@@ -19,6 +19,22 @@ def test_version_1_config_normalizes_to_interactive_setup():
         target_name="Rec.709",
         bands=[{"stop": 0.0, "color": "#ff0000", "width": 0.25}],
     )
+
+
+def test_exposure_preview_keeps_fixed_mode_viewports():
+    stops = exposure_preview(
+        LutSetup(
+            "Sony S-Log3",
+            "Rec.709",
+            bands=[{"stop": 12, "color": "#ff0000", "width": 4}],
+        )
+    )
+    ire = exposure_preview(
+        LutSetup("Sony S-Log3", "Rec.709", band_mode="ire")
+    )
+
+    assert (stops["minimum"], stops["maximum"]) == (-7, 7)
+    assert (ire["minimum"], ire["maximum"]) == (0, 100)
 
 
 def test_setup_defaults():
@@ -63,13 +79,31 @@ def test_setup_rejects_invalid_values():
         )
 
 
-def test_exposure_mapping_uses_last_band_then_warning_priority():
+def test_setup_orders_bands_by_position_and_preserves_creation_order_at_ties():
     setup = LutSetup(
         "Sony S-Log3",
         "Rec.709",
         bands=[
-            {"stop": 0, "color": "#ff0000", "width": 1},
+            {"stop": 1, "color": "#00ff00", "width": 1},
+            {"stop": -1, "color": "#ff0000", "width": 1},
+            {"stop": 1, "color": "#0000ff", "width": 1},
+        ],
+    )
+
+    assert setup.bands == [
+        {"stop": -1.0, "color": "#ff0000", "width": 1.0},
+        {"stop": 1.0, "color": "#00ff00", "width": 1.0},
+        {"stop": 1.0, "color": "#0000ff", "width": 1.0},
+    ]
+
+
+def test_exposure_mapping_uses_stop_order_then_warning_priority():
+    setup = LutSetup(
+        "Sony S-Log3",
+        "Rec.709",
+        bands=[
             {"stop": 0.5, "color": "#00ff00", "width": 1},
+            {"stop": 0, "color": "#ff0000", "width": 1},
         ],
         low_signal_warning=True,
         low_signal_hex="#0000ff",
@@ -87,7 +121,7 @@ def test_exposure_mapping_uses_last_band_then_warning_priority():
     assert colors.tolist() == ["#ffffff", "#00ff00", "#ffffff"]
 
 
-def test_fill_and_ire_mapping_use_the_same_band_ordering():
+def test_fill_uses_stops_as_color_boundaries():
     fill = LutSetup(
         "Sony S-Log3",
         "Rec.709",
@@ -99,10 +133,10 @@ def test_fill_and_ire_mapping_use_the_same_band_ordering():
         fill_mode=True,
     )
 
-    assert map_exposure(np.array([0, 49, 50, 51, 100]), fill).tolist() == [
+    assert map_exposure(np.array([0, 19, 20, 21, 100]), fill).tolist() == [
         "#000000",
         "#000000",
-        "#000000",
+        "#ffffff",
         "#ffffff",
         "#ffffff",
     ]

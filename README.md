@@ -51,15 +51,17 @@ Bare filenames are written to `output/luts/`. Enter an explicit path or use `--o
 
 | Platform | Launcher | First use |
 | --- | --- | --- |
+| Windows workspace | `workspace.bat` | Double-click it after installing uv. |
 | Windows | `build.bat` | Double-click it after installing uv. |
 | macOS | `build.command` | Run `chmod +x build.command` once, then double-click it. |
 
-Both launchers sync dependencies and start the same interactive CLI.
+`workspace.bat` opens the browser workspace; the build launchers start the interactive CLI.
 
 ## Commands
 
 | Command | Purpose |
 | --- | --- |
+| `uv run lut-builder workspace` | Open the local browser workspace. |
 | `uv run lut-builder build` | Build a LUT interactively. |
 | `uv run lut-builder build --config setup.json` | Regenerate a saved setup without prompts. |
 | `uv run lut-builder build --config setup.json --output-dir ~/luts` | Regenerate into a chosen directory. |
@@ -136,7 +138,7 @@ Base:          Monochrome
 Range:         Full/data
 ```
 
-Later bands win where normal bands overlap. Encoded-signal warnings are applied after exposure bands and therefore have final priority.
+Bands are applied from low to high exposure, so higher-position bands win where ranges overlap. Bands at the same position retain creation order. Encoded-signal warnings are applied after exposure bands and therefore have final priority.
 
 ## Supported Camera Profiles
 
@@ -253,8 +255,10 @@ lut_builder/
 │   └── setup.py     # Shared setup validation and exposure mapping
 ├── tests/           # Numerical, semantic, CLI, and regression checks
 ├── docs/            # Research and agent guidance
+├── frontend/        # Shadcn workspace source
 ├── build.bat        # Windows launcher
 ├── build.command    # macOS launcher
+├── workspace.bat    # Windows browser workspace launcher
 └── pyproject.toml   # Package metadata and dependencies
 ```
 
@@ -266,6 +270,8 @@ uv run pytest -q
 uv run lut-builder --help
 uv run lut-builder list
 ```
+
+Rebuild the bundled browser workspace after frontend changes with `cd frontend`, `npm ci`, and `npm run build`.
 
 The current suite covers config compatibility, catalog validation, log decoding, exposure mapping, signal-range semantics, target-gamut overlays, interpolation boundaries, and CLI output paths.
 

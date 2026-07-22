@@ -3,8 +3,9 @@ import re
 from typing import Any, Mapping
 
 import numpy as np
+import colour
 
-from .data import PROFILE_CATALOG
+from .data import MIDDLE_GREY, PROFILE_CATALOG
 
 
 CUBE_SIZES = {17, 33, 65}
@@ -56,7 +57,7 @@ class LutSetup:
             if not isinstance(color, str) or not HEX_COLOR.fullmatch(color):
                 raise ValueError(f"invalid band color: {color!r}")
             normalized.append({"stop": center, "color": color.lower(), "width": width})
-        self.bands = normalized
+        self.bands = sorted(normalized, key=lambda band: band["stop"])
 
         for enabled, color, name in (
             (self.low_signal_warning, self.low_signal_hex, "low_signal_hex"),
@@ -126,10 +127,10 @@ def map_exposure(
 
     if setup.fill_mode and setup.bands:
         bands = sorted(setup.bands, key=lambda band: band["stop"])
-        centers = np.array([band["stop"] for band in bands])
-        nearest = np.argmin(np.abs(values[..., None] - centers), axis=-1)
+        boundaries = np.array([band["stop"] for band in bands[:-1]])
+        zones = np.searchsorted(boundaries, values, side="right")
         for index, band in enumerate(bands):
-            colors[nearest == index] = band["color"]
+            colors[zones == index] = band["color"]
     else:
         for band in setup.bands:
             width = band["width"] + width_buffer
@@ -143,3 +144,39 @@ def map_exposure(
     if setup.high_signal_warning and high_signal_mask is not None:
         colors[np.asarray(high_signal_mask)] = setup.high_signal_hex
     return colors
+
+
+def exposure_preview(setup: LutSetup) -> dict:
+    """Return the same exposure-axis preview used by CLI and browser clients."""
+    width = 64
+    if setup.band_mode == "ire":
+        minimum, maximum = 0.0, 100.0
+    else:
+        minimum, maximum = -7.0, 7.0
+
+    values = np.linspace(minimum, maximum, width)
+    width_buffer = ((maximum - minimum) / (width - 1)) / 2.0
+    colors = map_exposure(values, setup, width_buffer=width_buffer)
+    encoded_values = np.linspace(0.0, 1.0, 256)
+    if setup.band_mode == "ire":
+        encoded_exposure = encoded_values * 100.0
+    else:
+        profile = PROFILE_CATALOG.source(setup.profile_name)
+        source_space = colour.RGB_COLOURSPACES[profile.gamut]
+        linear = colour.models.log_decoding(
+            np.column_stack([encoded_values] * 3), function=profile.log
+        )
+        luminance = np.dot(linear, source_space.matrix_RGB_to_XYZ[1, :])
+        encoded_exposure = np.log2(np.maximum(luminance, 1e-6) / MIDDLE_GREY)
+    input_overlays = map_exposure(encoded_exposure, setup)
+    return {
+        "minimum": minimum,
+        "maximum": maximum,
+        "unit": "IRE" if setup.band_mode == "ire" else "stops",
+        "values": values.tolist(),
+        "colors": [color or "#3f3f46" for color in colors],
+        "overlays": colors.tolist(),
+        "input_overlays": input_overlays.tolist(),
+        "input_exposure": encoded_exposure.tolist(),
+        "width_buffer": width_buffer,
+    }
