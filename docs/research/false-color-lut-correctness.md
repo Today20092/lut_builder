@@ -4,15 +4,32 @@ Research date: 2026-07-22
 
 Scope: `src/lut_builder/engine.py`, `data.py`, `presets.py`, and the generated Adobe/IRIDAS `.cube` files. This is a standards-and-primary-source audit, not an application-code change.
 
+> [!NOTE]
+> The findings below describe the implementation reviewed on the research date and remain as historical evidence. The disposition table describes the current repository state.
+
+## Current disposition
+
+| Original recommendation | Current status | Coverage or follow-up |
+|---|---|---|
+| Select each configured camera decoder and verify documented middle grey | Corrected. Camera generation uses the configured decoder, with table-driven numerical coverage. | [Decoder regressions](../../tests/test_smoke.py), [issue #3](https://github.com/Today20092/lut_builder/issues/3) |
+| Describe the product as a diagnostic scene-exposure LUT | Corrected in the CLI and contributor documentation. | [Diagnostic semantics regressions](../../tests/test_diagnostic_semantics.py), [issue #4](https://github.com/Today20092/lut_builder/issues/4) |
+| Use encoded-signal threshold terminology instead of claiming sensor clipping | Corrected. Warnings describe channel-level encoded-signal boundaries and explicitly do not claim physical sensor clipping. | [Warning regressions](../../tests/test_diagnostic_semantics.py), [issue #4](https://github.com/Today20092/lut_builder/issues/4) |
+| Define full/legal-range semantics and verify black, middle grey, and white | Partially corrected. Endpoint semantics have regression coverage; bounding all gamut and transfer excursions to the legal range remains open. | [Range regressions](../../tests/test_diagnostic_semantics.py), [issue #10](https://github.com/Today20092/lut_builder/issues/10) |
+| Convert authored sRGB overlay colors into the selected target gamut | Corrected for Rec.709 and Rec.2020 outputs. | [Overlay regressions](../../tests/test_engine.py), [issue #5](https://github.com/Today20092/lut_builder/issues/5) |
+| Verify finite-grid threshold and interpolation behavior | Corrected with neutral-ramp coverage at 17-, 33-, and 65-point sizes. Host applications may still choose different interpolation algorithms. | [Interpolation regressions](../../tests/test_engine.py), [issue #5](https://github.com/Today20092/lut_builder/issues/5) |
+| Validate and dispatch every configured transfer function, including optional log output | Pending. Shipped camera decoding is corrected, but catalog validation and the optional log-output encoder still need end-to-end dispatch coverage. | [Issue #11](https://github.com/Today20092/lut_builder/issues/11) |
+
+## Original findings (historical)
+
 ## Executive verdict
 
-The generated LUTs are **not currently exposure-accurate**. The first operation in the pipeline silently decodes every supported camera as Cineon, so all downstream scene-linear luminance, stop bands, gamut conversion, monochrome rendering, and IRE values are based on the wrong signal. Fix that selector bug before interpreting any LUT output.
+The audited implementation was **not exposure-accurate**. Its first operation silently decoded every supported camera as Cineon, so all downstream scene-linear luminance, stop bands, gamut conversion, monochrome rendering, and IRE values were based on the wrong signal. This historical defect has since been corrected; see the current disposition above.
 
 After that fix, the broad ordering of operations is defensible—decode log, calculate linear-light exposure, convert gamut, encode the output, then apply false color—but four more semantics need tightening: the output is an OETF-encoded signal rather than a complete display rendering transform; “IRE” needs explicit full/legal-range semantics; clip indicators cannot be advertised as sensor clipping; and overlay colors are authored as sRGB values even for Rec.2020 output.
 
 ## Findings, in priority order
 
-### 1. Critical: every camera is decoded as Cineon
+### 1. Critical at audit time: every camera was decoded as Cineon
 
 The code calls:
 
@@ -99,4 +116,4 @@ The format does not prescribe a universal host interpolation algorithm. A false-
 - Legal-range scaling uses the nominal 10-bit 64–940 endpoints.
 - Delegating `.cube` domain/order serialization to Colour is safer than hand-writing it.
 
-Those points become meaningful only after the decoder-selection bug is fixed.
+At audit time, those points were contingent on fixing decoder selection. That camera-decoding correction and its numerical regressions are now in place; see the current disposition above. The broader transfer-dispatch work remains tracked in [issue #11](https://github.com/Today20092/lut_builder/issues/11).
