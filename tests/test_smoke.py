@@ -149,6 +149,49 @@ def test_profile_validation_rejects_unknown_log():
         catalog.validate()
 
 
+def test_profile_validation_rejects_unusable_log(monkeypatch):
+    def broken_decoder(value):
+        raise RuntimeError("decoder exploded")
+
+    monkeypatch.setitem(colour.LOG_DECODINGS, "Broken Decoder", broken_decoder)
+    catalog = ProfileCatalog(
+        sources={
+            "Broken camera": {
+                "gamut": "S-Gamut3.Cine",
+                "log": "Broken Decoder",
+                "encoded_signal_floor": 0.0,
+                "encoded_signal_ceiling": 1.0,
+            }
+        },
+        targets={},
+    )
+
+    with pytest.raises(ValueError, match="Broken camera.*decoder exploded"):
+        catalog.validate()
+
+
+def test_log_target_uses_configured_transfer(monkeypatch, tmp_path):
+    target_name = "Log3G10 Monitor"
+    monkeypatch.setitem(
+        PROFILE_CATALOG._targets,
+        target_name,
+        {"gamut": "REDWideGamutRGB", "gamma": "Log3G10", "encoding": "log"},
+    )
+    output_path = tmp_path / "log3g10-monitor.cube"
+
+    generate_lut(
+        LutSetup(
+            profile_name="RED Log3G10",
+            target_name=target_name,
+            cube_size=17,
+            output_filename=str(output_path),
+        )
+    )
+
+    generated = colour.read_LUT(str(output_path))
+    assert generated.table == pytest.approx(colour.LUT3D(size=17).table, abs=1e-6)
+
+
 @pytest.mark.parametrize(
     ("band_mode", "band_value", "width"),
     [("stops", 1.206029787487263, 0.001), ("ire", 64.10197890890636, 0.01)],

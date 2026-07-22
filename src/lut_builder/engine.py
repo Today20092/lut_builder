@@ -114,7 +114,7 @@ def generate_lut(setup: LutSetup) -> Path:
     if encoding == "oetf":
         final_data = colour.models.oetf(rgb_linear_tgt, function=target.transfer)
     else:
-        final_data = colour.models.log_encoding(rgb_linear_tgt, method=target.transfer)
+        final_data = colour.models.log_encoding(rgb_linear_tgt, function=target.transfer)
 
     # ------------------------------------------------------------------
     # 6b. Compute IRE values (only when band_mode == "ire")
