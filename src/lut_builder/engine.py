@@ -12,6 +12,19 @@ from .data import (
 from .setup import LutSetup, map_exposure
 
 
+def _srgb_overlay_to_target(hex_code: str, target, target_space) -> np.ndarray:
+    """Convert an sRGB hex color to the target gamut and transfer function."""
+    srgb_values = np.asarray(hex_to_rgb(hex_code))
+    if target.gamut == "ITU-R BT.709":
+        return srgb_values
+    srgb = colour.RGB_COLOURSPACES["sRGB"]
+    linear_srgb = colour.cctf_decoding(srgb_values, function="sRGB")
+    target_linear = colour.RGB_to_RGB(linear_srgb, srgb, target_space)
+    if target.encoding == "oetf":
+        return colour.models.oetf(target_linear, function=target.transfer)
+    return colour.models.log_encoding(target_linear, function=target.transfer)
+
+
 def generate_lut(setup: LutSetup) -> Path:
     profile_name = setup.profile_name
     target_name = setup.target_name
@@ -163,7 +176,9 @@ def generate_lut(setup: LutSetup) -> Path:
         [band["color"] for band in bands] + [low_signal_hex, high_signal_hex]
     ):
         if color:
-            final_data[overlay_colors == color] = hex_to_rgb(color)
+            final_data[overlay_colors == color] = _srgb_overlay_to_target(
+                color, target, tgt_cs
+            )
 
     # ------------------------------------------------------------------
     # 9. Build comment header
