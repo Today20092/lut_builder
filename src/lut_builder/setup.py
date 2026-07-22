@@ -56,7 +56,7 @@ class LutSetup:
             if not isinstance(color, str) or not HEX_COLOR.fullmatch(color):
                 raise ValueError(f"invalid band color: {color!r}")
             normalized.append({"stop": center, "color": color.lower(), "width": width})
-        self.bands = normalized
+        self.bands = sorted(normalized, key=lambda band: band["stop"])
 
         for enabled, color, name in (
             (self.low_signal_warning, self.low_signal_hex, "low_signal_hex"),

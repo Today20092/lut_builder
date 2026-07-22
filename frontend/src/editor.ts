@@ -63,6 +63,23 @@ export function contrastTextColor(hex: string) {
   return whiteContrast >= darkContrast ? "#ffffff" : "#111827"
 }
 
+const creationOrder = new WeakMap<Band, number>()
+let nextCreationOrder = 0
+
+function rememberCreationOrder(bands: Band[]) {
+  for (const band of bands) {
+    if (!creationOrder.has(band)) creationOrder.set(band, nextCreationOrder++)
+  }
+}
+
+export function orderBands(bands: Band[]) {
+  rememberCreationOrder(bands)
+  return [...bands].sort(
+    (left, right) =>
+      left.stop - right.stop || creationOrder.get(left)! - creationOrder.get(right)!,
+  )
+}
+
 export function changeMode(setup: Setup, mode: Mode): Setup {
   return {
     ...setup,
@@ -77,22 +94,18 @@ export function updateBand(
   index: number,
   changes: Partial<Band>,
 ): Setup {
+  rememberCreationOrder(setup.bands)
   return {
     ...setup,
-    bands: setup.bands.map((band, current) =>
-      current === index ? { ...band, ...changes } : band,
+    bands: orderBands(
+      setup.bands.map((band, current) => {
+        if (current !== index) return band
+        const updated = { ...band, ...changes }
+        creationOrder.set(updated, creationOrder.get(band)!)
+        return updated
+      }),
     ),
   }
-}
-
-export function moveBand(setup: Setup, from: number, to: number): Setup {
-  if (from === to || from < 0 || to < 0 || from >= setup.bands.length || to >= setup.bands.length) {
-    return setup
-  }
-  const bands = [...setup.bands]
-  const [band] = bands.splice(from, 1)
-  bands.splice(to, 0, band)
-  return { ...setup, bands }
 }
 
 export function filterPalette(palette: PaletteColor[], search: string) {
@@ -105,7 +118,7 @@ export function filterPalette(palette: PaletteColor[], search: string) {
 }
 
 export function exportSetup(setup: Setup) {
-  return JSON.stringify({ version: 1, ...setup }, null, 2)
+  return JSON.stringify({ version: 1, ...setup, bands: orderBands(setup.bands) }, null, 2)
 }
 
 export async function importSetup(
@@ -124,5 +137,5 @@ export async function importSetup(
   const setup = Object.fromEntries(
     Object.entries(candidate).filter(([key]) => key !== "version"),
   ) as Setup
-  return validate(setup)
+  return validate({ ...setup, bands: orderBands(setup.bands) })
 }
