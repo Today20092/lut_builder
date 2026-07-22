@@ -686,6 +686,14 @@ def list_colors(search: Optional[str] = typer.Argument(None, help="Filter by fam
 
 
 @app.command()
+def workspace():
+    """Open the local browser workspace and keep it running until stopped."""
+    from .web import launch_workspace
+
+    launch_workspace()
+
+
+@app.command()
 def build(
     config: Optional[Path] = typer.Option(
         None,
