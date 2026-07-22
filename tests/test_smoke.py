@@ -7,6 +7,7 @@ import pytest
 
 from lut_builder.data import oklch_to_hex
 from lut_builder.engine import generate_lut
+from lut_builder.setup import LutSetup
 
 
 def test_oklch_to_hex():
@@ -34,7 +35,7 @@ def test_hex_validation():
 def test_engine_runs():
     with tempfile.TemporaryDirectory() as tmpdir:
         out = Path(tmpdir) / "test.cube"
-        result = generate_lut(
+        result = generate_lut(LutSetup(
             profile_name="Sony S-Log3",
             target_name="Rec.709",
             cube_size=17,
@@ -48,15 +49,15 @@ def test_engine_runs():
             output_filename=str(out),
             legal_range=False,
             fill_mode=False,
-        )
+        ))
         assert Path(result).exists()
         assert Path(result).stat().st_size > 0
 
 
 def test_config_round_trip():
-    from lut_builder.cli import save_config, load_config, config_from_session
+    from lut_builder.cli import save_config, load_config
 
-    cfg = config_from_session(
+    setup = LutSetup(
         profile_name="Sony S-Log3",
         target_name="Rec.709",
         cube_size=33,
@@ -76,16 +77,9 @@ def test_config_round_trip():
         path = Path(f.name)
 
     try:
-        save_config(path, cfg)
+        save_config(path, setup)
         loaded = load_config(path)
 
-        assert loaded["version"] == 1
-        assert loaded["profile"] == "Sony S-Log3"
-        assert loaded["target"] == "Rec.709"
-        assert loaded["cube_size"] == 33
-        assert loaded["black_clip"] is True
-        assert loaded["black_hex"] == "#0000ff"
-        assert loaded["fill_mode"] is False
-        assert loaded["bands"][0]["color"] == "#00ff00"
+        assert loaded == setup
     finally:
         path.unlink(missing_ok=True)

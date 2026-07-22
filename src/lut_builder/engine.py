@@ -9,26 +9,23 @@ from .data import (
     PROFILE_CATALOG,
     hex_to_rgb,
 )
+from .setup import LutSetup, map_exposure
 
 
-def generate_lut(
-    profile_name: str,
-    target_name: str,
-    cube_size: int,
-    bands: list[dict],
-    # Each dict: {"stop": float, "color": "#rrggbb", "width": float}
-    # Bands are applied in order — later entries overwrite earlier ones on overlap.
-    # In fill_mode, "width" is ignored; every pixel is assigned to its nearest stop.
-    band_mode: str,  # "stops" or "ire"
-    black_clip: bool,
-    black_hex: str,
-    white_clip: bool,
-    white_hex: str,
-    monochrome: bool,
-    output_filename: str,
-    legal_range: bool = False,
-    fill_mode: bool = False,
-) -> Path:
+def generate_lut(setup: LutSetup) -> Path:
+    profile_name = setup.profile_name
+    target_name = setup.target_name
+    cube_size = setup.cube_size
+    bands = setup.bands
+    band_mode = setup.band_mode
+    black_clip = setup.black_clip
+    black_hex = setup.black_hex
+    white_clip = setup.white_clip
+    white_hex = setup.white_hex
+    monochrome = setup.monochrome
+    output_filename = setup.output_filename
+    legal_range = setup.legal_range
+    fill_mode = setup.fill_mode
     profile = PROFILE_CATALOG.source(profile_name)
     target = PROFILE_CATALOG.target(target_name)
 
@@ -131,25 +128,6 @@ def generate_lut(
     # ------------------------------------------------------------------
     band_values = ire if band_mode == "ire" else stops
 
-    if fill_mode and bands:
-        # Voronoi partition: every pixel gets the color of its nearest stop.
-        # Outermost stops' colors extend to -inf / +inf with no uncolored pixels.
-        sorted_bands = sorted(bands, key=lambda b: b["stop"])
-        centers = np.array([b["stop"] for b in sorted_bands])
-        colors = [hex_to_rgb(b["color"]) for b in sorted_bands]
-        # Shape: (N_pixels, N_bands) — argmin over axis=1 gives nearest band index
-        diffs = np.abs(band_values[:, None] - centers[None, :])
-        nearest = np.argmin(diffs, axis=1)
-        for idx, rgb in enumerate(colors):
-            final_data[nearest == idx] = rgb
-    else:
-        for band in bands:
-            center = band["stop"]  # stop value or IRE target
-            width = band["width"]
-            rgb = hex_to_rgb(band["color"])
-            mask = (band_values >= (center - width)) & (band_values <= (center + width))
-            final_data[mask] = rgb
-
     # ------------------------------------------------------------------
     # 8. Clipping indicators — based on raw log signal, NOT linear stops
     #
@@ -170,19 +148,27 @@ def generate_lut(
     grid_step = 1.0 / (cube_size - 1)
     clip_tol = grid_step / 2.0
 
-    if black_clip and black_hex:
-        black_rgb = hex_to_rgb(black_hex)
-        # Clip when the minimum channel sits at or below the sensor floor
+    black_mask = None
+    if black_clip:
         channel_min = np.min(samples, axis=1)
         black_mask = channel_min <= (log_floor + clip_tol)
-        final_data[black_mask] = black_rgb
 
-    if white_clip and white_hex:
-        white_rgb = hex_to_rgb(white_hex)
-        # Clip when the maximum channel hits or exceeds the sensor ceiling
+    white_mask = None
+    if white_clip:
         channel_max = np.max(samples, axis=1)
         white_mask = channel_max >= (log_ceiling - clip_tol)
-        final_data[white_mask] = white_rgb
+
+    overlay_colors = map_exposure(
+        band_values,
+        setup,
+        black_clip_mask=black_mask,
+        white_clip_mask=white_mask,
+    )
+    for color in dict.fromkeys(
+        [band["color"] for band in bands] + [black_hex, white_hex]
+    ):
+        if color:
+            final_data[overlay_colors == color] = hex_to_rgb(color)
 
     # ------------------------------------------------------------------
     # 9. Build comment header
@@ -222,10 +208,15 @@ def generate_lut(
         comments.append(f"False Color Bands ({mode_label}{fill_label}):")
         for band in sorted(bands, key=lambda b: b["stop"]):
             if fill_mode:
-                sign = "+" if band["stop"] >= 0 else ""
-                comments.append(
-                    f"  Stop {sign}{band['stop']:.1f}  ->  {band['color']}  (fill zone)"
-                )
+                if band_mode == "ire":
+                    comments.append(
+                        f"  {band['stop']:.0f} IRE  ->  {band['color']}  (fill zone)"
+                    )
+                else:
+                    sign = "+" if band["stop"] >= 0 else ""
+                    comments.append(
+                        f"  Stop {sign}{band['stop']:.1f}  ->  {band['color']}  (fill zone)"
+                    )
             elif band_mode == "ire":
                 comments.append(
                     f"  {band['stop']:.0f} IRE  "
