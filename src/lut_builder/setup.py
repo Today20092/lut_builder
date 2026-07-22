@@ -150,12 +150,6 @@ def exposure_preview(setup: LutSetup) -> dict:
     width = 64
     if setup.band_mode == "ire":
         minimum, maximum = 0.0, 100.0
-    elif setup.fill_mode and setup.bands:
-        minimum = min(band["stop"] for band in setup.bands) - 1.0
-        maximum = max(band["stop"] for band in setup.bands) + 1.0
-    elif setup.bands:
-        minimum = min(band["stop"] - band["width"] for band in setup.bands) - 1.0
-        maximum = max(band["stop"] + band["width"] for band in setup.bands) + 1.0
     else:
         minimum, maximum = -7.0, 7.0
 
