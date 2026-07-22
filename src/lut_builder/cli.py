@@ -711,7 +711,7 @@ def build(
     regenerate non-interactively, and --output-dir to control where the
     .cube file lands:
 
-        uv run lut-builder --config my_setup.json --output-dir ~/luts
+        uv run lut-builder build --config my_setup.json --output-dir ~/luts
     """
 
     def resolve_output(filename: str) -> str:
