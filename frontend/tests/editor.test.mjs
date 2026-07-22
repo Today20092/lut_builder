@@ -2,6 +2,7 @@ import assert from "node:assert/strict"
 import test from "node:test"
 
 import {
+  bandId,
   changeMode,
   contrastTextColor,
   exportSetup,
@@ -65,11 +66,13 @@ test("mode transitions preserve bands and disable meaningless fill options", () 
 })
 
 test("editing a band orders it by position without mutating prior state", () => {
+  const selectedId = bandId(setup.bands[1])
   const edited = updateBand(setup, 1, { stop: -2, color: "#123456" })
 
   assert.equal(setup.bands[0].stop, -1)
   assert.deepEqual(edited.bands.map((band) => band.stop), [-2, -1])
   assert.equal(edited.bands[0].color, "#123456")
+  assert.equal(bandId(edited.bands[0]), selectedId)
 })
 
 test("bands at equal positions retain their creation order", () => {

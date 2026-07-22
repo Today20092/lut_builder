@@ -88,7 +88,12 @@ test("exposure graph dispatches stepped keyboard, wheel, and pointer edits", asy
     onChange(index, value) { changes.push([index, value]) },
   })
   const graph = container.querySelector("[aria-label='Editable exposure graph from -7 to 7 stops']")
+  const scale = container.querySelector("[aria-label='stops scale']")
   const handle = container.querySelector("[aria-label='Band 1, 0 stops']")
+  assert.equal(scale.children.length, 15)
+  assert.equal(graph.querySelectorAll("[data-scale-guide]").length, 15)
+  assert.equal(scale.firstElementChild.textContent.trim(), "-7")
+  assert.equal(scale.lastElementChild.textContent.trim(), "+7")
   graph.getBoundingClientRect = () => ({ left: 0, width: 100 })
 
   await act(() => handle.dispatchEvent(new window.KeyboardEvent("keydown", {

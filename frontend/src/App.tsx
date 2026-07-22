@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/card"
 import { Spinner } from "@/components/ui/spinner"
 import {
+  bandId,
   changeMode,
   contrastTextColor,
   exportSetup,
@@ -216,6 +217,9 @@ export function ExposureGraph({
   const aboveIndexes = setup.bands.flatMap((band, index) =>
     band.stop > preview.maximum ? [index] : [],
   )
+  const ticks = setup.band_mode === "stops"
+    ? Array.from({ length: 15 }, (_, index) => index - 7)
+    : Array.from({ length: 11 }, (_, index) => index * 10)
 
   function stepSelected(direction: -1 | 1) {
     const band = setup.bands[selectedBand]
@@ -250,6 +254,7 @@ export function ExposureGraph({
   }
 
   return (
+    <div className="grid gap-1">
     <div
       ref={graph}
       className="relative flex h-28 touch-none overflow-hidden rounded-lg border"
@@ -258,6 +263,15 @@ export function ExposureGraph({
     >
       {preview.colors.map((color, index) => (
         <span className="flex-1" key={index} style={{ backgroundColor: color }} />
+      ))}
+      {ticks.map((tick) => (
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-y-0 z-[1] border-l border-white/35 mix-blend-difference"
+          data-scale-guide={tick}
+          key={`guide-${tick}`}
+          style={{ left: `${position(tick)}%` }}
+        />
       ))}
       {belowIndexes.length > 0 && (
         <button
@@ -325,6 +339,15 @@ export function ExposureGraph({
         )
       })}
     </div>
+    <div className="relative h-8 text-[10px] text-muted-foreground" aria-label={`${preview.unit} scale`}>
+      {ticks.map((tick) => (
+        <span className="absolute top-0 flex -translate-x-1/2 flex-col items-center" key={tick} style={{ left: `${position(tick)}%` }}>
+          <span aria-hidden="true" className="h-2 border-l border-current" />
+          {tick > 0 ? `+${tick}` : tick}
+        </span>
+      ))}
+    </div>
+    </div>
   )
 }
 
@@ -336,10 +359,12 @@ export function App() {
   const [status, setStatus] = useState("")
   const [isGenerating, setIsGenerating] = useState(false)
   const [stopIncrement, setStopIncrement] = useState<1 | 0.5 | 0.25>(0.25)
-  const [selectedBand, setSelectedBand] = useState(0)
+  const [selectedBandId, setSelectedBandId] = useState(() => setup.bands[0] ? bandId(setup.bands[0]) : -1)
   const importInput = useRef<HTMLInputElement>(null)
   const mode: Mode = setup.fill_mode ? "fill" : setup.band_mode
   const movementIncrement = mode === "ire" ? 1 : stopIncrement
+  const selectedBand = Math.max(0, setup.bands.findIndex((band) => bandId(band) === selectedBandId))
+  const selectBand = (index: number) => setSelectedBandId(setup.bands[index] ? bandId(setup.bands[index]) : -1)
 
   useEffect(() => {
     const controller = new AbortController()
@@ -431,9 +456,21 @@ export function App() {
 
       <section className="grid gap-6">
         <Card className="overflow-hidden">
-          <CardHeader>
-            <CardTitle>Live exposure preview</CardTitle>
-            <CardDescription>Calculated by the shared Python exposure mapper.</CardDescription>
+          <CardHeader className="flex-col items-start gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <CardTitle>Exposure bands</CardTitle>
+              <CardDescription>Drag a marker or edit its row. Higher bands win overlaps.</CardDescription>
+            </div>
+            <div className="flex items-end gap-2">
+              {mode === "stops" && (
+                <label className="grid gap-1 text-xs font-medium">Movement
+                  <select className={fieldClass} value={stopIncrement} onChange={(event) => setStopIncrement(Number(event.target.value) as 1 | 0.5 | 0.25)}>
+                    <option value="1">1 stop</option><option value="0.5">½ stop</option><option value="0.25">¼ stop</option>
+                  </select>
+                </label>
+              )}
+              <Button type="button" variant="outline" onClick={() => patchSetup({ bands: orderBands([...setup.bands, { stop: mode === "ire" ? 50 : 0, width: mode === "ire" ? 2 : 0.3, color: "#eab308" }]) })}>Add band</Button>
+            </div>
           </CardHeader>
           <CardContent className="grid gap-4">
             {preview ? (
@@ -443,21 +480,23 @@ export function App() {
                   preview={preview}
                   increment={movementIncrement}
                   selectedBand={selectedBand}
-                  onSelect={setSelectedBand}
+                  onSelect={selectBand}
                   onChange={(index, stop) => setSetup((current) => updateBand(current, index, { stop }))}
                 />
-                <div className="flex justify-between text-xs text-muted-foreground">
-                  <span>{preview.minimum} {preview.unit}</span>
-                  <span>{preview.maximum} {preview.unit}</span>
+                <div className="overflow-x-auto rounded-lg border">
+                  <table className="w-full min-w-[34rem] text-sm">
+                    <thead className="bg-muted/50 text-left text-xs text-muted-foreground"><tr><th className="px-3 py-2">Color</th><th className="px-3 py-2">{mode === "ire" ? "IRE" : "Stops"}</th><th className="px-3 py-2">Half-width</th><th className="px-3 py-2"><span className="sr-only">Actions</span></th></tr></thead>
+                    <tbody>{setup.bands.map((band, index) => (
+                      <tr className={`border-t ${selectedBand === index ? "bg-accent/60" : ""}`} key={bandId(band)} onFocus={() => selectBand(index)} onClick={() => selectBand(index)}>
+                        <td className="p-2"><ColorPicker label={`Band ${index + 1} color`} value={band.color} palette={catalog.palette} onChange={(color) => setSetup((current) => updateBand(current, index, { color }))} /></td>
+                        <td className="p-2"><input aria-label={`Band ${index + 1} ${mode === "ire" ? "IRE" : "stops"}`} className={fieldClass} type="number" step={movementIncrement} min={mode === "ire" ? 0 : undefined} max={mode === "ire" ? 100 : undefined} value={band.stop} onChange={(event) => setSetup((current) => updateBand(current, index, { stop: Number(event.target.value) }))} /></td>
+                        <td className="p-2"><input aria-label={`Band ${index + 1} half-width`} className={fieldClass} type="number" min="0" step="0.1" value={band.width} disabled={setup.fill_mode} onChange={(event) => setSetup((current) => updateBand(current, index, { width: Number(event.target.value) }))} /></td>
+                        <td className="p-2"><Button aria-label={`Remove band ${index + 1}`} type="button" size="sm" variant="destructive" onClick={() => patchSetup({ bands: setup.bands.filter((_, current) => current !== index) })}>Remove</Button></td>
+                      </tr>
+                    ))}</tbody>
+                  </table>
+                  {setup.bands.length === 0 && <p className="p-4 text-sm text-muted-foreground">No bands yet.</p>}
                 </div>
-                <ul className="grid gap-2 text-sm">
-                  {preview.legend.map((item, index) => (
-                    <li className="flex items-center gap-2" key={`${item.kind}-${index}`}>
-                      <span className="size-4 rounded border" style={{ backgroundColor: item.color }} />
-                      {item.label}
-                    </li>
-                  ))}
-                </ul>
                 {preview.warnings.map((warning) => <p className="text-sm text-amber-700 dark:text-amber-300" key={warning}>{warning}</p>)}
               </>
             ) : <p className="text-sm text-muted-foreground">Preparing preview…</p>}
@@ -477,49 +516,7 @@ export function App() {
           </CardFooter>
         </Card>
 
-        <div className="grid min-w-0 items-start gap-6 lg:grid-cols-2 xl:grid-cols-3">
-          <Card>
-            <CardHeader className="flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <CardTitle>Exposure bands</CardTitle>
-                <CardDescription>Bands follow exposure order; higher bands win overlaps.</CardDescription>
-              </div>
-              <Button type="button" variant="outline" onClick={() => patchSetup({ bands: orderBands([...setup.bands, { stop: mode === "ire" ? 50 : 0, width: mode === "ire" ? 2 : 0.3, color: "#eab308" }]) })}>Add band</Button>
-            </CardHeader>
-            <CardContent className="grid gap-4">
-              {mode === "stops" && (
-                <label className="grid gap-1 text-sm font-medium">
-                  Movement increment
-                  <select className={fieldClass} value={stopIncrement} onChange={(event) => setStopIncrement(Number(event.target.value) as 1 | 0.5 | 0.25)}>
-                    <option value="1">1 stop</option>
-                    <option value="0.5">½ stop</option>
-                    <option value="0.25">¼ stop</option>
-                  </select>
-                </label>
-              )}
-              {setup.bands.length === 0 && <p className="text-sm text-muted-foreground">No bands yet.</p>}
-              {setup.bands.map((band, index) => (
-                <fieldset className={`grid gap-3 rounded-lg border p-3 ${selectedBand === index ? "border-ring" : ""}`} key={index} onFocus={() => setSelectedBand(index)}>
-                  <legend className="px-1 text-sm font-medium">Exposure band</legend>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <label className="grid gap-1 text-sm font-medium">
-                      {mode === "ire" ? "IRE" : "Stops"}
-                      <input className={fieldClass} type="number" step={movementIncrement} min={mode === "ire" ? 0 : undefined} max={mode === "ire" ? 100 : undefined} value={band.stop} onChange={(e) => setSetup((current) => updateBand(current, index, { stop: Number(e.target.value) }))} />
-                    </label>
-                    <label className="grid gap-1 text-sm font-medium">
-                      Half-width
-                      <input className={fieldClass} type="number" min="0" step="0.1" value={band.width} disabled={setup.fill_mode} onChange={(e) => setSetup((current) => updateBand(current, index, { width: Number(e.target.value) }))} />
-                    </label>
-                  </div>
-                  <ColorPicker label="Band color" value={band.color} palette={catalog.palette} onChange={(color) => setSetup((current) => updateBand(current, index, { color }))} />
-                  <div className="flex flex-wrap gap-2">
-                    <Button type="button" size="sm" variant="destructive" onClick={() => patchSetup({ bands: setup.bands.filter((_, current) => current !== index) })}>Remove</Button>
-                  </div>
-                </fieldset>
-              ))}
-            </CardContent>
-          </Card>
-
+        <div className="grid min-w-0 items-start gap-6 lg:grid-cols-2">
           <Card>
             <CardHeader>
               <CardTitle>Configuration</CardTitle>

@@ -72,6 +72,11 @@ function rememberCreationOrder(bands: Band[]) {
   }
 }
 
+export function bandId(band: Band) {
+  rememberCreationOrder([band])
+  return creationOrder.get(band)!
+}
+
 export function orderBands(bands: Band[]) {
   rememberCreationOrder(bands)
   return [...bands].sort(
