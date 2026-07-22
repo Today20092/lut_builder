@@ -143,3 +143,30 @@ def map_exposure(
     if setup.high_signal_warning and high_signal_mask is not None:
         colors[np.asarray(high_signal_mask)] = setup.high_signal_hex
     return colors
+
+
+def exposure_preview(setup: LutSetup) -> dict:
+    """Return the same exposure-axis preview used by CLI and browser clients."""
+    width = 64
+    if setup.band_mode == "ire":
+        minimum, maximum = 0.0, 100.0
+    elif setup.fill_mode and setup.bands:
+        minimum = min(band["stop"] for band in setup.bands) - 1.0
+        maximum = max(band["stop"] for band in setup.bands) + 1.0
+    elif setup.bands:
+        minimum = min(band["stop"] - band["width"] for band in setup.bands) - 1.0
+        maximum = max(band["stop"] + band["width"] for band in setup.bands) + 1.0
+    else:
+        minimum, maximum = -7.0, 7.0
+
+    values = np.linspace(minimum, maximum, width)
+    width_buffer = ((maximum - minimum) / (width - 1)) / 2.0
+    colors = map_exposure(values, setup, width_buffer=width_buffer)
+    return {
+        "minimum": minimum,
+        "maximum": maximum,
+        "unit": "IRE" if setup.band_mode == "ire" else "stops",
+        "values": values.tolist(),
+        "colors": [color or "#3f3f46" for color in colors],
+        "width_buffer": width_buffer,
+    }

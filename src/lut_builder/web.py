@@ -1,5 +1,6 @@
 """Loopback-only browser workspace for LUT Builder."""
 
+from dataclasses import replace
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import mimetypes
@@ -11,9 +12,11 @@ import threading
 from urllib.parse import unquote, urlsplit
 import webbrowser
 
+from .colors import TAILWIND_COLORS
+from .data import PROFILE_CATALOG, oklch_to_hex
 from .engine import generate_lut
 from .presets import WIDTH_PRESETS, suggest_color_for_stop
-from .setup import LutSetup
+from .setup import LutSetup, exposure_preview
 
 
 STATIC_ROOT = Path(__file__).with_name("static")
@@ -35,10 +38,30 @@ DEFAULT_SETUP = {
     ],
     "band_mode": "stops",
     "fill_mode": False,
+    "low_signal_warning": False,
+    "low_signal_hex": suggest_color_for_stop(-99)[2],
+    "high_signal_warning": False,
+    "high_signal_hex": suggest_color_for_stop(99)[2],
     "monochrome": True,
     "legal_range": False,
     "output": "SonySLog3_Rec709.cube",
 }
+CATALOG = {
+    "profiles": list(PROFILE_CATALOG.source_names()),
+    "targets": list(PROFILE_CATALOG.target_names()),
+    "palette": [
+        {"name": f"{family}-{shade}", "hex": oklch_to_hex(*oklch)}
+        for family, shades in TAILWIND_COLORS.items()
+        for shade, oklch in shades.items()
+    ],
+}
+LEGACY_FIELDS = {
+    "black_clip": "low_signal_warning",
+    "black_hex": "low_signal_hex",
+    "white_clip": "high_signal_warning",
+    "white_hex": "high_signal_hex",
+}
+CONFIG_FIELDS = {*DEFAULT_SETUP, *LEGACY_FIELDS, "version"}
 
 
 def safe_output_name(value: object) -> str:
@@ -48,17 +71,66 @@ def safe_output_name(value: object) -> str:
     return f"{stem}.cube"
 
 
-def _generate_download(payload: dict) -> tuple[bytes, str]:
-    unsupported = payload.keys() - {"output"}
+def _setup_from_payload(payload: dict) -> LutSetup:
+    unsupported = payload.keys() - CONFIG_FIELDS
     if unsupported:
         raise ValueError(f"Unsupported fields: {', '.join(sorted(unsupported))}")
-    filename = safe_output_name(payload.get("output"))
+    if payload.get("version", 1) != 1:
+        raise ValueError("Only version-1 configurations are supported")
+    config = {**DEFAULT_SETUP, **payload}
+    for legacy, current in LEGACY_FIELDS.items():
+        if legacy in payload and current not in payload:
+            config[current] = payload[legacy]
+    return LutSetup.from_config(config)
+
+
+def _preview_payload(payload: dict) -> dict:
+    setup = _setup_from_payload(payload)
+    profile = PROFILE_CATALOG.source(setup.profile_name)
+    preview = exposure_preview(setup)
+    preview["setup"] = setup.to_config()
+    preview["legend"] = []
+    if setup.low_signal_warning:
+        preview["legend"].append(
+            {
+                "kind": "low",
+                "color": setup.low_signal_hex,
+                "label": f"Low encoded signal ≤ {profile.encoded_signal_floor:.3f}",
+            }
+        )
+    for band in setup.bands:
+        unit = "IRE" if setup.band_mode == "ire" else "stops"
+        suffix = "fill zone" if setup.fill_mode else f"±{band['width']:g} {unit}"
+        preview["legend"].append(
+            {
+                "kind": "band",
+                "color": band["color"],
+                "label": f"{band['stop']:g} {unit} · {suffix}",
+            }
+        )
+    if setup.high_signal_warning:
+        preview["legend"].append(
+            {
+                "kind": "high",
+                "color": setup.high_signal_hex,
+                "label": f"High encoded signal ≥ {profile.encoded_signal_ceiling:.3f}",
+            }
+        )
+    preview["warnings"] = []
+    if not setup.bands:
+        preview["warnings"].append("No exposure bands are configured.")
+    if setup.fill_mode and (setup.monochrome or any(band["width"] for band in setup.bands)):
+        preview["warnings"].append("Fill mode ignores band widths and monochrome.")
+    return preview
+
+
+def _generate_download(payload: dict) -> tuple[bytes, str]:
+    setup = _setup_from_payload(payload)
+    filename = safe_output_name(setup.output_filename)
     with tempfile.TemporaryDirectory(prefix="lut-builder-") as directory:
-        config = {
-            **DEFAULT_SETUP,
-            "output": str(Path(directory) / filename),
-        }
-        output = generate_lut(LutSetup.from_config(config))
+        output = generate_lut(
+            replace(setup, output_filename=str(Path(directory) / filename))
+        )
         return output.read_bytes(), filename
 
 
@@ -72,6 +144,7 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
             body = (
                 page.replace("__TOKEN__", json.dumps(self.token))
                 .replace("__SETUP__", json.dumps(DEFAULT_SETUP))
+                .replace("__CATALOG__", json.dumps(CATALOG))
                 .encode()
             )
             self._send(200, body, "text/html; charset=utf-8")
@@ -88,7 +161,7 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
         self._send(200, asset.read_bytes(), content_type)
 
     def do_POST(self) -> None:
-        if self.path != "/generate":
+        if self.path not in {"/preview", "/generate"}:
             self.send_error(404)
             return
         if self.headers.get_content_type() != "application/json":
@@ -106,6 +179,9 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
             payload = json.loads(self.rfile.read(length))
             if not isinstance(payload, dict):
                 raise ValueError("JSON body must be an object")
+            if self.path == "/preview":
+                self._send_json(200, _preview_payload(payload))
+                return
             cube, filename = _generate_download(payload)
         except (json.JSONDecodeError, UnicodeDecodeError, ValueError) as error:
             self._send_json(400, {"error": str(error)})

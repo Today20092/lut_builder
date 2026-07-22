@@ -10,7 +10,6 @@ from typing import Optional
 warnings.filterwarnings("ignore", module="colour")
 
 import typer
-import numpy as np
 from rich.console import Console
 from rich.panel import Panel
 from rich.prompt import Confirm, Prompt
@@ -21,7 +20,7 @@ from rich.text import Text
 from .colors import TAILWIND_COLORS
 from .data import PROFILE_CATALOG, oklch_to_hex
 from .engine import generate_lut
-from .setup import LutSetup, map_exposure
+from .setup import LutSetup, exposure_preview
 from .presets import (
     suggest_color_for_stop,
     suggest_color_for_ire,
@@ -428,36 +427,12 @@ def print_exposure_preview(setup: LutSetup) -> None:
     high_signal_hex = setup.high_signal_hex
     fill_mode = setup.fill_mode
 
-    # Dynamically determine the range from the user's exposure bands.
-    if setup.band_mode == "ire":
-        lo_stops, hi_stops = 0.0, 100.0
-    elif fill_mode and bands:
-        lo_stops = min(band["stop"] for band in bands) - 1.0
-        hi_stops = max(band["stop"] for band in bands) + 1.0
-    elif bands:
-        lo_stops = min(band["stop"] - band["width"] for band in bands) - 1.0
-        hi_stops = max(band["stop"] + band["width"] for band in bands) + 1.0
-    else:
-        lo_stops, hi_stops = -7.0, 7.0
-
-    lo = lo_stops
-    hi = hi_stops
+    preview = exposure_preview(setup)
+    lo = preview["minimum"]
+    hi = preview["maximum"]
     total = hi - lo
-    BAR_WIDTH = 64
-    UNASSIGNED = "#3f3f46"  # zinc-700 — dark gray for normal exposure
-
-    # Each character spans this many stops — bands narrower than one
-    # character would vanish without a small buffer.
-    half_step = (total / (BAR_WIDTH - 1)) / 2.0
-
-    # Build a color lookup for each bar position
-    values = np.linspace(lo, hi, BAR_WIDTH)
-    mapped = map_exposure(
-        values,
-        setup,
-        width_buffer=half_step,
-    )
-    bar_colors = [color or UNASSIGNED for color in mapped]
+    bar_width = len(preview["values"])
+    bar_colors = preview["colors"]
 
     # Build the bar as a Rich Text object
     bar = Text()
@@ -471,7 +446,7 @@ def print_exposure_preview(setup: LutSetup) -> None:
     start_stop = int(lo) if lo == int(lo) else int(lo) + 1
     last_pos = -1
     for s in range(start_stop, int(hi) + 1, label_step):
-        pos = int(((s - lo) / total) * (BAR_WIDTH - 1))
+        pos = int(((s - lo) / total) * (bar_width - 1))
         label = str(s) if setup.band_mode == "ire" else (f"+{s}" if s > 0 else str(s))
         padding = pos - last_pos - 1
         if padding >= 0:
