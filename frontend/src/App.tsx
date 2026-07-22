@@ -32,6 +32,7 @@ import {
   stepBandValue,
   orderBands,
   updateBand,
+  updateFillBoundary,
   wheelStepDirection,
   type Mode,
   type PaletteColor,
@@ -212,10 +213,11 @@ export function ExposureGraph({
   const bounds = setup.band_mode === "ire"
     ? ([preview.minimum, preview.maximum] as const)
     : ([-Infinity, Infinity] as const)
-  const belowIndexes = setup.bands.flatMap((band, index) =>
+  const interactiveBands = setup.fill_mode ? setup.bands.slice(0, -1) : setup.bands
+  const belowIndexes = interactiveBands.flatMap((band, index) =>
     band.stop < preview.minimum ? [index] : [],
   )
-  const aboveIndexes = setup.bands.flatMap((band, index) =>
+  const aboveIndexes = interactiveBands.flatMap((band, index) =>
     band.stop > preview.maximum ? [index] : [],
   )
   const ticks = setup.band_mode === "stops"
@@ -224,6 +226,7 @@ export function ExposureGraph({
 
   function stepSelected(direction: -1 | 1) {
     const band = setup.bands[selectedBand]
+    if (setup.fill_mode && selectedBand >= setup.bands.length - 1) return
     if (band) onChange(selectedBand, stepBandValue(band.stop, direction, increment, ...bounds))
   }
 
@@ -307,6 +310,7 @@ export function ExposureGraph({
         )
       })}
       {setup.bands.map((band, index) => {
+        if (setup.fill_mode && index === setup.bands.length - 1) return null
         const below = band.stop < preview.minimum
         const above = band.stop > preview.maximum
         const edge = below || above
@@ -315,17 +319,23 @@ export function ExposureGraph({
           <button
             key={`handle-${index}`}
             type="button"
-            className={`absolute z-10 rounded-full border-2 border-background px-2 py-1 text-xs font-semibold shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${selectedBand === index ? "ring-2 ring-ring ring-offset-2" : ""}`}
+            className={setup.fill_mode
+              ? `absolute inset-y-0 z-10 w-6 -translate-x-1/2 bg-transparent after:absolute after:inset-y-0 after:left-1/2 after:w-1 after:-translate-x-1/2 after:bg-background after:shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${selectedBand === index ? "ring-2 ring-ring" : ""}`
+              : `absolute z-10 rounded-full border-2 border-background px-2 py-1 text-xs font-semibold shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${selectedBand === index ? "ring-2 ring-ring ring-offset-2" : ""}`}
             style={{
-              backgroundColor: band.color,
-              color: contrastTextColor(band.color),
               left: `${position(band.stop)}%`,
-              top: edge ? "70%" : "50%",
-              transform: edge
-                ? `translate(${below ? "0" : "-100%"}, -50%)`
-                : "translate(-50%, -50%)",
+              ...(setup.fill_mode ? {} : {
+                backgroundColor: band.color,
+                color: contrastTextColor(band.color),
+                top: edge ? "70%" : "50%",
+                transform: edge
+                  ? `translate(${below ? "0" : "-100%"}, -50%)`
+                  : "translate(-50%, -50%)",
+              }),
             }}
-            aria-label={`Band ${index + 1}, ${band.stop} ${preview.unit}${edge ? ", outside visible range" : ""}`}
+            aria-label={setup.fill_mode
+              ? `Boundary between colors ${index + 1} and ${index + 2}, ${band.stop} ${preview.unit}`
+              : `Band ${index + 1}, ${band.stop} ${preview.unit}${edge ? ", outside visible range" : ""}`}
             title={edge ? `${band.stop} ${preview.unit} is outside the visible range` : undefined}
             onClick={() => onSelect(index)}
             onKeyDown={(event) => handleKeyDown(event, index)}
@@ -335,7 +345,7 @@ export function ExposureGraph({
             }}
             onPointerMove={(event) => handlePointerMove(event, index)}
           >
-            {below ? "← " : ""}{band.stop}{above ? " →" : ""}
+            {!setup.fill_mode && <>{below ? "← " : ""}{band.stop}{above ? " →" : ""}</>}
           </button>
         )
       })}
@@ -466,7 +476,7 @@ export function App() {
           <CardHeader className="flex-col items-start gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <CardTitle>Exposure bands</CardTitle>
-              <CardDescription>Drag a marker or edit its row. Higher bands win overlaps.</CardDescription>
+              <CardDescription>{setup.fill_mode ? "Drag a separator or edit its boundary. Every value is filled by a color zone." : "Drag a marker or edit its row. Higher bands win overlaps."}</CardDescription>
             </div>
             <div className="flex items-end gap-2">
               {mode === "stops" && (
@@ -488,16 +498,22 @@ export function App() {
                   increment={movementIncrement}
                   selectedBand={selectedBand}
                   onSelect={selectBand}
-                  onChange={(index, stop) => setSetup((current) => updateBand(current, index, { stop }))}
+                  onChange={(index, stop) => setSetup((current) => setup.fill_mode
+                    ? updateFillBoundary(current, index, stop, movementIncrement)
+                    : updateBand(current, index, { stop }))}
                 />
                 <div className="overflow-x-auto rounded-lg border">
                   <table className="w-full min-w-[34rem] text-sm">
-                    <thead className="bg-muted/50 text-left text-xs text-muted-foreground"><tr><th className="px-3 py-2">Color</th><th className="px-3 py-2">{mode === "ire" ? "IRE" : "Stops"}</th><th className="px-3 py-2">Half-width</th><th className="px-3 py-2"><span className="sr-only">Actions</span></th></tr></thead>
+                    <thead className="bg-muted/50 text-left text-xs text-muted-foreground"><tr><th className="px-3 py-2">Color</th><th className="px-3 py-2">{setup.fill_mode ? "Boundary to next color" : mode === "ire" ? "IRE" : "Stops"}</th><th className="px-3 py-2">{setup.fill_mode ? "Coverage" : "Half-width"}</th><th className="px-3 py-2"><span className="sr-only">Actions</span></th></tr></thead>
                     <tbody>{setup.bands.map((band, index) => (
                       <tr className={`border-t ${selectedBand === index ? "bg-accent/60" : ""}`} key={bandId(band)} onFocus={() => selectBand(index)} onClick={() => selectBand(index)}>
                         <td className="p-2"><ColorPicker label={`Band ${index + 1} color`} value={band.color} palette={catalog.palette} onChange={(color) => setSetup((current) => updateBand(current, index, { color }))} /></td>
-                        <td className="p-2"><input aria-label={`Band ${index + 1} ${mode === "ire" ? "IRE" : "stops"}`} className={fieldClass} type="number" step={movementIncrement} min={mode === "ire" ? 0 : undefined} max={mode === "ire" ? 100 : undefined} value={band.stop} onChange={(event) => setSetup((current) => updateBand(current, index, { stop: Number(event.target.value) }))} /></td>
-                        <td className="p-2"><input aria-label={`Band ${index + 1} half-width`} className={fieldClass} type="number" min="0" step="0.1" value={band.width} disabled={setup.fill_mode} onChange={(event) => setSetup((current) => updateBand(current, index, { width: Number(event.target.value) }))} /></td>
+                        <td className="p-2">{setup.fill_mode && index === setup.bands.length - 1
+                          ? <span className="text-muted-foreground">—</span>
+                          : <input aria-label={setup.fill_mode ? `Boundary after color ${index + 1}` : `Band ${index + 1} ${mode === "ire" ? "IRE" : "stops"}`} className={fieldClass} type="number" step={movementIncrement} min={mode === "ire" ? 0 : undefined} max={mode === "ire" ? 100 : undefined} value={band.stop} onChange={(event) => setSetup((current) => setup.fill_mode ? updateFillBoundary(current, index, Number(event.target.value), movementIncrement) : updateBand(current, index, { stop: Number(event.target.value) }))} />}</td>
+                        <td className="p-2">{setup.fill_mode
+                          ? <span className="text-muted-foreground">{index === setup.bands.length - 1 ? "Fills the rest" : "Until boundary"}</span>
+                          : <input aria-label={`Band ${index + 1} half-width`} className={fieldClass} type="number" min="0" step="0.1" value={band.width} onChange={(event) => setSetup((current) => updateBand(current, index, { width: Number(event.target.value) }))} />}</td>
                         <td className="p-2"><Button aria-label={`Remove band ${index + 1}`} type="button" size="sm" variant="destructive" onClick={() => patchSetup({ bands: setup.bands.filter((_, current) => current !== index) })}>Remove</Button></td>
                       </tr>
                     ))}</tbody>

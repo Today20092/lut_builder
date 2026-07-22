@@ -158,6 +158,26 @@ export function updateBand(
   }
 }
 
+export function updateFillBoundary(
+  setup: Setup,
+  index: number,
+  stop: number,
+  increment: number,
+): Setup {
+  if (index < 0 || index >= setup.bands.length - 1) return setup
+  const minimum = index === 0 ? -Infinity : setup.bands[index - 1].stop + increment
+  const maximum = index === setup.bands.length - 2
+    ? Infinity
+    : setup.bands[index + 1].stop - increment
+  const boundary = Math.max(minimum, Math.min(maximum, stop))
+  const bands = setup.bands.map((band, current) =>
+    current === index ? { ...band, stop: boundary } : band,
+  )
+  const last = bands.length - 1
+  bands[last] = { ...bands[last], stop: Math.max(bands[last].stop, bands[last - 1].stop + increment) }
+  return { ...setup, bands }
+}
+
 export function filterPalette(palette: PaletteColor[], search: string) {
   const query = search.trim().toLowerCase()
   return query

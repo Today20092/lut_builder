@@ -121,7 +121,7 @@ def test_exposure_mapping_uses_stop_order_then_warning_priority():
     assert colors.tolist() == ["#ffffff", "#00ff00", "#ffffff"]
 
 
-def test_fill_and_ire_mapping_use_the_same_band_ordering():
+def test_fill_uses_stops_as_color_boundaries():
     fill = LutSetup(
         "Sony S-Log3",
         "Rec.709",
@@ -133,10 +133,10 @@ def test_fill_and_ire_mapping_use_the_same_band_ordering():
         fill_mode=True,
     )
 
-    assert map_exposure(np.array([0, 49, 50, 51, 100]), fill).tolist() == [
+    assert map_exposure(np.array([0, 19, 20, 21, 100]), fill).tolist() == [
         "#000000",
         "#000000",
-        "#000000",
+        "#ffffff",
         "#ffffff",
         "#ffffff",
     ]

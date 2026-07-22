@@ -122,6 +122,25 @@ test("exposure graph dispatches stepped keyboard, wheel, and pointer edits", asy
   container.remove()
 })
 
+test("fill mode renders draggable separators instead of numbered band markers", async () => {
+  const fillSetup = {
+    ...setup,
+    fill_mode: true,
+    bands: [
+      { stop: -2, width: 0, color: "#22814b" },
+      { stop: -1, width: 0, color: "#fe9a00" },
+      { stop: 2.25, width: 0, color: "#fb2c36" },
+    ],
+  }
+  const { container, root } = await mountGraph({ setup: fillSetup })
+
+  assert.equal(container.querySelectorAll("[aria-label^='Boundary between colors']").length, 2)
+  assert.equal(container.querySelectorAll("[aria-label^='Band ']").length, 0)
+  assert.equal(container.textContent, "")
+  await act(() => root.unmount())
+  container.remove()
+})
+
 test("exposure graph summarizes crowded edge values and exposes the selected one", async () => {
   const edgeSetup = {
     ...setup,
