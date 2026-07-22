@@ -274,8 +274,11 @@ def generate_lut(setup: LutSetup) -> Path:
     # land at the legal-range equivalent, not full-range 1.0).
     # ------------------------------------------------------------------
     if legal_range:
-        legal_low = 64 / 1023   # ≈ 0.0626
-        legal_high = 940 / 1023  # ≈ 0.9189
+        # LUT3D stores float32 values, so use representable values inside
+        # the nominal limits rather than rounding past them.
+        legal_low = np.nextafter(np.float32(64 / 1023), np.float32(1)).item()
+        legal_high = np.nextafter(np.float32(940 / 1023), np.float32(0)).item()
+        final_data = np.clip(final_data, 0, 1)
         final_data = final_data * (legal_high - legal_low) + legal_low
 
     # ------------------------------------------------------------------
