@@ -126,10 +126,10 @@ def map_exposure(
 
     if setup.fill_mode and setup.bands:
         bands = sorted(setup.bands, key=lambda band: band["stop"])
-        centers = np.array([band["stop"] for band in bands])
-        nearest = np.argmin(np.abs(values[..., None] - centers), axis=-1)
+        boundaries = np.array([band["stop"] for band in bands[:-1]])
+        zones = np.searchsorted(boundaries, values, side="right")
         for index, band in enumerate(bands):
-            colors[nearest == index] = band["color"]
+            colors[zones == index] = band["color"]
     else:
         for band in setup.bands:
             width = band["width"] + width_buffer

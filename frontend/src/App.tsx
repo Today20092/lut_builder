@@ -30,6 +30,7 @@ import {
   stepBandValue,
   orderBands,
   updateBand,
+  updateFillBoundary,
   wheelStepDirection,
   type Mode,
   type PaletteColor,
@@ -210,15 +211,17 @@ export function ExposureGraph({
   const bounds = setup.band_mode === "ire"
     ? ([preview.minimum, preview.maximum] as const)
     : ([-Infinity, Infinity] as const)
-  const belowIndexes = setup.bands.flatMap((band, index) =>
+  const interactiveBands = setup.fill_mode ? setup.bands.slice(0, -1) : setup.bands
+  const belowIndexes = interactiveBands.flatMap((band, index) =>
     band.stop < preview.minimum ? [index] : [],
   )
-  const aboveIndexes = setup.bands.flatMap((band, index) =>
+  const aboveIndexes = interactiveBands.flatMap((band, index) =>
     band.stop > preview.maximum ? [index] : [],
   )
 
   function stepSelected(direction: -1 | 1) {
     const band = setup.bands[selectedBand]
+    if (setup.fill_mode && selectedBand >= setup.bands.length - 1) return
     if (band) onChange(selectedBand, stepBandValue(band.stop, direction, increment, ...bounds))
   }
 
@@ -292,6 +295,7 @@ export function ExposureGraph({
         )
       })}
       {setup.bands.map((band, index) => {
+        if (setup.fill_mode && index === setup.bands.length - 1) return null
         const below = band.stop < preview.minimum
         const above = band.stop > preview.maximum
         const edge = below || above
@@ -300,17 +304,23 @@ export function ExposureGraph({
           <button
             key={`handle-${index}`}
             type="button"
-            className={`absolute z-10 rounded-full border-2 border-background px-2 py-1 text-xs font-semibold shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${selectedBand === index ? "ring-2 ring-ring ring-offset-2" : ""}`}
+            className={setup.fill_mode
+              ? `absolute inset-y-0 z-10 w-6 -translate-x-1/2 bg-transparent after:absolute after:inset-y-0 after:left-1/2 after:w-1 after:-translate-x-1/2 after:bg-background after:shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${selectedBand === index ? "ring-2 ring-ring" : ""}`
+              : `absolute z-10 rounded-full border-2 border-background px-2 py-1 text-xs font-semibold shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${selectedBand === index ? "ring-2 ring-ring ring-offset-2" : ""}`}
             style={{
-              backgroundColor: band.color,
-              color: contrastTextColor(band.color),
               left: `${position(band.stop)}%`,
-              top: edge ? "70%" : "50%",
-              transform: edge
-                ? `translate(${below ? "0" : "-100%"}, -50%)`
-                : "translate(-50%, -50%)",
+              ...(setup.fill_mode ? {} : {
+                backgroundColor: band.color,
+                color: contrastTextColor(band.color),
+                top: edge ? "70%" : "50%",
+                transform: edge
+                  ? `translate(${below ? "0" : "-100%"}, -50%)`
+                  : "translate(-50%, -50%)",
+              }),
             }}
-            aria-label={`Band ${index + 1}, ${band.stop} ${preview.unit}${edge ? ", outside visible range" : ""}`}
+            aria-label={setup.fill_mode
+              ? `Boundary between colors ${index + 1} and ${index + 2}, ${band.stop} ${preview.unit}`
+              : `Band ${index + 1}, ${band.stop} ${preview.unit}${edge ? ", outside visible range" : ""}`}
             title={edge ? `${band.stop} ${preview.unit} is outside the visible range` : undefined}
             onClick={() => onSelect(index)}
             onKeyDown={(event) => handleKeyDown(event, index)}
@@ -320,7 +330,7 @@ export function ExposureGraph({
             }}
             onPointerMove={(event) => handlePointerMove(event, index)}
           >
-            {below ? "← " : ""}{band.stop}{above ? " →" : ""}
+            {!setup.fill_mode && <>{below ? "← " : ""}{band.stop}{above ? " →" : ""}</>}
           </button>
         )
       })}
@@ -444,7 +454,9 @@ export function App() {
                   increment={movementIncrement}
                   selectedBand={selectedBand}
                   onSelect={setSelectedBand}
-                  onChange={(index, stop) => setSetup((current) => updateBand(current, index, { stop }))}
+                  onChange={(index, stop) => setSetup((current) => setup.fill_mode
+                    ? updateFillBoundary(current, index, stop, movementIncrement)
+                    : updateBand(current, index, { stop }))}
                 />
                 <div className="flex justify-between text-xs text-muted-foreground">
                   <span>{preview.minimum} {preview.unit}</span>
@@ -482,7 +494,7 @@ export function App() {
             <CardHeader className="flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <CardTitle>Exposure bands</CardTitle>
-                <CardDescription>Bands follow exposure order; higher bands win overlaps.</CardDescription>
+                <CardDescription>{setup.fill_mode ? "Choose each zone color and the boundary where the next color begins." : "Bands follow exposure order; higher bands win overlaps."}</CardDescription>
               </div>
               <Button type="button" variant="outline" onClick={() => patchSetup({ bands: orderBands([...setup.bands, { stop: mode === "ire" ? 50 : 0, width: mode === "ire" ? 2 : 0.3, color: "#eab308" }]) })}>Add band</Button>
             </CardHeader>
@@ -502,14 +514,21 @@ export function App() {
                 <fieldset className={`grid gap-3 rounded-lg border p-3 ${selectedBand === index ? "border-ring" : ""}`} key={index} onFocus={() => setSelectedBand(index)}>
                   <legend className="px-1 text-sm font-medium">Exposure band</legend>
                   <div className="grid gap-3 sm:grid-cols-2">
-                    <label className="grid gap-1 text-sm font-medium">
-                      {mode === "ire" ? "IRE" : "Stops"}
-                      <input className={fieldClass} type="number" step={movementIncrement} min={mode === "ire" ? 0 : undefined} max={mode === "ire" ? 100 : undefined} value={band.stop} onChange={(e) => setSetup((current) => updateBand(current, index, { stop: Number(e.target.value) }))} />
-                    </label>
-                    <label className="grid gap-1 text-sm font-medium">
-                      Half-width
-                      <input className={fieldClass} type="number" min="0" step="0.1" value={band.width} disabled={setup.fill_mode} onChange={(e) => setSetup((current) => updateBand(current, index, { width: Number(e.target.value) }))} />
-                    </label>
+                    {setup.fill_mode ? (
+                      index < setup.bands.length - 1 ? <label className="grid gap-1 text-sm font-medium sm:col-span-2">
+                        Boundary to next color (stops)
+                        <input className={fieldClass} type="number" step={movementIncrement} value={band.stop} onChange={(e) => setSetup((current) => updateFillBoundary(current, index, Number(e.target.value), movementIncrement))} />
+                      </label> : <p className="self-end text-sm text-muted-foreground sm:col-span-2">Fills everything above the previous boundary.</p>
+                    ) : <>
+                      <label className="grid gap-1 text-sm font-medium">
+                        {mode === "ire" ? "IRE" : "Stops"}
+                        <input className={fieldClass} type="number" step={movementIncrement} min={mode === "ire" ? 0 : undefined} max={mode === "ire" ? 100 : undefined} value={band.stop} onChange={(e) => setSetup((current) => updateBand(current, index, { stop: Number(e.target.value) }))} />
+                      </label>
+                      <label className="grid gap-1 text-sm font-medium">
+                        Half-width
+                        <input className={fieldClass} type="number" min="0" step="0.1" value={band.width} onChange={(e) => setSetup((current) => updateBand(current, index, { width: Number(e.target.value) }))} />
+                      </label>
+                    </>}
                   </div>
                   <ColorPicker label="Band color" value={band.color} palette={catalog.palette} onChange={(color) => setSetup((current) => updateBand(current, index, { color }))} />
                   <div className="flex flex-wrap gap-2">

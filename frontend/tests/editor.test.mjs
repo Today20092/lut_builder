@@ -10,6 +10,7 @@ import {
   snapBandValue,
   stepBandValue,
   updateBand,
+  updateFillBoundary,
   wheelStepDirection,
 } from "../src/editor.ts"
 
@@ -70,6 +71,23 @@ test("editing a band orders it by position without mutating prior state", () => 
   assert.equal(setup.bands[0].stop, -1)
   assert.deepEqual(edited.bands.map((band) => band.stop), [-2, -1])
   assert.equal(edited.bands[0].color, "#123456")
+})
+
+test("fill boundaries cannot cross or reorder their colors", () => {
+  const fill = {
+    ...setup,
+    fill_mode: true,
+    bands: [
+      { stop: -2, width: 0, color: "#111111" },
+      { stop: -1, width: 0, color: "#222222" },
+      { stop: 2, width: 0, color: "#333333" },
+    ],
+  }
+
+  const edited = updateFillBoundary(fill, 0, 4, 0.25)
+  assert.deepEqual(edited.bands.map((band) => band.color), ["#111111", "#222222", "#333333"])
+  assert.deepEqual(edited.bands.map((band) => band.stop), [-1.25, -1, 2])
+  assert.equal(updateFillBoundary(fill, 2, 10, 0.25), fill)
 })
 
 test("bands at equal positions retain their creation order", () => {
