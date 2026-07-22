@@ -237,8 +237,84 @@ export function App() {
         <p className="text-muted-foreground">Local diagnostic scene-exposure LUT editor</p>
       </header>
 
-      <section className="grid items-start gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(22rem,0.9fr)]">
-        <div className="grid gap-6">
+      <section className="grid gap-6">
+        <Card className="overflow-hidden">
+          <CardHeader>
+            <CardTitle>Live exposure preview</CardTitle>
+            <CardDescription>Calculated by the shared Python exposure mapper.</CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-4">
+            {preview ? (
+              <>
+                <div className="flex h-28 overflow-hidden rounded-lg border" aria-label={`Exposure preview from ${preview.minimum} to ${preview.maximum} ${preview.unit}`}>
+                  {preview.colors.map((color, index) => <span className="flex-1" key={index} style={{ backgroundColor: color }} />)}
+                </div>
+                <div className="flex justify-between text-xs text-muted-foreground">
+                  <span>{preview.minimum} {preview.unit}</span>
+                  <span>{preview.maximum} {preview.unit}</span>
+                </div>
+                <ul className="grid gap-2 text-sm">
+                  {preview.legend.map((item, index) => (
+                    <li className="flex items-center gap-2" key={`${item.kind}-${index}`}>
+                      <span className="size-4 rounded border" style={{ backgroundColor: item.color }} />
+                      {item.label}
+                    </li>
+                  ))}
+                </ul>
+                {preview.warnings.map((warning) => <p className="text-sm text-amber-700 dark:text-amber-300" key={warning}>{warning}</p>)}
+              </>
+            ) : <p className="text-sm text-muted-foreground">Preparing preview…</p>}
+            {validationError && <p className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive" role="alert">{validationError}</p>}
+          </CardContent>
+          <CardFooter className="grid gap-3 sm:grid-cols-2">
+            <Button size="lg" disabled={isGenerating || Boolean(validationError)} onClick={generate}>
+              {isGenerating && <Spinner data-icon="inline-start" />}
+              {isGenerating ? "Generating…" : "Generate .cube"}
+            </Button>
+            <div className="grid grid-cols-2 gap-2">
+              <Button type="button" variant="outline" onClick={() => importInput.current?.click()}>Import JSON</Button>
+              <Button type="button" variant="outline" onClick={downloadConfig}>Export JSON</Button>
+              <input ref={importInput} className="sr-only" type="file" accept="application/json,.json" onChange={(event) => { const file = event.target.files?.[0]; if (file) void importFile(file); event.target.value = "" }} />
+            </div>
+            <p className="min-h-5 text-sm text-muted-foreground sm:col-span-2" role="status" aria-live="polite">{status}</p>
+          </CardFooter>
+        </Card>
+
+        <div className="grid min-w-0 items-start gap-6 lg:grid-cols-2 xl:grid-cols-3">
+          <Card>
+            <CardHeader className="flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <CardTitle>Exposure bands</CardTitle>
+                <CardDescription>Later bands win where ranges overlap.</CardDescription>
+              </div>
+              <Button type="button" variant="outline" onClick={() => patchSetup({ bands: [...setup.bands, { stop: mode === "ire" ? 50 : 0, width: mode === "ire" ? 2 : 0.3, color: "#eab308" }] })}>Add band</Button>
+            </CardHeader>
+            <CardContent className="grid gap-4">
+              {setup.bands.length === 0 && <p className="text-sm text-muted-foreground">No bands yet.</p>}
+              {setup.bands.map((band, index) => (
+                <fieldset className="grid gap-3 rounded-lg border p-3" key={index}>
+                  <legend className="px-1 text-sm font-medium">Band {index + 1}</legend>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <label className="grid gap-1 text-sm font-medium">
+                      {mode === "ire" ? "IRE" : "Stops"}
+                      <input className={fieldClass} type="number" step="0.1" min={mode === "ire" ? 0 : undefined} max={mode === "ire" ? 100 : undefined} value={band.stop} onChange={(e) => setSetup((current) => updateBand(current, index, { stop: Number(e.target.value) }))} />
+                    </label>
+                    <label className="grid gap-1 text-sm font-medium">
+                      Half-width
+                      <input className={fieldClass} type="number" min="0" step="0.1" value={band.width} disabled={setup.fill_mode} onChange={(e) => setSetup((current) => updateBand(current, index, { width: Number(e.target.value) }))} />
+                    </label>
+                  </div>
+                  <ColorPicker label="Band color" value={band.color} palette={catalog.palette} onChange={(color) => setSetup((current) => updateBand(current, index, { color }))} />
+                  <div className="flex flex-wrap gap-2">
+                    <Button type="button" size="sm" variant="outline" disabled={index === 0} onClick={() => setSetup((current) => moveBand(current, index, index - 1))}>Move up</Button>
+                    <Button type="button" size="sm" variant="outline" disabled={index === setup.bands.length - 1} onClick={() => setSetup((current) => moveBand(current, index, index + 1))}>Move down</Button>
+                    <Button type="button" size="sm" variant="destructive" onClick={() => patchSetup({ bands: setup.bands.filter((_, current) => current !== index) })}>Remove</Button>
+                  </div>
+                </fieldset>
+              ))}
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader>
               <CardTitle>Configuration</CardTitle>
@@ -287,40 +363,6 @@ export function App() {
           </Card>
 
           <Card>
-            <CardHeader className="flex-row items-center justify-between">
-              <div>
-                <CardTitle>Exposure bands</CardTitle>
-                <CardDescription>Later bands win where ranges overlap.</CardDescription>
-              </div>
-              <Button type="button" variant="outline" onClick={() => patchSetup({ bands: [...setup.bands, { stop: mode === "ire" ? 50 : 0, width: mode === "ire" ? 2 : 0.3, color: "#eab308" }] })}>Add band</Button>
-            </CardHeader>
-            <CardContent className="grid gap-4">
-              {setup.bands.length === 0 && <p className="text-sm text-muted-foreground">No bands yet.</p>}
-              {setup.bands.map((band, index) => (
-                <fieldset className="grid gap-3 rounded-lg border p-3" key={index}>
-                  <legend className="px-1 text-sm font-medium">Band {index + 1}</legend>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <label className="grid gap-1 text-sm font-medium">
-                      {mode === "ire" ? "IRE" : "Stops"}
-                      <input className={fieldClass} type="number" step="0.1" min={mode === "ire" ? 0 : undefined} max={mode === "ire" ? 100 : undefined} value={band.stop} onChange={(e) => setSetup((current) => updateBand(current, index, { stop: Number(e.target.value) }))} />
-                    </label>
-                    <label className="grid gap-1 text-sm font-medium">
-                      Half-width
-                      <input className={fieldClass} type="number" min="0" step="0.1" value={band.width} disabled={setup.fill_mode} onChange={(e) => setSetup((current) => updateBand(current, index, { width: Number(e.target.value) }))} />
-                    </label>
-                  </div>
-                  <ColorPicker label="Band color" value={band.color} palette={catalog.palette} onChange={(color) => setSetup((current) => updateBand(current, index, { color }))} />
-                  <div className="flex flex-wrap gap-2">
-                    <Button type="button" size="sm" variant="outline" disabled={index === 0} onClick={() => setSetup((current) => moveBand(current, index, index - 1))}>Move up</Button>
-                    <Button type="button" size="sm" variant="outline" disabled={index === setup.bands.length - 1} onClick={() => setSetup((current) => moveBand(current, index, index + 1))}>Move down</Button>
-                    <Button type="button" size="sm" variant="destructive" onClick={() => patchSetup({ bands: setup.bands.filter((_, current) => current !== index) })}>Remove</Button>
-                  </div>
-                </fieldset>
-              ))}
-            </CardContent>
-          </Card>
-
-          <Card>
             <CardHeader>
               <CardTitle>Encoded-signal warnings</CardTitle>
               <CardDescription>Encoded-signal warnings, controlled independently.</CardDescription>
@@ -341,50 +383,6 @@ export function App() {
                 <ColorPicker label="White indicator color" value={setup.high_signal_hex} palette={catalog.palette} disabled={!setup.high_signal_warning} onChange={(high_signal_hex) => patchSetup({ high_signal_hex })} />
               </div>
             </CardContent>
-          </Card>
-        </div>
-
-        <div className="grid gap-6 lg:sticky lg:top-6">
-          <Card className="overflow-hidden">
-            <CardHeader>
-              <CardTitle>Live exposure preview</CardTitle>
-              <CardDescription>Calculated by the shared Python exposure mapper.</CardDescription>
-            </CardHeader>
-            <CardContent className="grid gap-4">
-              {preview ? (
-                <>
-                  <div className="flex h-28 overflow-hidden rounded-lg border" aria-label={`Exposure preview from ${preview.minimum} to ${preview.maximum} ${preview.unit}`}>
-                    {preview.colors.map((color, index) => <span className="flex-1" key={index} style={{ backgroundColor: color }} />)}
-                  </div>
-                  <div className="flex justify-between text-xs text-muted-foreground">
-                    <span>{preview.minimum} {preview.unit}</span>
-                    <span>{preview.maximum} {preview.unit}</span>
-                  </div>
-                  <ul className="grid gap-2 text-sm">
-                    {preview.legend.map((item, index) => (
-                      <li className="flex items-center gap-2" key={`${item.kind}-${index}`}>
-                        <span className="size-4 rounded border" style={{ backgroundColor: item.color }} />
-                        {item.label}
-                      </li>
-                    ))}
-                  </ul>
-                  {preview.warnings.map((warning) => <p className="text-sm text-amber-700 dark:text-amber-300" key={warning}>{warning}</p>)}
-                </>
-              ) : <p className="text-sm text-muted-foreground">Preparing preview…</p>}
-              {validationError && <p className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive" role="alert">{validationError}</p>}
-            </CardContent>
-            <CardFooter className="grid gap-3">
-              <Button size="lg" disabled={isGenerating || Boolean(validationError)} onClick={generate}>
-                {isGenerating && <Spinner data-icon="inline-start" />}
-                {isGenerating ? "Generating…" : "Generate .cube"}
-              </Button>
-              <div className="grid grid-cols-2 gap-2">
-                <Button type="button" variant="outline" onClick={() => importInput.current?.click()}>Import JSON</Button>
-                <Button type="button" variant="outline" onClick={downloadConfig}>Export JSON</Button>
-                <input ref={importInput} className="sr-only" type="file" accept="application/json,.json" onChange={(event) => { const file = event.target.files?.[0]; if (file) void importFile(file); event.target.value = "" }} />
-              </div>
-              <p className="min-h-5 text-sm text-muted-foreground" role="status" aria-live="polite">{status}</p>
-            </CardFooter>
           </Card>
         </div>
       </section>
