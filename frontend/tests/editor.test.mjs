@@ -5,6 +5,7 @@ import {
   bandId,
   changeMode,
   contrastTextColor,
+  createBand,
   exportSetup,
   filterPalette,
   importSetup,
@@ -90,6 +91,52 @@ test("bands at equal positions retain their creation order", () => {
     "#ef4444",
     "#22c55e",
   ])
+})
+
+test("new bands use open positions and unused palette colors", () => {
+  const palette = [
+    { name: "red-500", hex: "#ef4444" },
+    { name: "amber-500", hex: "#f59e0b" },
+    { name: "lime-500", hex: "#84cc16" },
+    { name: "cyan-500", hex: "#06b6d4" },
+  ]
+  const bands = [{ stop: 0, width: 0.3, color: palette[0].hex }]
+
+  for (let index = 0; index < 3; index++) {
+    const band = createBand(bands, "stops", palette)
+    assert.ok(band)
+    bands.push(band)
+  }
+
+  assert.deepEqual(bands.map(({ stop }) => stop), [0, 1, -1, 2])
+  assert.equal(new Set(bands.map(({ color }) => color)).size, 4)
+  assert.ok(bands.every((band, index) => bands.slice(index + 1).every(
+    (other) => Math.abs(band.stop - other.stop) >= band.width + other.width,
+  )))
+})
+
+test("new IRE bands stay bounded and refuse an impossible placement", () => {
+  const palette = [{ name: "red-500", hex: "#ef4444" }]
+  assert.equal(createBand([{ stop: 50, width: 60, color: "#000000" }], "ire", palette), undefined)
+
+  const band = createBand([{ stop: 50, width: 2, color: "#000000" }], "ire", palette)
+  assert.equal(band.stop, 55)
+  assert.ok(band.stop >= 0 && band.stop <= 100)
+})
+
+test("new band colors cycle after every palette color has been used", () => {
+  const palette = [
+    { name: "red-500", hex: "#ef4444" },
+    { name: "blue-500", hex: "#3b82f6" },
+  ]
+  const bands = [
+    { stop: -1, width: 0.3, color: palette[0].hex },
+    { stop: 1, width: 0.3, color: palette[1].hex },
+  ]
+
+  assert.equal(createBand(bands, "stops", palette).color, palette[0].hex)
+  bands.push(createBand(bands, "stops", palette))
+  assert.equal(createBand(bands, "stops", palette).color, palette[1].hex)
 })
 
 test("palette search returns selectable names and validated hex colors", () => {

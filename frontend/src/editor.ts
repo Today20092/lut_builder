@@ -19,6 +19,11 @@ export type Setup = {
 
 export type PaletteColor = { name: string; hex: string }
 
+const NEW_BAND_COLOR_NAMES = [
+  "red-500", "amber-500", "lime-500", "cyan-500",
+  "blue-500", "violet-500", "pink-500",
+]
+
 export const isHexColor = (value: string) => /^#[0-9a-f]{6}$/i.test(value)
 
 export function snapBandValue(
@@ -75,6 +80,46 @@ function rememberCreationOrder(bands: Band[]) {
 export function bandId(band: Band) {
   rememberCreationOrder([band])
   return creationOrder.get(band)!
+}
+
+export function createBand(
+  bands: Band[],
+  mode: "stops" | "ire",
+  palette: PaletteColor[],
+) {
+  const width = mode === "ire" ? 2 : 0.3
+  const center = mode === "ire" ? 50 : 0
+  const spacing = mode === "ire" ? 5 : 1
+  const [minimum, maximum] = mode === "ire" ? [0, 100] : [-7, 7]
+  const directions = bands.length % 2 ? [1, -1] : [-1, 1]
+  let stop: number | undefined
+
+  findStop: for (let distance = 1; distance <= (maximum - minimum) / spacing; distance++) {
+    for (const direction of directions) {
+      const candidate = center + direction * distance * spacing
+      if (
+        candidate >= minimum &&
+        candidate <= maximum &&
+        bands.every((band) => Math.abs(candidate - band.stop) >= width + band.width)
+      ) {
+        stop = candidate
+        break findStop
+      }
+    }
+  }
+
+  if (stop === undefined) return undefined
+
+  const usedColors = new Set(bands.map((band) => band.color.toLowerCase()))
+  const preferredColors = NEW_BAND_COLOR_NAMES.flatMap((name) => {
+    const color = palette.find((entry) => entry.name === name)
+    return color ? [color] : []
+  })
+  const choices = preferredColors.length ? preferredColors : palette
+  const color = choices.find(({ hex }) => !usedColors.has(hex.toLowerCase()))?.hex
+    ?? choices[bands.length % choices.length]?.hex
+    ?? "#eab308"
+  return { stop, width, color }
 }
 
 export function orderBands(bands: Band[]) {

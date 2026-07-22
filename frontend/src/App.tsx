@@ -23,6 +23,7 @@ import {
   bandId,
   changeMode,
   contrastTextColor,
+  createBand,
   exportSetup,
   filterPalette,
   importSetup,
@@ -391,6 +392,12 @@ export function App() {
     setSetup((current) => ({ ...current, ...changes }))
   }
 
+  function addBand() {
+    const band = createBand(setup.bands, mode === "ire" ? "ire" : "stops", catalog.palette)
+    if (band) patchSetup({ bands: orderBands([...setup.bands, band]) })
+    else setStatus("No non-overlapping band position is available.")
+  }
+
   async function generate() {
     setIsGenerating(true)
     setStatus(`Generating ${setup.cube_size}³ LUT…`)
@@ -469,7 +476,7 @@ export function App() {
                   </select>
                 </label>
               )}
-              <Button type="button" variant="outline" onClick={() => patchSetup({ bands: orderBands([...setup.bands, { stop: mode === "ire" ? 50 : 0, width: mode === "ire" ? 2 : 0.3, color: "#eab308" }]) })}>Add band</Button>
+              <Button type="button" variant="outline" onClick={addBand}>Add band</Button>
             </div>
           </CardHeader>
           <CardContent className="grid gap-4">
