@@ -163,7 +163,7 @@ For a log-encoded diagnostic output:
 
 ## How catalog validation works
 
-`PROFILE_CATALOG.validate()` explicitly checks gamut, log, transfer, encoding, and clipping-limit fields. Importing `data.py` does not run validation; catalog lookup, listing, and generation validate before returning profile facts.
+`PROFILE_CATALOG.validate()` explicitly checks gamut, log, transfer, encoding, and encoded-signal threshold fields. Importing `data.py` does not run validation; catalog lookup, listing, and generation validate before returning profile facts.
 
 If anything is wrong you'll see output like:
 
