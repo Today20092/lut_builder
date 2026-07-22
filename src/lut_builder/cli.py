@@ -722,6 +722,8 @@ def build(
         if output_dir is not None:
             output_dir.mkdir(parents=True, exist_ok=True)
             return str(output_dir / p.name)
+        if p.parent == Path("."):
+            p = Path("output/luts") / p
         return str(p)
 
     console.print(Panel.fit("[bold cyan]LUT Builder[/bold cyan]"))
