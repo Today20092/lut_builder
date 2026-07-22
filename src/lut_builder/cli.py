@@ -17,7 +17,7 @@ from rich.table import Table
 from rich.text import Text
 
 from .colors import TAILWIND_COLORS
-from .data import CAMERA_PROFILES, TARGET_PROFILES, oklch_to_hex
+from .data import PROFILE_CATALOG, oklch_to_hex
 from .engine import generate_lut
 from .presets import (
     suggest_color_for_stop,
@@ -425,9 +425,7 @@ def print_exposure_preview(
     Renders a horizontal stop bar in the terminal showing every exposure band
     and clip indicator colored in their chosen colors.
     """
-    from .data import CAMERA_PROFILES
-
-    profile = CAMERA_PROFILES[profile_name]
+    PROFILE_CATALOG.source(profile_name)
 
     # Dynamically determine the range based on user's bands and clip settings
     if fill_mode and bands:
@@ -644,14 +642,15 @@ def list_profiles():
     cam_table.add_column("Gamut", style="dim")
     cam_table.add_column("Log", style="dim")
 
-    from .data import CAMERA_PROFILES, TARGET_PROFILES
+    sources = PROFILE_CATALOG.sources()
+    targets = PROFILE_CATALOG.targets()
 
-    for i, (name, p) in enumerate(CAMERA_PROFILES.items(), 1):
+    for i, source in enumerate(sources, 1):
         cam_table.add_row(
             str(i),
-            name,
-            p["gamut"],
-            p["log"],
+            source.name,
+            source.gamut,
+            source.log,
         )
 
     tgt_table = Table(title="Target Display Profiles", box=None, padding=(0, 3))
@@ -660,12 +659,12 @@ def list_profiles():
     tgt_table.add_column("Gamut", style="dim")
     tgt_table.add_column("Transfer", style="dim")
 
-    for i, (name, t) in enumerate(TARGET_PROFILES.items(), 1):
+    for i, target in enumerate(targets, 1):
         tgt_table.add_row(
             str(i),
-            name,
-            t["gamut"],
-            f"{t['gamma']} ({t.get('encoding', 'oetf').upper()})",
+            target.name,
+            target.gamut,
+            f"{target.transfer} ({target.encoding.upper()})",
         )
 
     console.print()
@@ -674,14 +673,12 @@ def list_profiles():
     console.print(tgt_table)
     console.print()
 
-    any_sources = any(p.get("sources") for p in CAMERA_PROFILES.values())
-    if any_sources:
+    if any(source.sources for source in sources):
         console.print("[bold]Sources[/bold]")
-        for name, p in CAMERA_PROFILES.items():
-            sources = p.get("sources", [])
-            if sources:
-                console.print(f"  [dim]{name}[/dim]")
-                for url in sources:
+        for source in sources:
+            if source.sources:
+                console.print(f"  [dim]{source.name}[/dim]")
+                for url in source.sources:
                     console.print(f"    [dim]• {url}[/dim]")
         console.print()
 
@@ -830,14 +827,14 @@ def build(
 
     def step_profile(state):
         console.print("\n[bold]Camera Source:[/bold]")
-        result = numbered_choice("Select", list(CAMERA_PROFILES.keys()), allow_back=False)
+        result = numbered_choice("Select", list(PROFILE_CATALOG.source_names()), allow_back=False)
         if result is BACK:
             return BACK
         return {**state, "profile_name": result}
 
     def step_target(state):
         console.print("[bold]Target Display:[/bold]")
-        result = numbered_choice("Select", list(TARGET_PROFILES.keys()), allow_back=True)
+        result = numbered_choice("Select", list(PROFILE_CATALOG.target_names()), allow_back=True)
         if result is BACK:
             return BACK
         return {**state, "target_name": result}

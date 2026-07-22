@@ -8,7 +8,7 @@ Thanks for contributing! This guide covers the two most common contributions: ad
 
 - [Adding a camera profile](#adding-a-camera-profile)
 - [Adding a target display profile](#adding-a-target-display-profile)
-- [How the startup validator works](#how-the-startup-validator-works)
+- [How catalog validation works](#how-catalog-validation-works)
 - [Pull request guidelines](#pull-request-guidelines)
 - [Profile field reference](#profile-field-reference)
 
@@ -16,11 +16,11 @@ Thanks for contributing! This guide covers the two most common contributions: ad
 
 ## Adding a camera profile
 
-All camera profiles live in `src/lut_builder/data.py` inside `CAMERA_PROFILES`.
+All camera profiles live in `src/lut_builder/data.py` inside `_SOURCE_DATA`.
 
 ### Step 1 — Find the exact colour-science string names
 
-The `"gamut"` and `"log"` fields must match the strings that the `colour-science` library uses internally. A mismatch is caught immediately on startup by the validator (see [below](#how-the-startup-validator-works)), but it's better to get it right upfront.
+The `"gamut"` and `"log"` fields must match the strings that the `colour-science` library uses internally. A mismatch is caught by catalog validation (see [below](#how-catalog-validation-works)), but it's better to get it right upfront.
 
 Open a Python shell inside the project environment:
 
@@ -110,13 +110,13 @@ A complete profile looks like this:
 
 ### Step 4 — Verify
 
-Run the tool. The validator fires on import, before any LUT is generated:
+Validate the catalog explicitly before running the tool:
 
 ```bash
-uv run lut-builder
+uv run python -c "from lut_builder.data import PROFILE_CATALOG; PROFILE_CATALOG.validate()"
 ```
 
-If your camera appears in the source selection menu and the tool proceeds normally, the strings are valid. If there's a mismatch you'll see a clear error message pointing to exactly which field is wrong and what command to run to find the correct name.
+If your camera appears in the source selection menu and the tool proceeds normally, the strings are valid. If there's a mismatch you'll see a clear error message pointing to exactly which field is wrong.
 
 You can also confirm your profile appears in the list command:
 
@@ -128,7 +128,7 @@ uv run lut-builder list
 
 ## Adding a target display profile
 
-Target profiles live in `src/lut_builder/data.py` inside `TARGET_PROFILES`.
+Target profiles live in `src/lut_builder/data.py` inside `_TARGET_DATA`.
 
 The structure is slightly different from camera profiles — targets use `"encoding": "oetf"` for standard display outputs (Rec.709, Rec.2020) because those use an optical-to-electrical transfer function, not a log encoding:
 
@@ -159,17 +159,15 @@ For log-encoded targets (e.g. outputting to a log-capable monitor):
 
 ---
 
-## How the startup validator works
+## How catalog validation works
 
-`validate_profiles()` in `data.py` runs automatically every time the module is imported. It checks every `"gamut"` string against `colour.RGB_COLOURSPACES`, and test-fires the decoding/encoding function for every `"log"` and `"gamma"` string with dummy data.
+`PROFILE_CATALOG.validate()` explicitly checks gamut, log, transfer, encoding, and clipping-limit fields. Importing `data.py` does not run validation; catalog lookup, listing, and generation validate before returning profile facts.
 
 If anything is wrong you'll see output like:
 
 ```
-ValueError: Invalid profile entries found in data.py — fix these before running:
-
-  [Nikon N-Log] Unknown log method: 'NLog'
-    Run: list(colour.LOG_DECODINGS.keys()) to see valid names.
+ValueError: Invalid profile catalog:
+- source [Nikon N-Log] log 'NLog' is not supported
 ```
 
 This means the validator will catch your typo before it ever silently generates a wrong LUT.
@@ -187,7 +185,7 @@ This means the validator will catch your typo before it ever silently generates 
 
 ## Profile field reference
 
-### Camera profiles (`CAMERA_PROFILES`)
+### Camera profiles (`_SOURCE_DATA`)
 
 | Field | Type | Unit | What it means |
 |-------|------|------|---------------|

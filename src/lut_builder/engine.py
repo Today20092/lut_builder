@@ -5,9 +5,8 @@ import numpy as np
 from datetime import datetime
 from pathlib import Path
 from .data import (
-    CAMERA_PROFILES,
-    TARGET_PROFILES,
     MIDDLE_GREY,
+    PROFILE_CATALOG,
     hex_to_rgb,
 )
 
@@ -30,8 +29,8 @@ def generate_lut(
     legal_range: bool = False,
     fill_mode: bool = False,
 ) -> Path:
-    profile = CAMERA_PROFILES[profile_name]
-    target = TARGET_PROFILES[target_name]
+    profile = PROFILE_CATALOG.source(profile_name)
+    target = PROFILE_CATALOG.target(target_name)
 
     # ------------------------------------------------------------------
     # 1. Initialize LUT
@@ -43,8 +42,8 @@ def generate_lut(
     # ------------------------------------------------------------------
     # 2. Colour spaces
     # ------------------------------------------------------------------
-    src_cs = colour.RGB_COLOURSPACES[profile["gamut"]]
-    tgt_cs = colour.RGB_COLOURSPACES[target["gamut"]]
+    src_cs = colour.RGB_COLOURSPACES[profile.gamut]
+    tgt_cs = colour.RGB_COLOURSPACES[target.gamut]
 
     # ------------------------------------------------------------------
     # 3. Log -> scene-linear
@@ -52,7 +51,7 @@ def generate_lut(
     # to middle grey will decode to exactly MIDDLE_GREY (0.18) in
     # scene-linear space — no per-camera config is needed for this.
     # ------------------------------------------------------------------
-    linear_data = colour.models.log_decoding(samples, method=profile["log"])
+    linear_data = colour.models.log_decoding(samples, method=profile.log)
 
     # ------------------------------------------------------------------
     # 4. Scene luminance -> stops
@@ -101,11 +100,11 @@ def generate_lut(
     # log encoding. Using log_encoding() here was the original bug —
     # it would silently apply the wrong curve and shift all values.
     # ------------------------------------------------------------------
-    encoding = target.get("encoding", "oetf")
+    encoding = target.encoding
     if encoding == "oetf":
-        final_data = colour.models.oetf(rgb_linear_tgt, function=target["gamma"])
+        final_data = colour.models.oetf(rgb_linear_tgt, function=target.transfer)
     else:
-        final_data = colour.models.log_encoding(rgb_linear_tgt, method=target["gamma"])
+        final_data = colour.models.log_encoding(rgb_linear_tgt, method=target.transfer)
 
     # ------------------------------------------------------------------
     # 6b. Compute IRE values (only when band_mode == "ire")
@@ -166,8 +165,8 @@ def generate_lut(
     # on the ceiling/floor, we apply a small tolerance (half a grid step)
     # so the clip bands render solidly on-screen.
     # ------------------------------------------------------------------
-    log_ceiling = profile.get("log_ceiling", 1.0)
-    log_floor = profile.get("log_floor", 0.0)
+    log_ceiling = profile.log_ceiling
+    log_floor = profile.log_floor
     grid_step = 1.0 / (cube_size - 1)
     clip_tol = grid_step / 2.0
 
@@ -199,18 +198,18 @@ def generate_lut(
         f"Output range: {'Legal (64-940)' if legal_range else 'Full (0-1023)'}",
         "",
         f"Source      : {profile_name}",
-        f"  Gamut     : {profile['gamut']}",
-        f"  Log       : {profile['log']}",
+        f"  Gamut     : {profile.gamut}",
+        f"  Log       : {profile.log}",
         f"  Log floor : {log_floor:.3f}  (sensor digital black)",
         f"  Log ceil  : {log_ceiling:.3f}  (sensor digital ceiling)",
         "",
         f"Target      : {target_name}",
-        f"  Gamut     : {target['gamut']}",
-        f"  Transfer  : {target['gamma']} ({target.get('encoding', 'oetf').upper()})",
+        f"  Gamut     : {target.gamut}",
+        f"  Transfer  : {target.transfer} ({target.encoding.upper()})",
         "",
     ]
 
-    sources = profile.get("sources", [])
+    sources = profile.sources
     if sources:
         comments.append("References  :")
         for url in sources:
