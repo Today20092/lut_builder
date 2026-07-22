@@ -147,6 +147,7 @@ Later bands win where normal bands overlap. Encoded-signal warnings are applied 
 | Canon Log 3 | Cinema Gamut | C70, C300 Mark III, C500 Mark II |
 | ARRI LogC3 | ARRI Wide Gamut 3 | ALEXA, AMIRA, ALEXA LF |
 | RED Log3G10 | REDWideGamutRGB | V-RAPTOR, KOMODO, MONSTRO |
+| Blackmagic Film Gen 5 | Blackmagic Wide Gamut | Pocket Cinema Camera 4K/6K, Cinema Camera 6K, PYXIS, URSA Mini Pro 12K |
 
 Run `uv run lut-builder list` for the catalog currently installed with your checkout and the source URLs associated with each profile.
 
