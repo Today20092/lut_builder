@@ -536,13 +536,60 @@ export function App() {
       </header>
 
       <section className="grid gap-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Configuration</CardTitle>
+            <CardDescription>Choose the camera-to-display transform before editing exposure bands.</CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <label className="grid gap-1 text-sm font-medium">
+              Camera
+              <select className={fieldClass} value={setup.profile} onChange={(e) => patchSetup({ profile: e.target.value })}>
+                {catalog.profiles.map((profile) => <option key={profile}>{profile}</option>)}
+              </select>
+            </label>
+            <label className="grid gap-1 text-sm font-medium">
+              Target display
+              <select className={fieldClass} value={setup.target} onChange={(e) => patchSetup({ target: e.target.value })}>
+                {catalog.targets.map((target) => <option key={target}>{target}</option>)}
+              </select>
+            </label>
+            <label className="grid gap-1 text-sm font-medium">
+              Cube size
+              <select className={fieldClass} value={setup.cube_size} onChange={(e) => patchSetup({ cube_size: Number(e.target.value) })}>
+                {[17, 33, 65].map((size) => <option key={size} value={size}>{size}³</option>)}
+              </select>
+            </label>
+            <label className="grid gap-1 text-sm font-medium">
+              Band mode
+              <select className={fieldClass} value={mode} onChange={(e) => setSetup((current) => changeMode(current, e.target.value as Mode))}>
+                <option value="stops">Stops</option>
+                <option value="ire">IRE</option>
+                <option value="fill">Fill</option>
+              </select>
+            </label>
+            <label className="flex items-center gap-2 text-sm font-medium">
+              <input type="checkbox" checked={setup.monochrome} disabled={setup.fill_mode} onChange={(e) => patchSetup({ monochrome: e.target.checked })} />
+              Monochrome base
+            </label>
+            <label className="flex items-center gap-2 text-sm font-medium">
+              <input type="checkbox" checked={setup.legal_range} onChange={(e) => patchSetup({ legal_range: e.target.checked })} />
+              Legal/video range (off = Full range)
+            </label>
+            <label className="grid gap-1 text-sm font-medium sm:col-span-2">
+              Output filename
+              <input className={fieldClass} value={setup.output} onChange={(e) => patchSetup({ output: e.target.value })} />
+            </label>
+          </CardContent>
+        </Card>
+
         <Card className="overflow-hidden">
           <CardHeader className="flex-col items-start gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <CardTitle>Exposure bands</CardTitle>
               <CardDescription>{setup.fill_mode ? "Drag a separator or edit its boundary. Every value is filled by a color zone." : "Drag a marker or edit its row. Higher bands win overlaps."}</CardDescription>
             </div>
-            <div className="flex items-end gap-2">
+            <div className="flex w-full flex-wrap items-end gap-2 sm:w-auto">
               <label className="grid gap-1 text-xs font-medium">Color all bands
                 <select
                   aria-label="Color all bands"
@@ -605,69 +652,9 @@ export function App() {
             ) : <p className="text-sm text-muted-foreground">Preparing preview…</p>}
             {validationError && <p className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive" role="alert">{validationError}</p>}
           </CardContent>
-          <CardFooter className="grid gap-3 sm:grid-cols-2">
-            <Button size="lg" disabled={isGenerating || Boolean(validationError)} onClick={generate}>
-              {isGenerating && <Spinner data-icon="inline-start" />}
-              {isGenerating ? "Generating…" : "Generate .cube"}
-            </Button>
-            <div className="grid grid-cols-2 gap-2">
-              <Button type="button" variant="outline" onClick={() => importInput.current?.click()}>Import JSON</Button>
-              <Button type="button" variant="outline" onClick={downloadConfig}>Export JSON</Button>
-              <input ref={importInput} className="sr-only" type="file" accept="application/json,.json" onChange={(event) => { const file = event.target.files?.[0]; if (file) void importFile(file); event.target.value = "" }} />
-            </div>
-            <p className="min-h-5 text-sm text-muted-foreground sm:col-span-2" role="status" aria-live="polite">{status}</p>
-          </CardFooter>
         </Card>
 
-        <div className="grid min-w-0 items-start gap-6 lg:grid-cols-2">
-          <Card>
-            <CardHeader>
-              <CardTitle>Configuration</CardTitle>
-              <CardDescription>Every edit stays local to this launch.</CardDescription>
-            </CardHeader>
-            <CardContent className="grid gap-4 sm:grid-cols-2">
-              <label className="grid gap-1 text-sm font-medium">
-                Camera
-                <select className={fieldClass} value={setup.profile} onChange={(e) => patchSetup({ profile: e.target.value })}>
-                  {catalog.profiles.map((profile) => <option key={profile}>{profile}</option>)}
-                </select>
-              </label>
-              <label className="grid gap-1 text-sm font-medium">
-                Target display
-                <select className={fieldClass} value={setup.target} onChange={(e) => patchSetup({ target: e.target.value })}>
-                  {catalog.targets.map((target) => <option key={target}>{target}</option>)}
-                </select>
-              </label>
-              <label className="grid gap-1 text-sm font-medium">
-                Cube size
-                <select className={fieldClass} value={setup.cube_size} onChange={(e) => patchSetup({ cube_size: Number(e.target.value) })}>
-                  {[17, 33, 65].map((size) => <option key={size} value={size}>{size}³</option>)}
-                </select>
-              </label>
-              <label className="grid gap-1 text-sm font-medium">
-                Band mode
-                <select className={fieldClass} value={mode} onChange={(e) => setSetup((current) => changeMode(current, e.target.value as Mode))}>
-                  <option value="stops">Stops</option>
-                  <option value="ire">IRE</option>
-                  <option value="fill">Fill</option>
-                </select>
-              </label>
-              <label className="flex items-center gap-2 text-sm font-medium">
-                <input type="checkbox" checked={setup.monochrome} disabled={setup.fill_mode} onChange={(e) => patchSetup({ monochrome: e.target.checked })} />
-                Monochrome base
-              </label>
-              <label className="flex items-center gap-2 text-sm font-medium">
-                <input type="checkbox" checked={setup.legal_range} onChange={(e) => patchSetup({ legal_range: e.target.checked })} />
-                Legal/video range (off = Full range)
-              </label>
-              <label className="grid gap-1 text-sm font-medium sm:col-span-2">
-                Output filename
-                <input className={fieldClass} value={setup.output} onChange={(e) => patchSetup({ output: e.target.value })} />
-              </label>
-            </CardContent>
-          </Card>
-
-          <Card>
+        <Card>
             <CardHeader>
               <CardTitle>Encoded-signal warnings</CardTitle>
               <CardDescription>Encoded-signal warnings, controlled independently.</CardDescription>
@@ -688,8 +675,26 @@ export function App() {
                 <ColorPicker label="White indicator color" value={setup.high_signal_hex} palette={catalog.palette} disabled={!setup.high_signal_warning} onChange={(high_signal_hex) => patchSetup({ high_signal_hex })} />
               </div>
             </CardContent>
-          </Card>
-        </div>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Generate LUT</CardTitle>
+            <CardDescription>Build the final {setup.profile} to {setup.target} transformation.</CardDescription>
+          </CardHeader>
+          <CardFooter className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
+            <Button size="lg" disabled={isGenerating || Boolean(validationError)} onClick={generate}>
+              {isGenerating && <Spinner data-icon="inline-start" />}
+              {isGenerating ? "Generating…" : <><span className="lg:hidden">Generate LUT</span><span className="hidden lg:inline">Generate {setup.profile} → {setup.target} LUT</span></>}
+            </Button>
+            <div className="grid grid-cols-2 gap-2">
+              <Button type="button" variant="outline" onClick={() => importInput.current?.click()}>Import JSON</Button>
+              <Button type="button" variant="outline" onClick={downloadConfig}>Export JSON</Button>
+              <input ref={importInput} className="sr-only" type="file" accept="application/json,.json" onChange={(event) => { const file = event.target.files?.[0]; if (file) void importFile(file); event.target.value = "" }} />
+            </div>
+            <p className="min-h-5 text-sm text-muted-foreground sm:col-span-2" role="status" aria-live="polite">{status}</p>
+          </CardFooter>
+        </Card>
 
       </section>
     </main>
