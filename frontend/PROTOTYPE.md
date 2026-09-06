@@ -37,7 +37,7 @@ Use the floating bottom bar or left/right keys to switch. Arrow keys inside edit
 - Video selection uses the browser's decoder and current time, not FFmpeg. The actual decoded frame timestamp is not verified. The 0.1-second controls are time nudges, not frame steps. Files over 1 GB are rejected in this prototype; codec support is browser-dependent.
 - Metadata, source-color validation, high-precision extraction, calibrated viewing, LUT interpolation, and encoded-signal image warnings are not connected. Manual source selections are recorded only as mockup state.
 - The graph warning region is a visual example, not a computed camera threshold.
-- No layout has been selected by the user yet. Preserve this branch as the primary source for the decision.
+- The user preferred **A · Workbench** after trying the prototype: "workbench seems to be the nicest". Carry its structure forward. This is a layout preference, not a claim that the simulated color pipeline is verified or that every detailed control has been approved. Preserve all three variants on this branch as the primary source for the decision.
 
 ## Checks
 
