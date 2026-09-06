@@ -5,10 +5,15 @@ import "./index.css"
 import App from "./App.tsx"
 import { TooltipProvider } from "@/components/ui/tooltip"
 
+// Throwaway UI study; the normal application and its data fetching are unchanged.
+const Page = import.meta.env.DEV && new URLSearchParams(location.search).has("variant")
+  ? (await import("./UiPrototype.tsx")).default
+  : App
+
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <TooltipProvider>
-      <App />
+      <Page />
     </TooltipProvider>
   </StrictMode>
 )

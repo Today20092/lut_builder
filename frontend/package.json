@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "prototype": "node node_modules/vite/bin/vite.js --host 127.0.0.1 --port 5178 --strictPort --open /?variant=A",
+    "prototype:check": "node --experimental-strip-types tests/prototype-check.mjs",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "test": "node --experimental-strip-types --test tests/*.test.mjs",
