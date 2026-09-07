@@ -22,6 +22,7 @@ import {
 import { Spinner } from "@/components/ui/spinner"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import referenceImage from "@/assets/lut-preview-reference.jpg"
+import { CameraVerification, type SourceInterpretations } from "@/CameraVerification"
 import {
   applyBandPreset,
   applyFillPreset,
@@ -51,6 +52,7 @@ import {
 
 type Catalog = {
   profiles: string[]
+  source_interpretations: SourceInterpretations
   targets: string[]
   palette: PaletteColor[]
 }
@@ -388,6 +390,17 @@ export function LutImagePreview({ preview }: { preview: Preview | null }) {
       </dialog>
     </aside>
   )
+}
+
+function WorkbenchPreview({ preview, setup, catalog }: { preview: Preview | null; setup: Setup; catalog: Catalog }) {
+  const [mode, setMode] = useState("Demonstration")
+  return <div className="grid min-w-0 self-start gap-3 @min-[64rem]:sticky @min-[64rem]:top-6">
+    <fieldset className="flex flex-wrap gap-2">
+      <legend className="mb-2 text-sm font-medium">Preview mode</legend>
+      {["Demonstration", "Camera-matched"].map((choice) => <label key={choice} className="flex h-9 cursor-pointer items-center gap-2 rounded-md border px-3 text-sm has-checked:bg-accent has-focus-visible:ring-2 has-focus-visible:ring-ring"><input type="radio" name="preview-mode" checked={mode === choice} onChange={() => setMode(choice)} />{choice}</label>)}
+    </fieldset>
+    {mode === "Demonstration" ? <LutImagePreview preview={preview} /> : <CameraVerification setup={setup} interpretations={catalog.source_interpretations ?? {}} />}
+  </div>
 }
 
 declare global {
@@ -1173,7 +1186,7 @@ export function App() {
         </Card>
 
         </div>
-        <LutImagePreview preview={preview} />
+        <WorkbenchPreview preview={preview} setup={setup} catalog={catalog} />
         </div>
       </section>
     </main>
