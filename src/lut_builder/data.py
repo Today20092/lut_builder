@@ -15,6 +15,13 @@ MIDDLE_GREY = 0.18
 # ITU-R BT.709 luminance coefficients.
 LUMA_WEIGHTS = np.array([0.2126, 0.7152, 0.0722])
 
+# Colour exposes this camera log curve through its CCTF registry rather than
+# LOG_DECODINGS. Register the existing decoder so every camera profile keeps
+# using the same validated log-decoding path.
+colour.LOG_DECODINGS["Blackmagic Film Generation 5"] = colour.CCTF_DECODINGS[
+    "Blackmagic Film Generation 5"
+]
+
 # ---------------------------------------------------------------------------
 # Camera Profiles
 #
@@ -67,6 +74,15 @@ _SOURCE_DATA = {
         "encoded_signal_floor": 0.0,
         "sources": [
             "https://www.red.com/download/ipp2-technical-paper",
+        ],
+    },
+    "Blackmagic Film Gen 5": {
+        "gamut": "Blackmagic Wide Gamut",
+        "log": "Blackmagic Film Generation 5",
+        "encoded_signal_ceiling": 1.0,
+        "encoded_signal_floor": 0.09246575342465753,
+        "sources": [
+            "https://drive.google.com/file/d/1FF5WO2nvI9GEWb4_EntrBoV9ZIuFToZd/view",
         ],
     },
 }
