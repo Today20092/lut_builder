@@ -184,7 +184,7 @@
 .ui-prototype button:disabled { cursor: default; }
 .ui-prototype :focus-visible { outline: 2px solid var(--ring); outline-offset: 3px; }
 .ui-prototype input, .ui-prototype select { font: inherit; color: var(--foreground); }
-.ui-prototype select, .ui-prototype input[type=number] { min-width: 0; width: 100%; min-height: 38px; border: 1px solid var(--input); border-radius: 7px; background: var(--background); padding: 6px 9px; }
+.ui-prototype select, .ui-prototype input[type=number] { min-width: 0; width: 100%; min-height: 36px; border: 1px solid var(--input); border-radius: 7px; background: var(--background); padding: 6px 9px; }
 .ui-prototype input[type=range] { accent-color: var(--primary); width: 100%; min-width: 0; height: 26px; }
 .ui-prototype input[type=checkbox], .ui-prototype input[type=radio] { accent-color: var(--primary); width: 16px; height: 16px; }
 .ui-prototype input[type=color] { width: 100%; min-width: 40px; height: 38px; padding: 4px; border: 1px solid var(--input); background: var(--background); border-radius: 7px; }
@@ -210,7 +210,7 @@
 .p-section-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 22px; }
 .p-section-head p { font-size: 12px; margin-top: 4px; }
 .p-geometry { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; border: 0; padding: 0; margin: 0 0 20px; }
-.p-geometry label { display: flex; flex-direction: column; gap: 7px; font-size: 11px; flex: 1 1 145px; }
+.p-geometry label { display: flex; flex-direction: column; gap: 7px; font-size: 11px; flex: 0 1 220px; }
 .p-geometry > span { font-size: 10px; display: flex; flex-direction: column; align-self: center; color: var(--muted-foreground); margin-left: auto; }
 .p-geometry strong { color: var(--foreground); font-weight: 500; }
 .p-graph-wrap { padding-top: 6px; }
@@ -266,6 +266,8 @@
 .p-segment span { display: block; border-radius: 4px; padding: 7px 3px; font-size: 11px; color: var(--muted-foreground); }
 .p-segment input:checked + span { color: var(--foreground); background: var(--secondary); }
 .p-segment input:focus-visible + span { outline: 2px solid var(--ring); outline-offset: 1px; }
+.p-comparison { margin-top: 18px; }
+.p-comparison legend { padding-bottom: 8px; font-size: 12px; }
 .p-image-surface { position: relative; border-radius: 7px; overflow: hidden; background: var(--background); border: 1px solid var(--border); min-height: 140px; }
 .p-image-surface canvas { width: 100%; display: block; object-fit: contain; }
 .p-preview-image-label { display: flex; justify-content: space-between; gap: 6px; padding: 8px 9px; font-size: 8px; color: var(--muted-foreground); background: var(--background); letter-spacing: .03em; }

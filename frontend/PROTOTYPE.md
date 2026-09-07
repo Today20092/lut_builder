@@ -50,3 +50,11 @@ node node_modules/eslint/bin/eslint.js src/UiPrototype.tsx src/prototype-state.t
 The small check covers staged color application, immutable undo input, geometry preservation, snapped movement, and illustration opacity. Browser checks cover the layouts, source controls, expanded preview, and responsive placement. They do not establish numerical LUT accuracy or a full accessibility audit.
 
 Decision ticket: [Agree the preview layout and understandable exposure-color controls](https://github.com/Today20092/lut_builder/issues/32).
+
+## Workbench refinement feedback
+
+The user likes Workbench and the preview direction but wants further visual refinement, custom palettes, and less reliance on dropdown menus. They will provide visual references. Custom palette creation is a requirement for the next design iteration, not an implemented feature in this prototype; individual band color fields do not substitute for a reusable palette editor.
+
+Use [Refactoring UI](https://refactoringui.com/) as the design reference: a constrained spacing/sizing and typography system, clear relative emphasis, readable contrast, and selective use of borders. Keep the current stack; the reported sizing defect came from mixing prototype field dimensions and component size variants.
+
+The first small refinement aligns the arrangement selector and adjacent actions to 36 px, limits the selector's desktop width to its content needs, and replaces the preview comparison dropdown with visible Original / Split view / Band colors choices. Browser inspection confirmed matching control heights, correct comparison selection, and no narrow-screen horizontal overflow. Broader style decisions remain open for the user's examples.
