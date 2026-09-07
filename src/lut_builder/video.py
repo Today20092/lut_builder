@@ -81,6 +81,7 @@ class VideoSession:
         self.selected = None
         self.versions = {}
         self.container = {}
+        self.invalidate_verification = lambda: None
 
     def check(self):
         if self.cancelled.is_set():
@@ -103,6 +104,7 @@ class VideoSession:
 
     def cancel(self):
         self.cancelled.set()
+        self.invalidate_verification()
         # Active work checks cancellation and owns cleanup until it exits.
         if self.lock.acquire(blocking=False):
             try:
@@ -110,7 +112,7 @@ class VideoSession:
             finally:
                 self.lock.release()
 
-    def run(self, tool, args, *, limit=16 * 1024 * 1024):
+    def run(self, tool, args, *, limit=16 * 1024 * 1024, check_cancelled=lambda: None):
         self.check()
         executable = shutil.which(tool)
         if not executable:
@@ -134,6 +136,7 @@ class VideoSession:
             try:
                 while True:
                     self.check()
+                    check_cancelled()
                     if time.monotonic() > deadline:
                         raise ValueError(
                             f"{tool} exceeded the {COMMAND_SECONDS}-second processing limit."
@@ -182,6 +185,73 @@ class VideoSession:
                 f"{tool} could not decode this video. Required decoder or zscale may be unavailable. {detail}"
             )
         return output.read_bytes()
+
+    def decode_confirmed(self, interpretation, check_cancelled):
+        """Convert retained native YUV once; caller holds operation() throughout verification."""
+        if self.selected is None:
+            raise ValueError("Select a video frame again before verification.")
+        source = self.selected["source"]
+        matrix = interpretation.get("matrix")
+        signal_range = interpretation.get("signal_range")
+        chroma = interpretation.get("chroma_location")
+        if (
+            interpretation.get("confirmed") is not True
+            or matrix not in {"bt709", "bt470bg", "smpte170m", "bt2020nc"}
+            or signal_range not in {"limited", "full"}
+            or chroma not in {"left", "center", "topleft"}
+            or type(interpretation.get("bit_depth")) is not int
+            or interpretation["bit_depth"] != source["precision_bits"]
+        ):
+            raise ValueError(
+                "Confirm matrix, signal range, chroma location and the decoded component bit depth."
+            )
+        return self.decode_rgb(matrix, signal_range, chroma, check_cancelled)
+
+    def decode_rgb(self, matrix, signal_range, chroma, check_cancelled=lambda: None):
+        """Native planar samples to float RGB, without transfer or gamut conversion."""
+        width, height = self.stream["width"], self.stream["height"]
+        conversion = f"zscale=matrixin={matrix}:rangein={signal_range}:chromalin={chroma}:matrix=gbr:range=full,format=gbrpf32le"
+        raw = self.run(
+            "ffmpeg",
+            [
+                "-nostdin",
+                "-threads",
+                "1",
+                "-filter_threads",
+                "1",
+                "-protocol_whitelist",
+                "file",
+                "-f",
+                "rawvideo",
+                "-pixel_format",
+                self.stream["pix_fmt"],
+                "-video_size",
+                f"{width}x{height}",
+                "-i",
+                str(self.root / "source.raw"),
+                "-vf",
+                conversion,
+                "-frames:v",
+                "1",
+                "-c:v",
+                "rawvideo",
+                "-threads",
+                "1",
+                "-f",
+                "rawvideo",
+                "pipe:1",
+            ],
+            limit=32 * 1024 * 1024,
+            check_cancelled=check_cancelled,
+        )
+        if len(raw) != width * height * 12:
+            raise ValueError("Decoder did not return one complete float RGB frame.")
+        rgb = (
+            np.frombuffer(raw, dtype="<f4")
+            .reshape(3, height, width)[[2, 0, 1]]
+            .transpose(1, 2, 0)
+        )
+        return rgb, conversion
 
     def probe(self):
         if not shutil.which("ffmpeg"):
@@ -295,6 +365,7 @@ class VideoSession:
         self.frames = frames
 
     def select(self, payload):
+        self.invalidate_verification()
         if not self.frames:
             raise ValueError("Upload a video first.")
         if ("time" in payload) == ("index" in payload):
@@ -391,44 +462,9 @@ class VideoSession:
             if facts["chroma_location"] in {"left", "center", "topleft"}
             else "left"
         )
-        conversion = f"zscale=matrixin={matrix}:rangein={signal_range}:chromalin={chroma}:matrix=gbr:range=full,format=gbrpf32le"
-        raw = self.run(
-            "ffmpeg",
-            [
-                "-nostdin",
-                "-threads",
-                "1",
-                "-filter_threads",
-                "1",
-                "-f",
-                "rawvideo",
-                "-pixel_format",
-                fmt,
-                "-video_size",
-                f"{width}x{height}",
-                "-i",
-                str(self.root / "source.raw"),
-                "-vf",
-                conversion,
-                "-frames:v",
-                "1",
-                "-c:v",
-                "rawvideo",
-                "-threads",
-                "1",
-                "-f",
-                "rawvideo",
-                "pipe:1",
-            ],
-            limit=32 * 1024 * 1024,
-        )
-        if len(raw) != width * height * 12:
-            raise ValueError("Decoder did not return one complete float RGB frame.")
-        (self.root / "demonstration.gbrpf32le").write_bytes(raw)
-        rgb = (
-            np.frombuffer(raw, dtype="<f4")
-            .reshape(3, height, width)[[2, 0, 1]]
-            .transpose(1, 2, 0)
+        rgb, conversion = self.decode_rgb(matrix, signal_range, chroma)
+        (self.root / "demonstration.gbrpf32le").write_bytes(
+            rgb.transpose(2, 0, 1)[[1, 2, 0]].astype("<f4").tobytes()
         )
         if not np.isfinite(rgb).all():
             raise ValueError("Decoder returned nonfinite color samples.")

@@ -160,12 +160,14 @@ class VerificationSession:
         self.lock = threading.Lock()
         self.cancelled: deque[str] = deque(maxlen=32)
         self.result: tuple[str, VerificationResult] | None = None
+        self.video_source = None
 
     def cancel(self, request_id: str) -> None:
         with self.lock:
             self.cancelled.append(request_id)
             if self.result and self.result[0] == request_id:
                 self.result = None
+                self.video_source = None
 
     def get(self, request_id: str) -> VerificationResult:
         with self.lock:
@@ -173,7 +175,66 @@ class VerificationSession:
                 raise ValueError(
                     "Verification expired or was cancelled. Verify the current source and settings again."
                 )
+            if self.video_source:
+                session, frame = self.video_source
+                session.check()
+                if session.selected is None or session.selected["frame"] != frame:
+                    self.result = None
+                    raise ValueError("Selected video frame changed. Verify again.")
             return self.result[1]
+
+    def verify_video(self, payload, request_id, videos):
+        with self.lock:
+            self.result = None
+            self.video_source = None
+        interpretation = payload.get("interpretation")
+        if not isinstance(interpretation, dict) or not isinstance(
+            payload.get("setup"), dict
+        ):
+            raise ValueError("Verification needs interpretation and setup objects.")
+        session = videos.get(payload.get("source_id"))
+        name = payload.get("name", "Selected video")
+        if not isinstance(name, str) or not 0 < len(name) <= 255:
+            raise ValueError("Choose a video with a name of 1 to 255 characters.")
+
+        def check_cancelled():
+            session.check()
+            with self.lock:
+                if request_id in self.cancelled:
+                    raise ValueError("Verification cancelled.")
+
+        with session.operation():
+            check_cancelled()
+            if (
+                session.selected is None
+                or payload.get("frame") != session.selected["frame"]
+            ):
+                raise ValueError(
+                    "Selected video frame changed. Select and verify again."
+                )
+            rgb, conversion = session.decode_confirmed(interpretation, check_cancelled)
+            resolved = {**interpretation, "decoding": conversion}
+            result = verify_rgb(
+                rgb,
+                _setup_from_payload(payload["setup"]),
+                resolved,
+                check_cancelled=check_cancelled,
+            )
+            result.provenance["source"] = {
+                "name": name,
+                **session.selected["source"],
+                "frame": session.selected["frame"],
+                "facts": session.selected["facts"],
+                "tools": session.versions,
+                "stream_index": session.stream["index"],
+                "storage": "native planar YCbCr to float32 RGB",
+                "decoding": conversion,
+                "range_conversion_applied": True,
+            }
+            session.invalidate_verification = lambda: self.cancel(request_id)
+            return self.publish(
+                result, request_id, (session, session.selected["frame"])
+            )
 
     def verify(self, payload: dict, request_id: str) -> dict:
         def check_cancelled():
@@ -183,6 +244,7 @@ class VerificationSession:
 
         with self.lock:
             self.result = None
+            self.video_source = None
         check_cancelled()
         source = payload.get("source")
         interpretation = payload.get("interpretation")
@@ -226,6 +288,9 @@ class VerificationSession:
             "height": rgb.shape[0],
             **facts,
         }
+        return self.publish(result, request_id)
+
+    def publish(self, result, request_id, video_source=None):
         image = (
             "data:image/png;base64,"
             + base64.b64encode(display_png(result.display_rgb)).decode()
@@ -233,11 +298,14 @@ class VerificationSession:
         with self.lock:
             if request_id in self.cancelled:
                 raise ValueError("Verification cancelled.")
+            if video_source:
+                video_source[0].check()
             self.result = request_id, result
+            self.video_source = video_source
         return {
             "request_id": request_id,
-            "width": rgb.shape[1],
-            "height": rgb.shape[0],
+            "width": result.source_rgb.shape[1],
+            "height": result.source_rgb.shape[0],
             "image": image,
             "provenance": result.provenance,
         }
@@ -275,13 +343,14 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
         if urlsplit(self.path).path.startswith("/video/"):
             self._video_request()
             return
-        if self.path == "/verify":
+        if self.path in {"/verify", "/verify-video"}:
             self.connection.settimeout(UPLOAD_TIMEOUT_SECONDS)
         # Acquire before reading a large upload, so only one source is resident.
-        acquired = self.path == "/verify" and self.verification.busy.acquire(
-            blocking=False
-        )
-        if self.path == "/verify" and not acquired:
+        acquired = self.path in {
+            "/verify",
+            "/verify-video",
+        } and self.verification.busy.acquire(blocking=False)
+        if self.path in {"/verify", "/verify-video"} and not acquired:
             self._send_json(
                 409,
                 {
@@ -302,6 +371,7 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
             "/preview",
             "/generate",
             "/verify",
+            "/verify-video",
             "/verify-pixel",
             "/verify-cube",
             "/verify-cancel",
@@ -325,7 +395,7 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
             )
             if not 0 <= length <= maximum:
                 raise ValueError("Request body is too large")
-            if self.path == "/verify":
+            if self.path in {"/verify", "/verify-video"}:
                 deadline = time.monotonic() + UPLOAD_TIMEOUT_SECONDS
                 body = bytearray()
                 while len(body) < length:
@@ -360,6 +430,14 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
                     return
                 if self.path == "/verify":
                     self._send_json(200, self.verification.verify(payload, request_id))
+                    return
+                if self.path == "/verify-video":
+                    self._send_json(
+                        200,
+                        self.verification.verify_video(
+                            payload, request_id, self.videos
+                        ),
+                    )
                     return
                 result = self.verification.get(request_id)
                 if self.path == "/verify-pixel":
@@ -418,7 +496,9 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
         self.wfile.write(cube)
 
     def _video_request(self) -> None:
-        if not secrets.compare_digest(self.headers.get("X-LUT-Builder-Token", ""), self.token):
+        if not secrets.compare_digest(
+            self.headers.get("X-LUT-Builder-Token", ""), self.token
+        ):
             self._send_json(403, {"error": "Invalid launch token"})
             return
         path = urlsplit(self.path)
@@ -451,8 +531,13 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
                     session.probe()
                     result = session.select({"time": "0"})
             else:
-                if self.headers.get_content_type() != "application/json" or not 0 < length <= 4096:
-                    raise ValueError("Video controls require a JSON object up to 4096 bytes.")
+                if (
+                    self.headers.get_content_type() != "application/json"
+                    or not 0 < length <= 4096
+                ):
+                    raise ValueError(
+                        "Video controls require a JSON object up to 4096 bytes."
+                    )
                 self.connection.settimeout(2)
                 payload = json.loads(self.rfile.read(length))
                 if not isinstance(payload, dict):
@@ -476,7 +561,9 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
         except Exception:
             if session:
                 session.cancel()
-            self._send_json(500, {"error": "Video processing failed. Choose the source again."})
+            self._send_json(
+                500, {"error": "Video processing failed. Choose the source again."}
+            )
 
     def _send_json(self, status: int, payload: dict) -> None:
         self._send(status, json.dumps(payload).encode(), "application/json")

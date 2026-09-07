@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import type { Setup } from "@/editor"
+import type { VideoFrame } from "@/App"
 
 export type SourceInterpretations = Record<string, { transfer: string; gamut: string }>
 type CheckedStill = {
@@ -115,12 +116,16 @@ function CheckedImage({ result }: { result: CheckedStill }) {
   </>
 }
 
-export function CameraVerification({ setup, interpretations }: { setup: Setup; interpretations: SourceInterpretations }) {
+export function CameraVerification({ setup, interpretations, video }: { setup: Setup; interpretations: SourceInterpretations; video?: VideoFrame }) {
   const [source, setSource] = useState<{ name: string; data: string; id: number } | null>(null)
   const [transfer, setTransfer] = useState("")
   const [gamut, setGamut] = useState("")
   const [range, setRange] = useState("")
   const [confirmed, setConfirmed] = useState(false)
+  const [matrix, setMatrix] = useState("")
+  const [signalRange, setSignalRange] = useState("")
+  const [chroma, setChroma] = useState("")
+  const [bitDepth, setBitDepth] = useState("")
   const [reading, setReading] = useState(false)
   const [fileError, setFileError] = useState("")
   const [result, setResult] = useState<{ key: string; value: CheckedStill } | null>(null)
@@ -129,7 +134,7 @@ export function CameraVerification({ setup, interpretations }: { setup: Setup; i
   const pending = useRef<{ id: string; controller: AbortController } | null>(null)
   const fileSequence = useRef(0)
   const reader = useRef<FileReader | null>(null)
-  const key = JSON.stringify([setup, source?.id, transfer, gamut, range, confirmed])
+  const key = JSON.stringify([setup, source?.id, video?.frame, transfer, gamut, range, confirmed, matrix, signalRange, chroma, bitDepth])
   const expected = interpretations[setup.profile]
   const mismatch = Boolean(transfer && gamut && (transfer !== expected?.transfer || gamut !== expected?.gamut))
   const supported = ["Rec.709", "Rec.2020"].includes(setup.target)
@@ -192,7 +197,7 @@ export function CameraVerification({ setup, interpretations }: { setup: Setup; i
   }
 
   async function verify() {
-    if (!source) return
+    if (!source && !video) return
     const id = crypto.randomUUID()
     const controller = new AbortController()
     pending.current = { id, controller }
@@ -200,9 +205,9 @@ export function CameraVerification({ setup, interpretations }: { setup: Setup; i
     setResult(null)
     setStatus({ key, text: "Decoding source and applying the exported cube…" })
     try {
-      const response = await request("/verify", {
-        request_id: id, source: { name: source.name, data: source.data }, setup,
-        interpretation: { transfer, gamut, range, confirmed, decoding: "RGB; no color transform or range scaling" },
+      const response = await request(video ? "/verify-video" : "/verify", {
+        request_id: id, ...(video ? { source_id: video.source_id, frame: video.frame, name: video.name } : { source: { name: source!.name, data: source!.data } }), setup,
+        interpretation: { transfer, gamut, range: video ? "camera-code-values" : range, confirmed, decoding: "RGB; no color transform or range scaling", ...(video ? { matrix, signal_range: signalRange, chroma_location: chroma, bit_depth: Number(bitDepth) } : {}) },
       }, controller.signal)
       const next = await response.json() as CheckedStill
       if (pending.current?.id !== id || controller.signal.aborted) return
@@ -217,24 +222,41 @@ export function CameraVerification({ setup, interpretations }: { setup: Setup; i
   }
 
   return <Card className="min-w-0 overflow-hidden" aria-label="Camera-matched verification">
-    <CardHeader><CardTitle>Camera-matched still check</CardTitle><CardDescription>Apply the actual exported cube to preserved camera RGB.</CardDescription></CardHeader>
+    <CardHeader><CardTitle>Camera-matched {video ? "video frame" : "still"} check</CardTitle><CardDescription>Apply the actual exported cube to preserved camera RGB.</CardDescription></CardHeader>
     <CardContent className="grid min-w-0 gap-3">
       {current?.provenance.warnings.map((warning) => <p key={warning} className="text-sm text-amber-600">{warning}</p>)}
       {current && <CheckedImage key={current.request_id} result={current} />}
+      {!video && <>
       <label className="grid gap-2 text-sm font-medium">Choose camera still<input type="file" accept=".png,.pfm" className="max-w-full text-sm" onChange={(e) => { const file = e.target.files?.[0]; if (file) choose(file); e.target.value = "" }} /></label>
       <p className="text-xs text-muted-foreground">Untagged, non-interlaced 16-bit RGB PNG, or float32 RGB PFM. No alpha. Up to 4,194,304 pixels and 48 MiB. PNG requires local FFmpeg. Files stay in this local workspace session.</p>
       <p className="text-xs" role="status">{reading ? "Reading still…" : source?.name ?? "No camera still selected."}</p>
       {fileError && <p className="text-sm text-destructive" role="alert">{fileError}</p>}
+      </>}
+      {video && <>
+        <p className="text-sm">Frame at {video.frame.seconds.toFixed(6)} s · exact {video.frame.relative_time} s · PTS {video.frame.pts}, time base {video.frame.time_base}.</p>
+        <p className="text-xs">Metadata suggestions are unconfirmed. Frame tags take precedence over stream tags. Missing facts stay unknown; camera and codec names never establish a log profile.</p>
+        {([
+          ["YCbCr matrix", matrix, setMatrix, ["bt709", "bt470bg", "smpte170m", "bt2020nc"], "color_space"],
+          ["Signal range", signalRange, setSignalRange, ["limited", "full"], "color_range"],
+          ["Chroma location", chroma, setChroma, ["left", "center", "topleft"], "chroma_location"],
+          ["Component bit depth", bitDepth, setBitDepth, [String(video.source.precision_bits)], "bit_depth"],
+        ] as const).map(([label, value, setter, options, fact]) => {
+          const reported = fact === "bit_depth" ? video.source.precision_bits : video.facts.frame[fact] ?? video.facts.stream[fact]
+          const suggestion = fact === "color_range" ? ({ tv: "limited", pc: "full" } as Record<string, string>)[String(reported)] : String(reported ?? "unknown")
+          return <label key={label} className="grid gap-1 text-sm">{label}<span className="text-xs text-muted-foreground">Suggestion from metadata: {options.some((option) => option === String(suggestion)) ? suggestion : "unknown"}</span><select className={field} value={value} onChange={(e) => { setter(e.target.value); setConfirmed(false) }}><option value="">Unknown / unconfirmed</option>{options.map((option) => <option key={option}>{option}</option>)}</select></label>
+        })}
+        <p className="text-xs">Native YCbCr is expanded using the confirmed transport range and matrix exactly once into float RGB. Transfer decoding belongs to the cube. Excursions remain intact until its declared input boundary.</p>
+      </>}
       <p className="text-xs text-muted-foreground">The file cannot prove its camera profile. Confirm these facts from the recording/export workflow. Unknowns prevent verification.</p>
       <label className="grid gap-1 text-sm">Source transfer function<select className={field} value={transfer} onChange={(e) => { setTransfer(e.target.value); setConfirmed(false) }}><option value="">Unknown</option>{[...new Set(Object.values(interpretations).map((v) => v.transfer))].map((v) => <option key={v}>{v}</option>)}</select></label>
       <label className="grid gap-1 text-sm">Source gamut<select className={field} value={gamut} onChange={(e) => { setGamut(e.target.value); setConfirmed(false) }}><option value="">Unknown</option>{[...new Set(Object.values(interpretations).map((v) => v.gamut))].map((v) => <option key={v}>{v}</option>)}</select></label>
-      <label className="grid gap-1 text-sm">RGB range convention<select className={field} value={range} onChange={(e) => { setRange(e.target.value); setConfirmed(false) }}><option value="">Unknown</option><option value="camera-code-values">Normalized camera code values</option></select></label>
-      <p className="text-xs text-muted-foreground">PNG codes are divided by 65535. PFM values are unchanged. No YCbCr matrix or input range expansion is applied. Resolve any transport conversion before export. Excursions are clamped only at the cube's [0, 1] boundary and reported.</p>
-      <label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} />I confirm unchanged camera-encoded RGB, this transfer/gamut and range, with no viewing transform or additional range scaling.</label>
+      {!video && <><label className="grid gap-1 text-sm">RGB range convention<select className={field} value={range} onChange={(e) => { setRange(e.target.value); setConfirmed(false) }}><option value="">Unknown</option><option value="camera-code-values">Normalized camera code values</option></select></label>
+      <p className="text-xs text-muted-foreground">PNG codes are divided by 65535. PFM values are unchanged. No YCbCr matrix or input range expansion is applied. Resolve any transport conversion before export. Excursions are clamped only at the cube's [0, 1] boundary and reported.</p></>}
+      <label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} />{video ? "I confirm the recording transfer/gamut, matrix, transport range, chroma location and component depth. This is camera-encoded media with no viewing transform." : "I confirm unchanged camera-encoded RGB, this transfer/gamut and range, with no viewing transform or additional range scaling."}</label>
       {mismatch && <p role="alert" className="text-sm text-destructive">Source interpretation does not match {setup.profile}. Correct the source interpretation or LUT camera profile.</p>}
       {!supported && <p role="alert" className="text-sm text-destructive">Unsupported SDR view. Choose Rec.709 or SDR Rec.2020. HDR/log viewing is unavailable.</p>}
       <p className="text-xs text-muted-foreground">SDR view: ideal-black BT.1886, target primaries converted to sRGB, display gamut clipped. Legal output is expanded once for display. Stored overlay colors and LUT output remain unchanged.</p>
-      <div className="flex flex-wrap gap-2"><Button disabled={busy || reading || !source || !transfer || !gamut || !range || !confirmed || mismatch || !supported} onClick={() => void verify()}>Verify still</Button>{busy && <Button variant="outline" onClick={cancel}>Cancel verification</Button>}</div>
+      <div className="flex flex-wrap gap-2"><Button disabled={busy || reading || !(source || video) || !transfer || !gamut || (video ? !matrix || !signalRange || !chroma || !bitDepth : !range) || !confirmed || mismatch || !supported} onClick={() => void verify()}>Verify {video ? "selected frame" : "still"}</Button>{busy && <Button variant="outline" onClick={cancel}>Cancel verification</Button>}</div>
       <p className="text-sm" role="status" aria-live="polite">{status.key === key ? status.text : status.key || busyKey ? "Source, interpretation or settings changed. Verify again; the previous result is no longer current." : "Confirm the source interpretation to verify."}</p>
     </CardContent>
   </Card>
