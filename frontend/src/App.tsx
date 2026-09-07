@@ -11,6 +11,7 @@ import { Popover } from "@base-ui/react/popover"
 import { Button } from "@/components/ui/button"
 import { PaletteEditor } from "./PaletteEditor"
 import { BandNumberInput } from "./BandNumberInput"
+import { overlayForExposure } from "./demonstration"
 import {
   Card,
   CardContent,
@@ -68,39 +69,6 @@ type Preview = {
   legend: { kind: string; color: string; label: string }[]
   warnings: string[]
   setup: Setup
-}
-
-export function previewColorAt(colors: string[], luminance: number) {
-  return colors[Math.round(Math.max(0, Math.min(1, luminance)) * (colors.length - 1))] ?? "#000000"
-}
-
-export function previewOverlayAt(colors: (string | null)[], luminance: number) {
-  return colors[Math.round(Math.max(0, Math.min(1, luminance)) * (colors.length - 1))] ?? null
-}
-
-export function displayPreviewOverlayAt(
-  colors: (string | null)[],
-  luminance: number,
-  minimum: number,
-  maximum: number,
-  unit: string,
-) {
-  const exposure = unit === "IRE"
-    ? luminance * 100
-    : Math.log2(Math.max(luminance, 1e-6) / 0.18)
-  return previewOverlayAt(colors, (exposure - minimum) / (maximum - minimum))
-}
-
-export function overlayForExposure(setup: Setup, exposure: number) {
-  if (setup.fill_mode && setup.bands.length) {
-    const bands = [...setup.bands].sort((left, right) => left.stop - right.stop)
-    return bands.find((band) => exposure < band.stop)?.color ?? bands.at(-1)!.color
-  }
-  let color: string | null = null
-  for (const band of setup.bands) {
-    if (Math.abs(exposure - band.stop) <= band.width) color = band.color
-  }
-  return color
 }
 
 function srgbToLinear(value: number) {
@@ -322,12 +290,12 @@ export function LutImagePreview({ preview, camera }: { preview: Preview | null; 
       {!camera && <Button type="button" variant="outline" onClick={() => inputRef.current?.click()}>Choose image</Button>}
       <Button type="button" variant="outline" onClick={() => videoInput.current?.click()}>Choose video</Button>
       {!camera && imageUrl !== referenceImage && <Button type="button" variant="ghost" onClick={() => { stopVideo(); setImageUrl(referenceImage); setImageName("Reference photo"); setImageError("") }}>Reference photo</Button>}
-      <input ref={inputRef} className="sr-only" aria-label="Choose demonstration still image" type="file" accept="image/*" onChange={(event) => {
+      <input ref={inputRef} className="sr-only" tabIndex={-1} aria-label="Choose demonstration still image" type="file" accept="image/*" onChange={(event) => {
         const file = event.target.files?.[0]
         if (file) chooseImage(file)
         event.target.value = ""
       }} />
-      <input ref={videoInput} className="sr-only" aria-label={camera ? "Choose local camera video" : "Choose local demonstration video"} type="file" accept=".mp4,.mov,.mkv" onChange={(event) => {
+      <input ref={videoInput} className="sr-only" tabIndex={-1} aria-label={camera ? "Choose local camera video" : "Choose local demonstration video"} type="file" accept=".mp4,.mov,.mkv" onChange={(event) => {
         const file = event.target.files?.[0]
         if (file) void chooseVideo(file)
         event.target.value = ""
@@ -1093,7 +1061,6 @@ export function App() {
                 </div>
                 <Button type="button" size="lg" onClick={addBand}>Add band</Button>
               </div>
-              <PaletteEditor setup={setup} palette={catalog.palette} onApply={(next) => editSetup(() => next)} />
             </div>
           </CardHeader>
           <CardContent className="grid gap-4">
@@ -1147,6 +1114,7 @@ export function App() {
               </>
             ) : <p className="text-sm text-muted-foreground">Preparing preview…</p>}
             {validationError && <p className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive" role="alert">{validationError}</p>}
+            <PaletteEditor setup={setup} palette={catalog.palette} onApply={(next) => editSetup(() => next)} />
           </CardContent>
         </Card>
 
@@ -1154,8 +1122,12 @@ export function App() {
             <CardHeader>
               <CardTitle>Recorded-signal limit warnings</CardTitle>
               <CardDescription className="max-w-3xl">
-                Colors pixels when any recorded RGB channel reaches this profile&apos;s configured code-value limits. The high warning means a recorded channel may be clipped and unrecoverable; the low warning means shadow detail may be buried in noise, not that it crosses a precise clipping point. These are not guaranteed physical sensor limits because a LUT sees processed RGB—not RAW sensor data—and the true limits vary by camera model, recording mode, EI/ISO, and signal range.
+                Mark this profile&apos;s recorded RGB code limits. These warnings cannot establish physical sensor clipping.
               </CardDescription>
+              <details className="text-xs text-muted-foreground">
+                <summary className="cursor-pointer text-sm">How to interpret these warnings</summary>
+                <p className="mt-2">The high warning marks a channel that may be clipped; the low warning marks shadow detail that may be buried in noise. A LUT sees processed RGB, not RAW sensor data. Limits vary by camera model, recording mode, EI/ISO, and signal range.</p>
+              </details>
             </CardHeader>
             <CardContent className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,14rem),1fr))] gap-5">
               <div className="grid gap-3">
@@ -1188,7 +1160,7 @@ export function App() {
             <div className="flex flex-wrap gap-2">
               <Button type="button" variant="outline" onClick={() => importInput.current?.click()}>Import JSON</Button>
               <Button type="button" variant="outline" onClick={downloadConfig}>Export JSON</Button>
-              <input ref={importInput} className="sr-only" type="file" accept="application/json,.json" onChange={(event) => { const file = event.target.files?.[0]; if (file) void importFile(file); event.target.value = "" }} />
+              <input ref={importInput} className="sr-only" tabIndex={-1} aria-label="Import setup JSON file" type="file" accept="application/json,.json" onChange={(event) => { const file = event.target.files?.[0]; if (file) void importFile(file); event.target.value = "" }} />
             </div>
             <p className="min-h-5 w-full text-sm text-muted-foreground" role="status" aria-live="polite">{status}</p>
           </CardFooter>

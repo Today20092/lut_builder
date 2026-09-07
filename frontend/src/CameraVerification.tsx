@@ -224,7 +224,7 @@ export function CameraVerification({ setup, interpretations, video }: { setup: S
   return <Card className="min-w-0 overflow-hidden" aria-label="Camera-matched verification">
     <CardHeader><CardTitle>Camera-matched {video ? "video frame" : "still"} check</CardTitle><CardDescription>Apply the actual exported cube to preserved camera RGB.</CardDescription></CardHeader>
     <CardContent className="grid min-w-0 gap-3">
-      {current?.provenance.warnings.map((warning) => <p key={warning} className="text-sm text-amber-600">{warning}</p>)}
+      {current?.provenance.warnings.map((warning) => <p key={warning} className="text-sm text-amber-700 dark:text-amber-300">{warning}</p>)}
       {current && <CheckedImage key={current.request_id} result={current} />}
       {!video && <>
       <label className="grid gap-2 text-sm font-medium">Choose camera still<input type="file" accept=".png,.pfm" className="max-w-full text-sm" onChange={(e) => { const file = e.target.files?.[0]; if (file) choose(file); e.target.value = "" }} /></label>

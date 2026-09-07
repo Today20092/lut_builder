@@ -63,7 +63,8 @@ function oklabRgb([l, a, b]: number[]) {
 }
 
 function oklabToHex(lab: number[]) {
-  let [l, a, b] = lab
+  const [l] = lab
+  let [, a, b] = lab
   for (let attempt = 0; attempt < 16; attempt += 1) {
     const rgb = oklabRgb([l, a, b])
     if (rgb.every((channel) => channel >= 0 && channel <= 1)) {

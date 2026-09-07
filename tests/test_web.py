@@ -5,9 +5,42 @@ from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
 import numpy as np
+import pytest
 
 from lut_builder.setup import LutSetup, map_exposure
 from lut_builder.web import create_server
+
+
+def test_restart_reuses_origin_and_rejects_occupied_port(monkeypatch):
+    from lut_builder import web
+
+    server, url, token = create_server(port=0)
+    port = server.server_port
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        with _request(url) as response:
+            assert token in response.read().decode()
+        monkeypatch.setattr(web, "WORKSPACE_PORT", port)
+        with pytest.raises(SystemExit, match="Close the other workspace"):
+            web.launch_workspace()
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+    restarted, restarted_url, new_token = create_server(port=port)
+    thread = threading.Thread(target=restarted.serve_forever, daemon=True)
+    thread.start()
+    try:
+        assert restarted_url == url
+        assert new_token != token
+        with _request(restarted_url) as response:
+            assert new_token in response.read().decode()
+    finally:
+        restarted.shutdown()
+        restarted.server_close()
+        thread.join(timeout=5)
 
 
 def _request(url, *, token=None, payload=None, content_type="application/json"):
@@ -197,11 +230,15 @@ def test_invalid_preview_is_actionable_and_does_not_poison_next_request():
         else:
             raise AssertionError("invalid preview was accepted")
 
-        with _request(url + "preview", token=token, payload={
-            "version": 1,
-            "profile": "Sony S-Log3",
-            "target": "Rec.709",
-        }) as response:
+        with _request(
+            url + "preview",
+            token=token,
+            payload={
+                "version": 1,
+                "profile": "Sony S-Log3",
+                "target": "Rec.709",
+            },
+        ) as response:
             assert json.load(response)["values"]
     finally:
         server.shutdown()
@@ -215,15 +252,19 @@ def test_preview_accepts_legacy_version_1_warning_names():
     thread.start()
 
     try:
-        with _request(url + "preview", token=token, payload={
-            "version": 1,
-            "profile": "Sony S-Log3",
-            "target": "Rec.709",
-            "black_clip": True,
-            "black_hex": "#123456",
-            "white_clip": True,
-            "white_hex": "#abcdef",
-        }) as response:
+        with _request(
+            url + "preview",
+            token=token,
+            payload={
+                "version": 1,
+                "profile": "Sony S-Log3",
+                "target": "Rec.709",
+                "black_clip": True,
+                "black_hex": "#123456",
+                "white_clip": True,
+                "white_hex": "#abcdef",
+            },
+        ) as response:
             setup = json.load(response)["setup"]
 
         assert setup["low_signal_warning"] is True

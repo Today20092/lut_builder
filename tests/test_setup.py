@@ -29,9 +29,7 @@ def test_exposure_preview_keeps_fixed_mode_viewports():
             bands=[{"stop": 12, "color": "#ff0000", "width": 4}],
         )
     )
-    ire = exposure_preview(
-        LutSetup("Sony S-Log3", "Rec.709", band_mode="ire")
-    )
+    ire = exposure_preview(LutSetup("Sony S-Log3", "Rec.709", band_mode="ire"))
 
     assert (stops["minimum"], stops["maximum"]) == (-7, 7)
     assert (ire["minimum"], ire["maximum"]) == (0, 100)
@@ -173,7 +171,9 @@ def test_generated_cube_applies_ire_bands(tmp_path):
     )
 
     generate_lut(setup)
-    table = colour.read_LUT(str(output)).table.reshape(-1, 3)
+    lut = colour.read_LUT(str(output))
+    assert isinstance(lut, colour.LUT3D)
+    table = lut.table.reshape(-1, 3)
 
     assert np.any(np.all(np.isclose(table, [1, 0, 1]), axis=1))
     assert np.any(~np.all(np.isclose(table, [1, 0, 1]), axis=1))

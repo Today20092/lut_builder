@@ -22,6 +22,8 @@ TARGET_COLORS = {
         "#0000ff": [0.16870061, 0.05112640, 0.94678254],
     },
 }
+
+
 def _generate_lut(tmp_path: Path, *, size: int, target: str, mode: str):
     output = tmp_path / f"{target}-{mode}-{size}.cube"
     center, width = (0.0, 0.5) if mode == "stops" else (42.0, 6.0)
@@ -81,9 +83,9 @@ def test_neutral_ramp_band_edges_and_half_grid_clipping(
     for edge in np.flatnonzero(overlay[:-1] != overlay[1:]):
         midpoint = (ramp[edge] + ramp[edge + 1]) / 2
         interpolated = lut.apply(np.array([midpoint] * 3))
-        corners = lut.table[
-            edge : edge + 2, edge : edge + 2, edge : edge + 2
-        ].reshape(-1, 3)
+        corners = lut.table[edge : edge + 2, edge : edge + 2, edge : edge + 2].reshape(
+            -1, 3
+        )
         assert np.all(interpolated >= corners.min(axis=0) - 1e-6)
         assert np.all(interpolated <= corners.max(axis=0) + 1e-6)
         assert not np.allclose(interpolated, diagonal[edge], atol=1e-6)

@@ -57,6 +57,15 @@ Bare filenames are written to `output/luts/`. Enter an explicit path or use `--o
 
 `workspace.bat` opens the browser workspace; the build launchers start the interactive CLI.
 
+`uv run lut-builder workspace` uses [http://127.0.0.1:8765/](http://127.0.0.1:8765/).
+Keep using this address in the same browser to reuse named palettes after restarting.
+If the port is occupied, close the other workspace or application using it and retry.
+The launcher reports the conflict instead of changing the port. Clearing browser storage
+or using a different browser removes access to that browser's saved palettes.
+Applied band colors remain portable through Export JSON and Import JSON.
+
+See the [integrated acceptance report](docs/testing/integration.md) for checks and supported limits.
+
 The Workbench's **Camera-matched** mode checks an untagged 16-bit RGB PNG or float32 RGB PFM against the actual exported cube. PNG decoding requires local FFmpeg. Confirm the source transfer, gamut and unchanged camera code values before checking. See [still verification](docs/still-verification.md) for supported formats, the explicit SDR view, precision tests and limitations.
 
 Choose **Video** within Camera-matched mode to check one selected frame using local FFmpeg/FFprobe. Confirm transfer, gamut, YCbCr matrix, transport range, chroma location and native bit depth. The checker preserves float RGB, applies the same exported cube, and offers numerical pixels and the exact checked artifact. See [video verification](docs/testing/video-verification.md) for supported media, bounds and test evidence.
@@ -268,14 +277,22 @@ lut_builder/
 
 ## Development
 
+Use UV for Python dependencies and execution, Ruff for formatting and linting,
+and ty for type checking. Tool versions are recorded in `uv.lock`.
+
 ```bash
-uv sync
+uv sync --locked
 uv run pytest -q
+uv run ruff format --check .
+uv run ruff check .
+uv run ty check
 uv run lut-builder --help
 uv run lut-builder list
 ```
 
-Rebuild the bundled browser workspace after frontend changes with `cd frontend`, `npm ci`, and `npm run build`.
+Rebuild the bundled browser workspace after frontend changes with `cd frontend`, `pnpm install --frozen-lockfile`, and `pnpm build`.
+
+Run `uv run ruff format .` to apply formatting before submitting changes.
 
 The current suite covers config compatibility, catalog validation, log decoding, exposure mapping, signal-range semantics, target-gamut overlays, interpolation boundaries, and CLI output paths.
 
