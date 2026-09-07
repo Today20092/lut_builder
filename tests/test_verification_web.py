@@ -5,7 +5,9 @@ import struct
 import threading
 import zlib
 import subprocess
+import socket
 from urllib.error import HTTPError
+from urllib.parse import urlsplit
 
 import numpy as np
 import pytest
@@ -256,3 +258,25 @@ def test_busy_and_inflight_cancel_at_decoder_process_boundary(workspace, monkeyp
         release.set()
         job.join(5)
     assert failures == ["Verification cancelled."]
+
+
+def test_partial_upload_times_out_and_releases_verification_slot(
+    workspace, monkeypatch
+):
+    url, token = workspace
+    monkeypatch.setattr("lut_builder.web.UPLOAD_TIMEOUT_SECONDS", 0.1)
+    with socket.create_connection(
+        ("127.0.0.1", urlsplit(url).port), timeout=3
+    ) as connection:
+        connection.sendall(
+            (
+                "POST /verify HTTP/1.0\r\nContent-Type: application/json\r\n"
+                f"X-LUT-Builder-Token: {token}\r\nContent-Length: 100\r\n\r\n{{"
+            ).encode()
+        )
+        body = b""
+        while chunk := connection.recv(4096):
+            body += chunk
+    assert b"408" in body and b"upload timed out" in body
+    with _request(url + "verify", token=token, payload=still_payload()) as response:
+        assert json.load(response)["request_id"] == "still-1"

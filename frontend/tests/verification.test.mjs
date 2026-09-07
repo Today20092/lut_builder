@@ -93,6 +93,7 @@ test("still workflow requires facts, rejects stale responses, cancels, and inspe
     assert.equal(document.activeElement, expand)
     await select(0, "V-Log")
     assert.equal(container.querySelector("img"), null)
+    assert.ok(calls.some((call) => call.path === "/verify-cancel" && call.payload.request_id === sample.payload.request_id))
     await select(0, "S-Log3")
     await act(() => container.querySelector("input[type=checkbox]").click())
     await click("Verify still")

@@ -150,6 +150,12 @@ export function CameraVerification({ setup, interpretations }: { setup: Setup; i
     }
   }, [key])
   useEffect(() => () => { fileSequence.current++; reader.current?.abort() }, [])
+  useEffect(() => {
+    const completed = current?.request_id
+    return () => {
+      if (completed) void request("/verify-cancel", { request_id: completed }).catch(() => {})
+    }
+  }, [current?.request_id])
 
   function choose(file: File) {
     const id = ++fileSequence.current

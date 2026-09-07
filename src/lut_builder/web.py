@@ -10,6 +10,7 @@ from pathlib import Path
 import re
 import secrets
 import threading
+import time
 from urllib.parse import unquote, urlsplit
 import webbrowser
 
@@ -28,6 +29,7 @@ from .verification import (
 
 
 STATIC_ROOT = Path(__file__).with_name("static")
+UPLOAD_TIMEOUT_SECONDS = 30
 STANDARD_STOP_WIDTH = next(
     preset["width"]
     for preset in WIDTH_PRESETS
@@ -268,6 +270,8 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
         self._send(200, asset.read_bytes(), content_type)
 
     def do_POST(self) -> None:
+        if self.path == "/verify":
+            self.connection.settimeout(UPLOAD_TIMEOUT_SECONDS)
         # Acquire before reading a large upload, so only one source is resident.
         acquired = self.path == "/verify" and self.verification.busy.acquire(
             blocking=False
@@ -316,7 +320,24 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
             )
             if not 0 <= length <= maximum:
                 raise ValueError("Request body is too large")
-            payload = json.loads(self.rfile.read(length))
+            if self.path == "/verify":
+                deadline = time.monotonic() + UPLOAD_TIMEOUT_SECONDS
+                body = bytearray()
+                while len(body) < length:
+                    remaining = deadline - time.monotonic()
+                    if remaining <= 0:
+                        raise TimeoutError
+                    self.connection.settimeout(remaining)
+                    chunk = self.rfile.read1(min(65_536, length - len(body)))
+                    if not chunk:
+                        raise ValueError(
+                            "Still upload ended early. Select the file again."
+                        )
+                    body.extend(chunk)
+                self.connection.settimeout(UPLOAD_TIMEOUT_SECONDS)
+                payload = json.loads(body)
+            else:
+                payload = json.loads(self.rfile.read(length))
             if not isinstance(payload, dict):
                 raise ValueError("JSON body must be an object")
             if self.path == "/preview":
@@ -363,6 +384,12 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
                 filename = safe_output_name(result.provenance["settings"]["output"])
             else:
                 cube, filename = _generate_download(payload)
+        except TimeoutError:
+            self._send_json(
+                408,
+                {"error": "Still upload timed out. Select the file again and retry."},
+            )
+            return
         except (
             json.JSONDecodeError,
             UnicodeDecodeError,

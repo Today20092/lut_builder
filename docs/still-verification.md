@@ -11,7 +11,7 @@ This verifies the declared source interpretation against the serialized LUT. It 
 | PNG | Non-interlaced, 16-bit RGB, no alpha, animation, EXIF orientation or color tags. Local FFmpeg decodes to `rgb48le`; unsigned codes are divided by 65535 into float64. No matrix, transfer or range conversion is requested. |
 | PFM | RGB `PF`, positive width/height, scale exactly `-1` for little-endian or `+1` for big-endian float32. Three-line header, bottom-up rows, RGB interleaved. No comments or extra bytes. Values and excursions are preserved; rows are reversed to top-left origin. |
 
-Limit: 4,194,304 pixels and 48 MiB plus 1 KiB header. One verification job and one result are retained per workspace. A new check replaces the old result. Cancel discards the result and stops work at the next processing boundary. PNG decode has a 30-second timeout; cube generation and a running PNG decode finish before cancellation is observed. Temporary cubes are deleted after reading. Source/result memory is released when replaced, cancelled, or the local workspace exits. Nothing is uploaded to a cloud service.
+Limit: 4,194,304 pixels and 48 MiB plus 1 KiB header. One verification job and one result are retained per workspace. Upload has a 30-second total deadline, including partial uploads. A new check replaces the old result. Cancel discards the result and stops work at the next processing boundary. PNG decode has a 30-second timeout; cube generation and a running PNG decode finish before cancellation is observed. Temporary cubes are deleted after reading. Source/result memory is released when replaced, cancelled, invalidated by the browser, or the local workspace exits. Nothing is uploaded to a cloud service.
 
 For PNG, install FFmpeg on PATH and restart the workspace. PFM needs no extra decoder. The supported PNG path was tested against every uint16 code, with different values in each RGB channel and rows. JPEG, 8-bit PNG, RAW, TIFF, video, and display/graded images are unsupported in this still checker. Video extraction is a separate integration.
 
@@ -52,6 +52,8 @@ The still endpoints use the existing launch-token header and JSON boundary: `/ve
 
 Tests are in `tests/test_verification.py`, `tests/test_verification_web.py` and `frontend/tests/verification.test.mjs`. Expected display values and the neutral analytical transform use independent published equations, not the application function under test.
 
+Measured on Windows with Colour 0.4.7, NumPy 2.4.2, and FFmpeg 8.1.2 from the Gyan full build. The live browser check covered upload, verification, original-resolution pixel inspection, expanded-view focus return and no horizontal overflow at 1440 × 1000 and 390 × 844. The displayed image is sRGB software output; the monitor was not calibrated or measured.
+
 | Check | Measured result and tolerance |
 | --- | --- |
 | Serialized cube application | Independent red-fastest text reader and a barycentric linear-system solve over four tetrahedron vertices. Neutral nodes, asymmetric colors, six channel orderings, excursions, threshold neighborhoods and seeded random points, in stops/IRE/fill at 17/33/65. Maximum error `6.72e-15`; tolerance `1e-12` allows floating-point solve error. |
@@ -63,6 +65,16 @@ Tests are in `tests/test_verification.py`, `tests/test_verification_web.py` and 
 | Supported combinations | All six camera profiles × both SDR targets × full/legal output, plus warnings, finite-value rejection, malformed/tagged inputs, missing decoder, busy/cancel and expired results. |
 
 Browser tests cover required unknowns, source mismatch, confirmation reset, settings/source invalidation, late responses, cancellation, failure without demonstration fallback, pixel inspection and dialog focus restoration. Numerical correctness is established separately from browser layout. No destination-application or calibrated-monitor comparison is claimed.
+
+## Ticket #36 integration handoff
+
+Working branch: `codex/workbench-ticket-4`, based on `c944573fe15fbdecfd25b6632b83518a956fbfbc`. No merge to main or issue closure was performed. The independent original checkout was not modified.
+
+Files changed: `src/lut_builder/verification.py` adds the decoded-RGB core, PNG/PFM decoding and SDR rendering; `engine.py` shares export serialization; `web.py` adds the token-protected verification, pixel, checked-cube and cancellation endpoints. `frontend/src/CameraVerification.tsx` adds the connected UI; `App.tsx` adds the mode switch. Python tests are `tests/test_verification.py` and `tests/test_verification_web.py`; the UI test is `frontend/tests/verification.test.mjs`. The production assets and static index were rebuilt. README and this document explain support and reuse.
+
+Final checks: 127 Python tests passed; 28 frontend tests passed, with the verification test rerun after lifecycle cleanup. `tsc -b`, Vite production build, Ruff on the changed Python files, targeted `ty check`, and ESLint on the new UI/test pass. Repository-wide `ty check` reports seven existing diagnostics in `cli.py`, `test_diagnostic_semantics.py`, `test_setup.py` and `test_smoke.py`. Full ESLint reports four existing Fast Refresh export warnings in `App.tsx` and one existing `prefer-const` violation in `editor.ts`. Those unrelated failures were not changed.
+
+Review: Standards found no blocking issue. Spec review found an unbounded partial-upload wait; the final code uses a total upload deadline and a socket-level regression confirms that the next request can verify successfully. Both axes found no remaining blocking issue after that fix and completed-result cleanup.
 
 ## Sources
 
