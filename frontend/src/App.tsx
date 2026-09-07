@@ -105,6 +105,35 @@ function srgbToLinear(value: number) {
   return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4
 }
 
+type VideoFrame = {
+  source_id: string
+  display: string
+  frame: { index: number; pts: string; time_base: string; first_pts: string; relative_time: string; seconds: number; count: number }
+  facts: { stream: Record<string, unknown>; frame: Record<string, unknown> }
+  source: { precision_bits: number; pixel_format: string }
+  provenance: { matrix: string; range: string; chroma_location: string; view: string }
+}
+
+async function videoRequest<T>(path: string, body: object | File, signal?: AbortSignal): Promise<T> {
+  const response = await fetch(`/video/${path}`, {
+    method: "POST",
+    headers: { "Content-Type": body instanceof File ? "application/octet-stream" : "application/json", "X-LUT-Builder-Token": window.LUT_BUILDER_TOKEN },
+    body: body instanceof File ? body : JSON.stringify(body),
+    signal,
+  })
+  const result = await response.json()
+  if (!response.ok) throw new Error(result.error || "Video request failed")
+  return result as T
+}
+
+function releaseVideo(source_id: string) {
+  void fetch("/video/cancel", {
+    method: "POST", keepalive: true,
+    headers: { "Content-Type": "application/json", "X-LUT-Builder-Token": window.LUT_BUILDER_TOKEN },
+    body: JSON.stringify({ source_id }),
+  }).catch(() => {}) // Server expiry also cleans up if the page has disconnected.
+}
+
 export function LutImagePreview({ preview }: { preview: Preview | null }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -117,6 +146,82 @@ export function LutImagePreview({ preview }: { preview: Preview | null }) {
   const [comparison, setComparison] = useState("Split view")
   const [expanded, setExpanded] = useState(false)
   const [opacity, setOpacity] = useState(100)
+  const videoInput = useRef<HTMLInputElement>(null)
+  const videoSource = useRef("")
+  const videoAbort = useRef<AbortController | null>(null)
+  const [video, setVideo] = useState<VideoFrame | null>(null)
+  const [videoBusy, setVideoBusy] = useState("")
+  const [videoTime, setVideoTime] = useState("0")
+
+  useEffect(() => {
+    const cleanup = () => {
+      videoAbort.current?.abort()
+      if (videoSource.current) releaseVideo(videoSource.current)
+    }
+    window.addEventListener("pagehide", cleanup)
+    return () => { cleanup(); window.removeEventListener("pagehide", cleanup) }
+  }, [])
+
+  function stopVideo() {
+    selection.current += 1
+    videoAbort.current?.abort()
+    if (videoSource.current) releaseVideo(videoSource.current)
+    videoSource.current = ""
+    setVideo(null)
+    setVideoBusy("")
+  }
+
+  async function chooseVideo(file: File) {
+    stopVideo()
+    const request = selection.current
+    setImageUrl(referenceImage)
+    setImageName("Reference photo")
+    setImageError("")
+    if (file.size === 0 || file.size > 256 * 1024 * 1024) {
+      setImageError("Choose a nonempty video up to 256 MB.")
+      return
+    }
+    setVideoBusy("Uploading and indexing decoded presentation frames…")
+    const controller = new AbortController()
+    videoAbort.current = controller
+    try {
+      const { source_id } = await videoRequest<{ source_id: string }>("start", {})
+      if (request !== selection.current) { releaseVideo(source_id); return }
+      videoSource.current = source_id
+      const result = await videoRequest<VideoFrame>(`upload?source_id=${encodeURIComponent(source_id)}`, file, controller.signal)
+      if (request !== selection.current) return
+      setVideo(result)
+      setVideoTime("0")
+      setImageUrl(result.display)
+      setImageName(file.name)
+    } catch (error) {
+      if (request === selection.current) {
+        if (videoSource.current) releaseVideo(videoSource.current)
+        videoSource.current = ""
+        setImageError(error instanceof Error ? error.message : "Video import failed")
+      }
+    } finally {
+      if (request === selection.current) setVideoBusy("")
+    }
+  }
+
+  async function selectVideoFrame(position: { time: string } | { index: number }) {
+    const request = ++selection.current
+    setVideoBusy("Decoding the selected presentation frame…")
+    setImageError("")
+    const controller = new AbortController()
+    videoAbort.current = controller
+    try {
+      const result = await videoRequest<VideoFrame>("frame", { source_id: videoSource.current, ...position }, controller.signal)
+      if (request !== selection.current) return
+      setVideo(result)
+      setImageUrl(result.display)
+    } catch (error) {
+      if (request === selection.current) setImageError(`${error instanceof Error ? error.message : "Frame extraction failed"} The displayed frame is unchanged.`)
+    } finally {
+      if (request === selection.current) setVideoBusy("")
+    }
+  }
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -168,6 +273,7 @@ export function LutImagePreview({ preview }: { preview: Preview | null }) {
   }, [imageUrl, comparison, opacity, preview, expanded])
 
   function chooseImage(file: File) {
+    stopVideo()
     const request = ++selection.current
     setImageError("")
     if (!file.type.startsWith("image/") || file.size > 25 * 1024 * 1024) {
@@ -207,14 +313,46 @@ export function LutImagePreview({ preview }: { preview: Preview | null }) {
     <p className="text-xs text-muted-foreground">Opacity changes this view only, never the exported LUT.</p>
     <div className="flex flex-wrap gap-2">
       <Button type="button" variant="outline" onClick={() => inputRef.current?.click()}>Choose image</Button>
-      {imageUrl !== referenceImage && <Button type="button" variant="ghost" onClick={() => { selection.current += 1; setImageUrl(referenceImage); setImageName("Reference photo"); setImageError("") }}>Reference photo</Button>}
+      <Button type="button" variant="outline" onClick={() => videoInput.current?.click()}>Choose video</Button>
+      {imageUrl !== referenceImage && <Button type="button" variant="ghost" onClick={() => { stopVideo(); setImageUrl(referenceImage); setImageName("Reference photo"); setImageError("") }}>Reference photo</Button>}
       <input ref={inputRef} className="sr-only" aria-label="Choose demonstration still image" type="file" accept="image/*" onChange={(event) => {
         const file = event.target.files?.[0]
         if (file) chooseImage(file)
         event.target.value = ""
       }} />
+      <input ref={videoInput} className="sr-only" aria-label="Choose local demonstration video" type="file" accept=".mp4,.mov,.mkv" onChange={(event) => {
+        const file = event.target.files?.[0]
+        if (file) void chooseVideo(file)
+        event.target.value = ""
+      }} />
     </div>
-    <p className="break-all text-xs text-muted-foreground" role="status">{imageName} · Images stay in this browser session. Maximum 25 MB.</p>
+    <p className="break-all text-xs text-muted-foreground" role="status">{imageName} · {video ? "Video stays on this computer in temporary server storage." : "Still images stay in this browser session. Maximum 25 MB."}</p>
+    <p className="text-xs text-muted-foreground">Video: MP4/MOV/MKV, H.264, HEVC, ProRes 422 or FFV1. Progressive, square pixels, no rotation. Up to 256 MB, 1920 × 1080, 120 seconds and 10,000 frames. Processing limit: 60 seconds per stage. One video per app launch; expires after 15 idle minutes.</p>
+    {videoBusy && <div className="flex flex-wrap items-center gap-2"><p role="status" className="text-sm">{videoBusy}</p><Button type="button" variant="outline" onClick={() => { stopVideo(); setImageUrl(referenceImage); setImageName("Reference photo"); setImageError("Video cancelled and temporary data released.") }}>Cancel video</Button></div>}
+    {video && <div className="grid gap-3 rounded-md border p-3">
+      <label className="grid gap-2 text-sm">Requested relative time in seconds
+        <input type="number" min="0" step="any" className={fieldClass} value={videoTime} onChange={(event) => setVideoTime(event.target.value)} disabled={!!videoBusy} />
+      </label>
+      <div className="flex flex-wrap gap-2">
+        <Button type="button" variant="outline" disabled={!!videoBusy || !videoTime.trim()} onClick={() => void selectVideoFrame({ time: videoTime })}>Select frame</Button>
+        <Button type="button" variant="outline" disabled={!!videoBusy || video.frame.index === 0} onClick={() => void selectVideoFrame({ index: video.frame.index - 1 })}>Previous frame</Button>
+        <Button type="button" variant="outline" disabled={!!videoBusy || video.frame.index + 1 === video.frame.count} onClick={() => void selectVideoFrame({ index: video.frame.index + 1 })}>Next frame</Button>
+        <Button type="button" variant="ghost" onClick={() => { stopVideo(); setImageUrl(referenceImage); setImageName("Reference photo") }}>Release video</Button>
+      </div>
+      <p role="status" className="text-sm">Selected {video.frame.seconds.toFixed(6)} s · exact {video.frame.relative_time} s · frame {video.frame.index + 1} of {video.frame.count}. PTS {video.frame.pts}, time base {video.frame.time_base}; first PTS {video.frame.first_pts}.</p>
+      <p className="text-xs text-muted-foreground">First decoded presentation frame at or after the request. Previous/Next follows decoded frames, including variable frame rate.</p>
+      <details>
+        <summary className="cursor-pointer text-sm">Reported by file</summary>
+        <dl className="mt-2 grid gap-2 text-xs">
+          {["codec_name", "profile", "width", "height", "pix_fmt", "color_range", "color_space", "color_transfer", "color_primaries", "chroma_location", "sample_aspect_ratio", "field_order", "tags", "side_data_list"].map((key) => <div key={key} className="break-all"><dt className="font-medium">{key.replaceAll("_", " ")}</dt><dd>Stream: {JSON.stringify(video.facts.stream[key] ?? "unknown")} · Frame: {JSON.stringify(video.facts.frame[key] ?? "unknown")}</dd></div>)}
+        </dl>
+        <p className="mt-2 text-xs">Decoded component depth: {video.source.precision_bits} bits. Camera profile suggestions: none. Missing metadata stays unknown; codec and matrix do not identify camera gamma or gamut.</p>
+      </details>
+      <details><summary className="cursor-pointer text-sm">Demonstration decoding assumptions</summary>
+        <p className="mt-2 text-xs">Unconfirmed matrix {video.provenance.matrix}, range {video.provenance.range}, chroma location {video.provenance.chroma_location}. Supported frame tags take precedence over stream tags; missing or unsupported tags use BT.709 / limited / left for this illustration.</p>
+        <p className="mt-2 text-xs">{video.provenance.view} Native {video.source.pixel_format} samples are retained separately for later verification. No exported LUT has been applied.</p>
+      </details>
+    </div>}
     {imageError && <p className="text-sm text-destructive" role="alert">{imageError}</p>}
   </div>
 
@@ -224,7 +362,7 @@ export function LutImagePreview({ preview }: { preview: Preview | null }) {
         <CardHeader className="flex flex-wrap items-center justify-between gap-3 py-3">
           <div>
             <CardTitle className="text-base">Demonstration</CardTitle>
-            <CardDescription>Illustrative band colors on an sRGB still image.</CardDescription>
+            <CardDescription>Illustrative band colors on an image or selected video frame.</CardDescription>
           </div>
           <Button
             ref={expandRef}

@@ -150,6 +150,68 @@ test("demonstration compares pixels, preserves setup, replaces images, and keeps
   }
 })
 
+test("video controls show server-selected identity and reject stale frames after release", async () => {
+  const previousFetch = globalThis.fetch
+  const previousFile = globalThis.File
+  const getContext = window.HTMLCanvasElement.prototype.getContext
+  const images = []
+  const requests = []
+  let finishFrame
+  globalThis.File = window.File
+  globalThis.Image = class { set src(value) { images.push(value) } }
+  window.HTMLCanvasElement.prototype.getContext = () => ({ clearRect() {}, drawImage() {} })
+  const result = {
+    source_id: "source-1", display: "data:image/png;base64,first",
+    frame: { index: 0, pts: "5000", time_base: "1/1000", first_pts: "5000", relative_time: "0", seconds: 0, count: 4 },
+    facts: { stream: { codec_name: "h264" }, frame: {} },
+    source: { precision_bits: 10, pixel_format: "yuv420p10le" },
+    provenance: { matrix: "bt709", range: "limited", chroma_location: "left", view: "Illustration only." },
+  }
+  globalThis.fetch = async (url, options) => {
+    requests.push({ url, options })
+    if (url === "/video/start") return { ok: true, json: async () => ({ source_id: "source-1" }) }
+    if (url.startsWith("/video/upload")) return { ok: true, json: async () => result }
+    if (url === "/video/frame") return new Promise((resolve) => { finishFrame = (value) => resolve({ ok: true, json: async () => value }) })
+    return { ok: true, json: async () => ({ cancelled: true }) }
+  }
+  const container = document.createElement("div")
+  document.body.append(container)
+  const root = createRoot(container)
+  const click = async (text) => act(() => [...container.querySelectorAll("button")].find((b) => b.textContent === text).click())
+  try {
+    await act(() => root.render(React.createElement(LutImagePreview, { preview: null })))
+    const input = container.querySelector("input[aria-label='Choose local demonstration video']")
+    Object.defineProperty(input, "files", { value: [new window.File(["video"], "known.mp4")] })
+    await act(() => input.dispatchEvent(new window.Event("change", { bubbles: true })))
+    assert.match(container.textContent, /Selected 0.000000 s/)
+    assert.match(container.textContent, /PTS 5000, time base 1\/1000/)
+    assert.match(container.textContent, /color transferStream: "unknown"/)
+    assert.match(container.textContent, /No exported LUT has been applied/)
+    assert.equal(images.at(-1), result.display)
+    assert.equal(requests[1].options.headers["Content-Type"], "application/octet-stream")
+    await click("Next frame")
+    assert.deepEqual(JSON.parse(requests.at(-1).options.body), { source_id: "source-1", index: 1 })
+    assert.match(container.textContent, /Decoding the selected presentation frame/)
+    await act(() => finishFrame({ ...result, display: "data:image/png;base64,next", frame: { ...result.frame, index: 1, pts: "5100", relative_time: "1/10", seconds: 0.1 } }))
+    assert.match(container.textContent, /Selected 0.100000 s · exact 1\/10 s/)
+    assert.equal(images.at(-1), "data:image/png;base64,next")
+    await click("Next frame")
+    await click("Cancel video")
+    assert.match(container.textContent, /Video cancelled and temporary data released/)
+    await act(() => finishFrame({ ...result, display: "data:image/png;base64,stale" }))
+    assert.notEqual(images.at(-1), "data:image/png;base64,stale")
+    assert.doesNotMatch(container.textContent, /Selected 0.000000 s/)
+    assert.equal(requests.at(-1).url, "/video/cancel")
+  } finally {
+    await act(() => root.unmount())
+    container.remove()
+    globalThis.fetch = previousFetch
+    globalThis.File = previousFile
+    window.HTMLCanvasElement.prototype.getContext = getContext
+    delete globalThis.Image
+  }
+})
+
 test("image preview samples and clamps the current LUT colors", () => {
   assert.equal(previewColorAt(["#000000", "#777777", "#ffffff"], 0), "#000000")
   assert.equal(previewColorAt(["#000000", "#777777", "#ffffff"], 0.5), "#777777")
