@@ -139,7 +139,9 @@ def test_generated_cube_applies_ire_bands(tmp_path):
     )
 
     generate_lut(setup)
-    table = colour.read_LUT(str(output)).table.reshape(-1, 3)
+    lut = colour.read_LUT(str(output))
+    assert isinstance(lut, colour.LUT3D)
+    table = lut.table.reshape(-1, 3)
 
     assert np.any(np.all(np.isclose(table, [1, 0, 1]), axis=1))
     assert np.any(~np.all(np.isclose(table, [1, 0, 1]), axis=1))

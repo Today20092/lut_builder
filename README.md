@@ -260,12 +260,20 @@ lut_builder/
 
 ## Development
 
+Use UV for Python dependencies and execution, Ruff for formatting and linting,
+and ty for type checking. Tool versions are recorded in `uv.lock`.
+
 ```bash
-uv sync
+uv sync --locked
 uv run pytest -q
+uv run ruff format --check .
+uv run ruff check .
+uv run ty check
 uv run lut-builder --help
 uv run lut-builder list
 ```
+
+Run `uv run ruff format .` to apply formatting before submitting changes.
 
 The current suite covers config compatibility, catalog validation, log decoding, exposure mapping, signal-range semantics, target-gamut overlays, interpolation boundaries, and CLI output paths.
 

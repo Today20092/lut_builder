@@ -37,9 +37,7 @@ class LutSetup:
         if self.band_mode not in {"stops", "ire"}:
             raise ValueError("band_mode must be 'stops' or 'ire'")
         if not self.output_filename:
-            self.output_filename = (
-                f"{self.profile_name.replace(' ', '')}_Custom.cube"
-            )
+            self.output_filename = f"{self.profile_name.replace(' ', '')}_Custom.cube"
 
         normalized = []
         for band in self.bands:
@@ -48,7 +46,9 @@ class LutSetup:
                 width = float(band.get("width", 0.0))
                 color = band["color"]
             except (KeyError, TypeError, ValueError) as error:
-                raise ValueError("each band needs numeric stop/width and a color") from error
+                raise ValueError(
+                    "each band needs numeric stop/width and a color"
+                ) from error
             if width < 0:
                 raise ValueError("band width cannot be negative")
             if self.band_mode == "ire" and not 0 <= center <= 100:
@@ -63,7 +63,9 @@ class LutSetup:
             (self.high_signal_warning, self.high_signal_hex, "high_signal_hex"),
         ):
             if enabled and not HEX_COLOR.fullmatch(color):
-                raise ValueError(f"{name} must be a hex color when its warning is enabled")
+                raise ValueError(
+                    f"{name} must be a hex color when its warning is enabled"
+                )
 
     @classmethod
     def from_config(cls, config: Mapping[str, Any]) -> "LutSetup":
@@ -133,9 +135,7 @@ def map_exposure(
     else:
         for band in setup.bands:
             width = band["width"] + width_buffer
-            mask = (values >= band["stop"] - width) & (
-                values <= band["stop"] + width
-            )
+            mask = (values >= band["stop"] - width) & (values <= band["stop"] + width)
             colors[mask] = band["color"]
 
     if setup.low_signal_warning and low_signal_mask is not None:
