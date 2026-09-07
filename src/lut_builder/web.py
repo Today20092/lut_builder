@@ -9,6 +9,7 @@ import mimetypes
 from pathlib import Path
 import re
 import secrets
+import socket
 import threading
 import time
 from urllib.parse import parse_qs, unquote, urlsplit
@@ -586,6 +587,14 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
 
 class WorkspaceServer(ThreadingHTTPServer):
     videos: VideoStore
+    # Windows address reuse can let two listeners bind the same origin.
+    allow_reuse_address = not hasattr(socket, "SO_EXCLUSIVEADDRUSE")
+    allow_reuse_port = False
+
+    def server_bind(self):
+        if hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+        super().server_bind()
 
     def server_close(self):
         if hasattr(self, "videos"):
@@ -593,14 +602,17 @@ class WorkspaceServer(ThreadingHTTPServer):
         super().server_close()
 
 
-def create_server() -> tuple[WorkspaceServer, str, str]:
+WORKSPACE_PORT = 8765
+
+
+def create_server(port: int = 0) -> tuple[WorkspaceServer, str, str]:
     token = secrets.token_urlsafe(32)
     handler = type(
         "LaunchHandler",
         (WorkspaceHandler,),
         {"token": token, "verification": VerificationSession()},
     )
-    server = WorkspaceServer(("127.0.0.1", 0), handler)
+    server = WorkspaceServer(("127.0.0.1", port), handler)
     handler.videos = VideoStore()
     server.videos = handler.videos
     server.daemon_threads = True
@@ -609,7 +621,14 @@ def create_server() -> tuple[WorkspaceServer, str, str]:
 
 
 def launch_workspace() -> None:
-    server, url, _ = create_server()
+    try:
+        server, url, _ = create_server(port=WORKSPACE_PORT)
+    except OSError as error:
+        raise SystemExit(
+            f"Cannot open http://127.0.0.1:{WORKSPACE_PORT}/: {error}. "
+            "Close the other workspace or application using this port and retry. "
+            "The port stays fixed so saved browser palettes remain available."
+        ) from None
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     print(f"LUT Builder is running locally at {url}")

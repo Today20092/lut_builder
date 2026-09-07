@@ -40,7 +40,8 @@ const bundle = await build({
   platform: "node",
   stdin: {
     contents: `
-      export { App, ColorPicker, ExposureGraph, LutImagePreview, displayPreviewOverlayAt, overlayForExposure, previewColorAt, previewOverlayAt } from "./src/App.tsx";
+      export { App, ColorPicker, ExposureGraph, LutImagePreview } from "./src/App.tsx";
+      export { displayPreviewOverlayAt, overlayForExposure, previewColorAt, previewOverlayAt } from "./src/demonstration.ts";
       export { default as React, act } from "react";
       export { createRoot } from "react-dom/client";
     `,

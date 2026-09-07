@@ -80,6 +80,9 @@ export function PaletteEditor({ setup, palette, onApply }: { setup: Setup; palet
         <span aria-hidden="true" className="h-4 w-16 rounded-sm" style={{ background: `linear-gradient(to right, ${colors.join(",")})` }} />{preset}
       </Button>)}
     </fieldset>
+    <details className="rounded-md border p-3">
+    <summary className="cursor-pointer text-sm font-medium">Edit custom colors · {draft.colors.length} anchors</summary>
+    <div className="mt-3 grid gap-3">
     <p className="text-xs text-muted-foreground">Edit ordered colors from low to high exposure. Brightness progression changes their relative lightness; color intensity changes their saturation.</p>
     <ol className="grid gap-2">
       {draft.colors.map((color, index) => <li key={index} className="flex flex-wrap items-center gap-2">
@@ -94,6 +97,8 @@ export function PaletteEditor({ setup, palette, onApply }: { setup: Setup; palet
     </ol>
     <Button type="button" variant="outline" className="justify-self-start" disabled={draft.colors.length >= 32} onClick={() => setDraft({ ...draft, colors: [...draft.colors, "#ffffff"] })}>Add color</Button>
     <p className="text-xs text-muted-foreground">Use 2 to 32 colors. Enter six-digit hex colors, such as #2563eb.</p>
+    </div>
+    </details>
     <fieldset className="flex flex-wrap gap-2">
       <legend className="mb-2 text-sm font-medium">Brightness progression</legend>
       {([["custom", "Keep anchor brightness"], ["ascending", "Dark to light"], ["even", "Even brightness"]] as const).map(([value, label]) => <label key={value} className="flex min-h-9 items-center gap-2 rounded-md border px-3 text-sm has-focus-visible:ring-2 has-focus-visible:ring-ring">
@@ -116,7 +121,9 @@ export function PaletteEditor({ setup, palette, onApply }: { setup: Setup; palet
       setApplied(null)
     }}>Apply false color by exposure</Button>
     <p className="text-xs text-muted-foreground">False color by exposure uses the original exposure thresholds instead of this draft ramp. It also replaces individual overrides and supports undo.</p>
-    <fieldset className="grid gap-2 rounded-md border p-3">
+    <details className="rounded-md border p-3">
+    <summary className="cursor-pointer text-sm font-medium">Save and reuse palettes · this browser</summary>
+    <fieldset className="mt-3 grid gap-2">
       <legend className="px-1 text-sm font-medium">Saved palettes · this browser only</legend>
       <label className="grid gap-1 text-sm">Reuse saved palette
         <select aria-label="Reuse saved palette" className={fieldClass} value={selected} onChange={(event) => {
@@ -133,8 +140,9 @@ export function PaletteEditor({ setup, palette, onApply }: { setup: Setup; palet
         <Button type="button" variant="outline" disabled={!selected || !!nameError} onClick={() => save("rename")}>Rename saved palette</Button>
         <Button type="button" variant="ghost" disabled={!selected} onClick={() => save("delete")}>Delete saved palette</Button>
       </div>
-      <p role="status" className="text-xs text-muted-foreground">{library.message}</p>
       <p className="text-xs text-muted-foreground">Saving stores this draft, not the bands. Export JSON keeps applied band colors with your setup.</p>
     </fieldset>
+    </details>
+    <p role="status" className="text-xs text-muted-foreground">{library.message}</p>
   </section>
 }

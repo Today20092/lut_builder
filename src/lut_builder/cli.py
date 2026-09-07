@@ -3,8 +3,9 @@
 import json
 import warnings
 from dataclasses import replace
+from enum import Enum
 from pathlib import Path
-from typing import Optional
+from typing import Literal, Optional
 
 # Suppress colour-science optional dependency warnings
 warnings.filterwarnings("ignore", module="colour")
@@ -33,8 +34,13 @@ console = Console()
 
 SHADES = ["50", "100", "200", "300", "400", "500", "600", "700", "800", "900", "950"]
 
+
 # Sentinel returned by any prompt helper to signal "go back one step".
-BACK = object()
+class Navigation(Enum):
+    BACK = "back"
+
+
+BACK = Navigation.BACK
 
 
 def confirm_with_back(question: str, default: bool = True):
@@ -53,6 +59,7 @@ def confirm_with_back(question: str, default: bool = True):
         if raw in ("b", "back"):
             return BACK
         console.print("  [red]Enter y, n, or b (back).[/red]")
+
 
 DATA_LEVELS_WARNING = (
     "\n  [bold yellow]⚠  Monitor Configuration[/bold yellow]\n"
@@ -184,9 +191,13 @@ def pick_color(prompt_label: str, default_hex: str):
         while True:
             hex_val = Prompt.ask("  Hex code", default=default_hex)
             hex_val = hex_val.strip().lstrip("#")
-            if len(hex_val) == 6 and all(c in "0123456789abcdefABCDEF" for c in hex_val):
+            if len(hex_val) == 6 and all(
+                c in "0123456789abcdefABCDEF" for c in hex_val
+            ):
                 return f"#{hex_val}"
-            console.print("  [red]Invalid hex code. Enter 6 hex digits, e.g. #ff6600.[/red]")
+            console.print(
+                "  [red]Invalid hex code. Enter 6 hex digits, e.g. #ff6600.[/red]"
+            )
     if raw == "2":
         return tailwind_color_picker()
     # raw == "3": family-shade shorthand
@@ -199,9 +210,20 @@ def pick_color(prompt_label: str, default_hex: str):
             if fam in TAILWIND_COLORS and shade in SHADES:
                 L, C, H = TAILWIND_COLORS[fam][shade]
                 hex_val = oklch_to_hex(L, C, H)
-                console.print(Text.assemble("  → ", (f"{fam}-{shade}", "bold"), "  ", swatch(hex_val), "  ", hex_val))
+                console.print(
+                    Text.assemble(
+                        "  → ",
+                        (f"{fam}-{shade}", "bold"),
+                        "  ",
+                        swatch(hex_val),
+                        "  ",
+                        hex_val,
+                    )
+                )
                 return hex_val
-        console.print(f"  [red]Enter a valid family-shade like 'red-600'. Families: {', '.join(list(families)[:5])}...[/red]")
+        console.print(
+            f"  [red]Enter a valid family-shade like 'red-600'. Families: {', '.join(list(families)[:5])}...[/red]"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -222,7 +244,7 @@ def parse_values(raw: str) -> list[float]:
     return values
 
 
-def pick_width(band_mode: str = "stops") -> float:
+def pick_width(band_mode: str = "stops") -> float | Literal[Navigation.BACK]:
     """
     Show named width presets with coverage descriptions.
     Returns the chosen ± width as a float (stops or IRE depending on mode).
@@ -280,17 +302,21 @@ def collect_false_color_bands(band_mode: str = "stops", fill_mode: bool = False)
     suggest_fn = suggest_color_for_ire if band_mode == "ire" else suggest_color_for_stop
 
     if band_mode == "ire":
-        prompt_text = "  IRE values, comma-separated  [bold](e.g. 20, 42, 55, 70, 85)[/bold]"
+        prompt_text = (
+            "  IRE values, comma-separated  [bold](e.g. 20, 42, 55, 70, 85)[/bold]"
+        )
         default_val = "42"
     else:
-        prompt_text = "  Stop values, comma-separated  [bold](e.g. -2, -1, 0, 1, 2)[/bold]"
+        prompt_text = (
+            "  Stop values, comma-separated  [bold](e.g. -2, -1, 0, 1, 2)[/bold]"
+        )
         default_val = "0"
 
     # States: "ask_add" → "get_values" → "band_color" → "band_width" (skipped in fill_mode)
     step = "ask_add"
     sorted_values: list[float] = []
     bands: list[dict] = []
-    bi = 0          # current band index
+    bi = 0  # current band index
     current_color = ""
 
     while True:
@@ -319,7 +345,9 @@ def collect_false_color_bands(band_mode: str = "stops", fill_mode: bool = False)
             else:
                 out_of_range = [v for v in sorted_values if not (-8 <= v <= 8)]
             if out_of_range:
-                console.print(f"  [yellow]Warning: {out_of_range} may be outside the useful range for this camera.[/yellow]")
+                console.print(
+                    f"  [yellow]Warning: {out_of_range} may be outside the useful range for this camera.[/yellow]"
+                )
             bands = []
             bi = 0
             step = "band_color"
@@ -337,19 +365,23 @@ def collect_false_color_bands(band_mode: str = "stops", fill_mode: bool = False)
                 return bands
 
             val = sorted_values[bi]
-            label = f"{val:.0f} IRE" if band_mode == "ire" else (
-                f"+{val:.1f}" if val >= 0 else f"{val:.1f}"
+            label = (
+                f"{val:.0f} IRE"
+                if band_mode == "ire"
+                else (f"+{val:.1f}" if val >= 0 else f"{val:.1f}")
             )
             console.print(f"\n  [bold cyan]Band at {label}:[/bold cyan]")
 
             fam, shade, suggested_hex = suggest_fn(val)
-            console.print(Text.assemble(
-                "  Suggested: ",
-                (f"{fam}-{shade}", "bold"),
-                "  ",
-                swatch(suggested_hex),
-                (f"  {suggested_hex}", "dim"),
-            ))
+            console.print(
+                Text.assemble(
+                    "  Suggested: ",
+                    (f"{fam}-{shade}", "bold"),
+                    "  ",
+                    swatch(suggested_hex),
+                    (f"  {suggested_hex}", "dim"),
+                )
+            )
 
             use = confirm_with_back("  Use this color?", default=True)
             if use is BACK:
@@ -372,25 +404,31 @@ def collect_false_color_bands(band_mode: str = "stops", fill_mode: bool = False)
         # ── append band in fill mode (no width needed) ────────────────────
         elif step == "band_append":
             val = sorted_values[bi]
-            label = f"{val:.0f} IRE" if band_mode == "ire" else (
-                f"+{val:.1f}" if val >= 0 else f"{val:.1f}"
+            label = (
+                f"{val:.0f} IRE"
+                if band_mode == "ire"
+                else (f"+{val:.1f}" if val >= 0 else f"{val:.1f}")
             )
             bands.append({"stop": val, "color": current_color, "width": 0.0})
-            console.print(Text.assemble(
-                ("  ✓ ", "green"),
-                (label, "bold"),
-                "  [fill zone]  ",
-                swatch(current_color),
-                (f"  {current_color}", "dim"),
-            ))
+            console.print(
+                Text.assemble(
+                    ("  ✓ ", "green"),
+                    (label, "bold"),
+                    "  [fill zone]  ",
+                    swatch(current_color),
+                    (f"  {current_color}", "dim"),
+                )
+            )
             bi += 1
             step = "band_color"
 
         # ── pick width for band[bi] ───────────────────────────────────────
         elif step == "band_width":
             val = sorted_values[bi]
-            label = f"{val:.0f} IRE" if band_mode == "ire" else (
-                f"+{val:.1f}" if val >= 0 else f"{val:.1f}"
+            label = (
+                f"{val:.0f} IRE"
+                if band_mode == "ire"
+                else (f"+{val:.1f}" if val >= 0 else f"{val:.1f}")
             )
             width = pick_width(band_mode)
             if width is BACK:
@@ -398,13 +436,17 @@ def collect_false_color_bands(band_mode: str = "stops", fill_mode: bool = False)
                 continue
 
             bands.append({"stop": val, "color": current_color, "width": width})
-            console.print(Text.assemble(
-                ("  ✓ ", "green"),
-                (label, "bold"),
-                f"  ±{width} {unit}  " if band_mode == "ire" else f"  ±{width} stops  ",
-                swatch(current_color),
-                (f"  {current_color}", "dim"),
-            ))
+            console.print(
+                Text.assemble(
+                    ("  ✓ ", "green"),
+                    (label, "bold"),
+                    f"  ±{width} {unit}  "
+                    if band_mode == "ire"
+                    else f"  ±{width} stops  ",
+                    swatch(current_color),
+                    (f"  {current_color}", "dim"),
+                )
+            )
             bi += 1
             step = "band_color"
 
@@ -465,7 +507,11 @@ def print_exposure_preview(setup: LutSetup) -> None:
     console.print(Text.assemble("  ", label_line))
 
     # Legend
-    if bands or (low_signal_warning and low_signal_hex) or (high_signal_warning and high_signal_hex):
+    if (
+        bands
+        or (low_signal_warning and low_signal_hex)
+        or (high_signal_warning and high_signal_hex)
+    ):
         console.print()
         if low_signal_warning and low_signal_hex:
             console.print(
@@ -532,7 +578,9 @@ def load_config(path: Path) -> LutSetup:
         console.print(f"[red]Invalid JSON in config file: {e}[/red]")
         raise typer.Exit(1)
     if data.get("version", 0) not in (1, 2):
-        console.print("[yellow]Warning: config has no version field — it may be outdated.[/yellow]")
+        console.print(
+            "[yellow]Warning: config has no version field — it may be outdated.[/yellow]"
+        )
     try:
         return LutSetup.from_config(data)
     except (KeyError, TypeError, ValueError) as error:
@@ -553,7 +601,9 @@ def save_config(path: Path, setup: LutSetup) -> None:
 # ---------------------------------------------------------------------------
 
 
-def numbered_choice(title: str, options: list[str], allow_back: bool = False) -> str:
+def numbered_choice(
+    title: str, options: list[str], allow_back: bool = False
+) -> str | Literal[Navigation.BACK]:
     table = Table(show_header=False, box=None, padding=(0, 2))
     table.add_column("Num", style="bold cyan", justify="right")
     table.add_column("Option")
@@ -636,7 +686,9 @@ def list_profiles():
 
 
 @app.command(name="colors")
-def list_colors(search: Optional[str] = typer.Argument(None, help="Filter by family name")):
+def list_colors(
+    search: Optional[str] = typer.Argument(None, help="Filter by family name"),
+):
     """Browse the Tailwind color palette. Optionally filter by family name."""
     families = list(TAILWIND_COLORS.keys())
     if search:
@@ -716,19 +768,26 @@ def build(
     # ------------------------------------------------------------------
     if config is not None:
         setup = load_config(config)
-        setup = replace(
-            setup, output_filename=resolve_output(setup.output_filename)
-        )
+        setup = replace(setup, output_filename=resolve_output(setup.output_filename))
 
         summary = Table(show_header=False, box=None, padding=(0, 1))
         summary.add_column("Key", style="dim", justify="right")
         summary.add_column("Value")
         summary.add_row("config", f"[bold]{config}[/bold]")
-        summary.add_row("profile", f"{setup.profile_name}  [dim]→[/dim]  {setup.target_name}")
+        summary.add_row(
+            "profile", f"{setup.profile_name}  [dim]→[/dim]  {setup.target_name}"
+        )
         summary.add_row("cube", f"{setup.cube_size}³")
-        summary.add_row("bands", f"{len(setup.bands)}  [dim]({setup.band_mode} mode)[/dim]")
+        summary.add_row(
+            "bands", f"{len(setup.bands)}  [dim]({setup.band_mode} mode)[/dim]"
+        )
         summary.add_row("mono", "yes" if setup.monochrome else "no")
-        summary.add_row("range", "Legal [dim](64-940)[/dim]" if setup.legal_range else "Full [dim](0-1023)[/dim]")
+        summary.add_row(
+            "range",
+            "Legal [dim](64-940)[/dim]"
+            if setup.legal_range
+            else "Full [dim](0-1023)[/dim]",
+        )
         summary.add_row("output", f"[bold]{setup.output_filename}[/bold]")
         console.print(summary)
         console.print()
@@ -738,8 +797,12 @@ def build(
         with console.status("[bold green]Generating LUT..."):
             try:
                 out_path = generate_lut(setup)
-                rprint(f"\n[bold green]✓ Done![/bold green]  {Path(out_path).resolve()}")
-                console.print(LEGAL_LEVELS_NOTE if setup.legal_range else DATA_LEVELS_WARNING)
+                rprint(
+                    f"\n[bold green]✓ Done![/bold green]  {Path(out_path).resolve()}"
+                )
+                console.print(
+                    LEGAL_LEVELS_NOTE if setup.legal_range else DATA_LEVELS_WARNING
+                )
             except Exception as e:
                 rprint(f"[bold red]Error:[/bold red] {e}")
                 raise typer.Exit(1)
@@ -755,14 +818,18 @@ def build(
 
     def step_profile(state):
         console.print("\n[bold]Camera Source:[/bold]")
-        result = numbered_choice("Select", list(PROFILE_CATALOG.source_names()), allow_back=False)
+        result = numbered_choice(
+            "Select", list(PROFILE_CATALOG.source_names()), allow_back=False
+        )
         if result is BACK:
             return BACK
         return {**state, "profile_name": result}
 
     def step_target(state):
         console.print("[bold]Diagnostic output encoding:[/bold]")
-        result = numbered_choice("Select", list(PROFILE_CATALOG.target_names()), allow_back=True)
+        result = numbered_choice(
+            "Select", list(PROFILE_CATALOG.target_names()), allow_back=True
+        )
         if result is BACK:
             return BACK
         return {**state, "target_name": result}
@@ -813,42 +880,58 @@ def build(
     def step_low_signal_warning(state):
         console.print()
         while True:
-            result = confirm_with_back("Warn when any channel crosses the low encoded-signal threshold?")
+            result = confirm_with_back(
+                "Warn when any channel crosses the low encoded-signal threshold?"
+            )
             if result is BACK:
                 return BACK
             if not result:
                 return {**state, "low_signal_warning": False, "low_signal_hex": ""}
             _, _, suggested = suggest_color_for_stop(-99)
-            console.print(Text.assemble(
-                "\n  Suggested: violet-800  ",
-                swatch(suggested),
-                (f"  {suggested}", "dim"),
-            ))
+            console.print(
+                Text.assemble(
+                    "\n  Suggested: violet-800  ",
+                    swatch(suggested),
+                    (f"  {suggested}", "dim"),
+                )
+            )
             use = confirm_with_back("  Use this color?", default=True)
             if use is BACK:
                 continue
-            color = suggested if use else pick_color("Low encoded-signal warning color", suggested)
+            color = (
+                suggested
+                if use
+                else pick_color("Low encoded-signal warning color", suggested)
+            )
             if color is BACK:
                 continue
             return {**state, "low_signal_warning": True, "low_signal_hex": color}
 
     def step_high_signal_warning(state):
         while True:
-            result = confirm_with_back("\nWarn when any channel crosses the high encoded-signal threshold?")
+            result = confirm_with_back(
+                "\nWarn when any channel crosses the high encoded-signal threshold?"
+            )
             if result is BACK:
                 return BACK
             if not result:
                 return {**state, "high_signal_warning": False, "high_signal_hex": ""}
             _, _, suggested = suggest_color_for_stop(99)
-            console.print(Text.assemble(
-                "\n  Suggested: red-600  ",
-                swatch(suggested),
-                (f"  {suggested}", "dim"),
-            ))
+            console.print(
+                Text.assemble(
+                    "\n  Suggested: red-600  ",
+                    swatch(suggested),
+                    (f"  {suggested}", "dim"),
+                )
+            )
             use = confirm_with_back("  Use this color?", default=True)
             if use is BACK:
                 continue
-            color = suggested if use else pick_color("High encoded-signal warning color", suggested)
+            color = (
+                suggested
+                if use
+                else pick_color("High encoded-signal warning color", suggested)
+            )
             if color is BACK:
                 continue
             return {**state, "high_signal_warning": True, "high_signal_hex": color}
@@ -876,9 +959,7 @@ def build(
         return {**state, "legal_range": result}
 
     def step_output(state):
-        default_name = (
-            f"output/luts/{state['profile_name'].replace(' ', '')}_{state['target_name'].replace('.', '')}.cube"
-        )
+        default_name = f"output/luts/{state['profile_name'].replace(' ', '')}_{state['target_name'].replace('.', '')}.cube"
         raw = Prompt.ask("\nOutput filename (b=back)", default=default_name)
         if raw.strip().lower() in ("b", "back"):
             return BACK
@@ -917,7 +998,9 @@ def build(
         try:
             out_path = generate_lut(setup)
             rprint(f"\n[bold green]✓ Done![/bold green]  {out_path}")
-            console.print(LEGAL_LEVELS_NOTE if setup.legal_range else DATA_LEVELS_WARNING)
+            console.print(
+                LEGAL_LEVELS_NOTE if setup.legal_range else DATA_LEVELS_WARNING
+            )
         except Exception as e:
             rprint(f"[bold red]Error:[/bold red] {e}")
             raise typer.Exit(1)
