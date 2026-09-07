@@ -17,6 +17,69 @@ export type Setup = {
   output: string
 }
 
+type BandEditSnapshot = { setup: Setup; selection: number }
+export type EditorState = BandEditSnapshot & {
+  undo: (BandEditSnapshot & { after: Setup }) | null
+  gesture: BandEditSnapshot | null
+}
+
+type EditorAction =
+  | { type: "edit"; edit: (setup: Setup) => Setup; selection?: number }
+  | { type: "add"; band: Band }
+  | { type: "select"; selection: number }
+  | { type: "import"; setup: Setup }
+  | { type: "patch"; changes: Partial<Setup> }
+  | { type: "begin" | "end" | "undo" }
+
+export function createEditorState(setup: Setup): EditorState {
+  return { setup, selection: 0, undo: null, gesture: null }
+}
+
+export function reduceEditor(state: EditorState, action: EditorAction): EditorState {
+  switch (action.type) {
+    case "select":
+      return { ...state, selection: Math.max(0, Math.min(action.selection, state.setup.bands.length - 1)) }
+    case "import":
+      return { ...state, setup: action.setup, selection: 0, undo: null }
+    case "add": {
+      const next = reduceEditor(state, {
+        type: "edit",
+        edit: (setup) => ({ ...setup, bands: orderBands([...setup.bands, action.band]) }),
+      })
+      return { ...next, selection: next.setup.bands.indexOf(action.band) }
+    }
+    case "patch":
+      return { ...state, setup: { ...state.setup, ...action.changes } }
+    case "begin":
+      return { ...state, gesture: { setup: state.setup, selection: state.selection } }
+    case "end":
+      return { ...state, gesture: null }
+    case "undo": {
+      if (!state.undo) return state
+      const { setup, after, selection } = state.undo
+      const changes: Partial<Setup> = { bands: setup.bands }
+      if (setup.band_mode !== after.band_mode) changes.band_mode = setup.band_mode
+      if (setup.fill_mode !== after.fill_mode) changes.fill_mode = setup.fill_mode
+      if (setup.monochrome !== after.monochrome) changes.monochrome = setup.monochrome
+      return { ...state, setup: { ...state.setup, ...changes }, selection, undo: null }
+    }
+    case "edit": {
+      const setup = action.edit(state.setup)
+      if (JSON.stringify(setup) === JSON.stringify(state.setup)) return state
+      const selection = action.selection ?? state.selection
+      const band = state.setup.bands[selection]
+      const id = band && bandId(band)
+      const index = setup.bands.findIndex((candidate) => bandId(candidate) === id)
+      return {
+        ...state,
+        setup,
+        selection: index < 0 ? Math.max(0, Math.min(selection, setup.bands.length - 1)) : index,
+        undo: { ...(state.gesture ?? { setup: state.setup, selection: state.selection }), after: setup },
+      }
+    }
+  }
+}
+
 export type PaletteColor = { name: string; hex: string }
 export type OklchAnchor = { l: number; c: number; h: number }
 export type LightnessProfile = "ascending" | "even" | "custom"

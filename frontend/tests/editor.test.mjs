@@ -9,6 +9,7 @@ import {
   changeMode,
   contrastTextColor,
   createBand,
+  createEditorState,
   exportSetup,
   filterPalette,
   hexToHsv,
@@ -16,6 +17,7 @@ import {
   importSetup,
   resizeBandWidth,
   removeBand,
+  reduceEditor,
   snapBandValue,
   stepBandValue,
   updateBand,
@@ -48,6 +50,52 @@ const setup = {
   legal_range: false,
   output: "SonySLog3_Rec709.cube",
 }
+
+test("a band drag keeps selection through reordering and undoes as one edit", () => {
+  let state = createEditorState(setup)
+  state = reduceEditor(state, { type: "begin" })
+  state = reduceEditor(state, {
+    type: "edit", edit: (current) => updateBand(current, 0, { stop: 2 }),
+  })
+  assert.equal(state.selection, 1)
+  assert.equal(state.setup.bands[state.selection].color, "#ef4444")
+  state = reduceEditor(state, {
+    type: "edit", edit: (current) => updateBand(current, 1, { stop: 3 }),
+  })
+  state = reduceEditor(state, { type: "end" })
+  state = reduceEditor(state, { type: "patch", changes: { output: "later.cube", monochrome: false } })
+  state = reduceEditor(state, {
+    type: "edit", edit: (current) => updateBand(current, 1, { stop: 3 }),
+  })
+  state = reduceEditor(state, { type: "undo" })
+  assert.deepEqual(state.setup.bands, setup.bands)
+  assert.equal(state.selection, 0)
+  assert.equal(state.setup.output, "later.cube")
+  assert.equal(state.setup.monochrome, false)
+  assert.equal(state.undo, null)
+  assert.equal(reduceEditor(state, { type: "undo" }), state)
+})
+
+test("adding selects the new band, removing clamps selection, and importing clears recovery", () => {
+  const band = { stop: 0, width: 0.3, color: "#0000ff" }
+  let state = reduceEditor(createEditorState(setup), { type: "select", selection: 1 })
+  state = reduceEditor(state, { type: "add", band })
+  assert.equal(state.selection, 1)
+  assert.equal(state.setup.bands[1], band)
+  state = reduceEditor(state, { type: "undo" })
+  assert.deepEqual(state.setup.bands, setup.bands)
+  assert.equal(state.selection, 1)
+  state = reduceEditor(state, { type: "edit", edit: (current) => removeBand(current, 1) })
+  assert.equal(state.selection, 0)
+  state = reduceEditor(state, { type: "edit", edit: (current) => removeBand(current, 0) })
+  assert.equal(state.selection, 0)
+  assert.deepEqual(state.setup.bands, [])
+  const imported = { ...setup, output: "imported.cube" }
+  state = reduceEditor(state, { type: "import", setup: imported })
+  assert.equal(state.setup, imported)
+  assert.equal(state.selection, 0)
+  assert.equal(state.undo, null)
+})
 
 test("direct manipulation and discrete movement share the selected increment", () => {
   assert.equal(snapBandValue(0.62, 0.25), 0.5)

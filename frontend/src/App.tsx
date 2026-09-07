@@ -1,6 +1,7 @@
 import {
   useEffect,
   useMemo,
+  useReducer,
   useRef,
   useState,
   type KeyboardEvent,
@@ -31,6 +32,7 @@ import {
   changeMode,
   contrastTextColor,
   createBand,
+  createEditorState,
   exportSetup,
   filterPalette,
   hexToHsv,
@@ -39,9 +41,9 @@ import {
   isHexColor,
   resizeBandWidth,
   removeBand,
+  reduceEditor,
   snapBandValue,
   stepBandValue,
-  orderBands,
   updateBand,
   updateFillBoundary,
   type FillPreset,
@@ -810,7 +812,7 @@ function InfoTooltip({ text }: { text: string }) {
 
 export function App() {
   const catalog = window.LUT_BUILDER_CATALOG
-  const [setup, setSetup] = useState<Setup>(window.LUT_BUILDER_SETUP)
+  const [{ setup, selection: selectedBand, undo }, dispatch] = useReducer(reduceEditor, window.LUT_BUILDER_SETUP, createEditorState)
   const [preview, setPreview] = useState<Preview | null>(null)
   const [validationError, setValidationError] = useState("")
   const [status, setStatus] = useState("")
@@ -818,16 +820,12 @@ export function App() {
   const [stopIncrement, setStopIncrement] = useState<1 | 0.5 | 0.25>(0.25)
   const [fillPreset, setFillPreset] = useState<FillPreset>("standard")
   const [bandPreset, setBandPreset] = useState<BandPreset>("standard")
-  const [selectedBandIndex, setSelectedBandIndex] = useState(0)
-  const [undo, setUndo] = useState<{ setup: Setup; selection: number; after: Setup } | null>(null)
-  const gesture = useRef<{ setup: Setup; selection: number } | null>(null)
   const [removingBandIndex, setRemovingBandIndex] = useState<number | null>(null)
   const importInput = useRef<HTMLInputElement>(null)
   const mode: Mode = setup.fill_mode ? "fill" : setup.band_mode
   const movementIncrement = mode === "ire" ? 1 : stopIncrement
-  const selectedBand = Math.max(0, Math.min(selectedBandIndex, setup.bands.length - 1))
   const selectBand = (index: number) => {
-    setSelectedBandIndex(index)
+    dispatch({ type: "select", selection: index })
     setRemovingBandIndex(null)
   }
 
@@ -853,36 +851,23 @@ export function App() {
   }, [setup])
 
   function patchSetup(changes: Partial<Setup>) {
-    setSetup((current) => ({ ...current, ...changes }))
+    dispatch({ type: "patch", changes })
   }
 
-  function editSetup(edit: (current: Setup) => Setup, selection = selectedBand) {
-    const next = edit(setup)
-    if (JSON.stringify(next) === JSON.stringify(setup)) return
-    setUndo({ ...(gesture.current ?? { setup, selection: selectedBand }), after: next })
-    const id = setup.bands[selection] && bandId(setup.bands[selection])
-    const nextIndex = next.bands.findIndex((band) => bandId(band) === id)
-    setSelectedBandIndex(nextIndex < 0 ? Math.max(0, Math.min(selection, next.bands.length - 1)) : nextIndex)
-    setSetup(next)
+  function editSetup(edit: (current: Setup) => Setup, selection?: number) {
+    dispatch({ type: "edit", edit, selection })
   }
 
   function undoEdit() {
     if (!undo) return
-    const changes: Partial<Setup> = { bands: undo.setup.bands }
-    if (undo.setup.band_mode !== undo.after.band_mode) changes.band_mode = undo.setup.band_mode
-    if (undo.setup.fill_mode !== undo.after.fill_mode) changes.fill_mode = undo.setup.fill_mode
-    if (undo.setup.monochrome !== undo.after.monochrome) changes.monochrome = undo.setup.monochrome
-    setSetup((current) => ({ ...current, ...changes }))
-    setSelectedBandIndex(undo.selection)
-    setUndo(null)
+    dispatch({ type: "undo" })
     setRemovingBandIndex(null)
   }
 
   function addBand() {
     const band = createBand(setup.bands, mode === "ire" ? "ire" : "stops", catalog.palette)
     if (band) {
-      editSetup((current) => ({ ...current, bands: orderBands([...current.bands, band]) }))
-      setSelectedBandIndex(orderBands([...setup.bands, band]).indexOf(band))
+      dispatch({ type: "add", band })
     }
     else setStatus("No non-overlapping band position is available.")
   }
@@ -925,9 +910,7 @@ export function App() {
         const result = await postJson<Preview>("/preview", candidate)
         return result.setup
       })
-      setSetup(imported)
-      setUndo(null)
-      setSelectedBandIndex(0)
+      dispatch({ type: "import", setup: imported })
       setStatus(`Imported ${file.name}.`)
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Import failed")
@@ -1073,8 +1056,8 @@ export function App() {
                   increment={movementIncrement}
                   selectedBand={selectedBand}
                   onSelect={selectBand}
-                  onEditStart={() => { gesture.current = { setup, selection: selectedBand } }}
-                  onEditEnd={() => { gesture.current = null }}
+                  onEditStart={() => dispatch({ type: "begin" })}
+                  onEditEnd={() => dispatch({ type: "end" })}
                   onChange={(index, stop) => editSetup((current) => setup.fill_mode
                     ? updateFillBoundary(current, index, stop, movementIncrement)
                     : updateBand(current, index, { stop }), index)}
