@@ -7,7 +7,6 @@ import {
   type PointerEvent,
 } from "react"
 import { Popover } from "@base-ui/react/popover"
-import { ChevronDown, ChevronUp } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -113,20 +112,17 @@ function srgbToLinear(value: number) {
   return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4
 }
 
-function interpolate(values: number[], position: number) {
-  const scaled = Math.max(0, Math.min(1, position)) * (values.length - 1)
-  const lower = Math.floor(scaled)
-  const upper = Math.min(values.length - 1, lower + 1)
-  return values[lower] + (values[upper] - values[lower]) * (scaled - lower)
-}
-
-function LutImagePreview({ preview }: { preview: Preview | null }) {
+export function LutImagePreview({ preview }: { preview: Preview | null }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const dialogRef = useRef<HTMLDialogElement>(null)
+  const expandRef = useRef<HTMLButtonElement>(null)
+  const selection = useRef(0)
   const [imageUrl, setImageUrl] = useState(referenceImage)
-  const [showLut, setShowLut] = useState(true)
-  const [collapsed, setCollapsed] = useState(false)
-  const [inputMode, setInputMode] = useState<"display" | "log">("display")
+  const [imageName, setImageName] = useState("Reference photo")
+  const [imageError, setImageError] = useState("")
+  const [comparison, setComparison] = useState("Split view")
+  const [expanded, setExpanded] = useState(false)
   const [opacity, setOpacity] = useState(100)
 
   useEffect(() => {
@@ -134,57 +130,32 @@ function LutImagePreview({ preview }: { preview: Preview | null }) {
     const context = canvas?.getContext("2d", { willReadFrequently: true })
     if (!canvas || !context) return
 
-    const draw = (image?: HTMLImageElement) => {
+    const draw = (image: HTMLImageElement) => {
       context.clearRect(0, 0, canvas.width, canvas.height)
-      if (image) {
-        const scale = Math.max(canvas.width / image.naturalWidth, canvas.height / image.naturalHeight)
-        const width = image.naturalWidth * scale
-        const height = image.naturalHeight * scale
-        context.drawImage(image, (canvas.width - width) / 2, (canvas.height - height) / 2, width, height)
-      } else {
-        const sky = context.createLinearGradient(0, 0, 0, canvas.height)
-        sky.addColorStop(0, "#9dc7df")
-        sky.addColorStop(0.55, "#d8c5a6")
-        sky.addColorStop(1, "#30291f")
-        context.fillStyle = sky
-        context.fillRect(0, 0, canvas.width, canvas.height)
-        context.fillStyle = "#17191c"
-        context.fillRect(0, 250, canvas.width, 110)
-        context.fillStyle = "#b98063"
-        context.beginPath()
-        context.arc(450, 158, 72, 0, Math.PI * 2)
-        context.fill()
-        context.fillStyle = "#34271f"
-        context.beginPath()
-        context.arc(450, 122, 75, Math.PI, Math.PI * 2)
-        context.fill()
-        for (let index = 0; index < 7; index += 1) {
-          const level = Math.round(index / 6 * 255)
-          context.fillStyle = `rgb(${level} ${level} ${level})`
-          context.fillRect(28 + index * 54, 270, 44, 54)
-        }
-      }
+      const scale = Math.min(canvas.width / image.naturalWidth, canvas.height / image.naturalHeight)
+      const width = image.naturalWidth * scale
+      const height = image.naturalHeight * scale
+      context.drawImage(image, (canvas.width - width) / 2, (canvas.height - height) / 2, width, height)
 
-      if (!showLut || !preview?.overlays.length) return
+      if (comparison === "Original" || !preview?.overlays.length) return
       const pixels = context.getImageData(0, 0, canvas.width, canvas.height)
+      // ponytail: 960px illustration scans bands per pixel; use a worker if editing lags.
       for (let offset = 0; offset < pixels.data.length; offset += 4) {
+        if (pixels.data[offset + 3] === 0 || (comparison === "Split view" && (offset / 4) % canvas.width < canvas.width / 2)) continue
         const red = pixels.data[offset] / 255
         const green = pixels.data[offset + 1] / 255
         const blue = pixels.data[offset + 2] / 255
         const encodedLuminance = red * 0.2126 + green * 0.7152 + blue * 0.0722
         const linearLuminance = srgbToLinear(red) * 0.2126 + srgbToLinear(green) * 0.7152 + srgbToLinear(blue) * 0.0722
-        const exposure = inputMode === "log"
-          ? interpolate(preview.input_exposure, encodedLuminance)
-          : preview.setup.band_mode === "ire"
+        const exposure = preview.setup.band_mode === "ire"
             ? encodedLuminance * 100
             : Math.log2(Math.max(linearLuminance, 1e-6) / 0.18)
         const overlay = overlayForExposure(preview.setup, exposure)
-        const luminance = inputMode === "log" ? encodedLuminance : linearLuminance
-        if (preview.setup.monochrome) {
-          const grey = Math.round(luminance * 255)
-          pixels.data[offset] = grey
-          pixels.data[offset + 1] = grey
-          pixels.data[offset + 2] = grey
+        if (!overlay && preview.setup.monochrome) {
+          const grey = Math.round(encodedLuminance * 255)
+          for (let channel = 0; channel < 3; channel += 1) {
+            pixels.data[offset + channel] = pixels.data[offset + channel] * (1 - opacity / 100) + grey * opacity / 100
+          }
         }
         if (overlay) {
           const alpha = opacity / 100
@@ -196,63 +167,94 @@ function LutImagePreview({ preview }: { preview: Preview | null }) {
       context.putImageData(pixels, 0, 0)
     }
 
-    if (!imageUrl) return draw()
     const image = new Image()
     image.onload = () => draw(image)
-    image.onerror = () => draw()
+    image.onerror = () => setImageError("This image could not be displayed. Choose another still image.")
     image.src = imageUrl
-  }, [imageUrl, inputMode, opacity, preview, showLut])
+    return () => { image.onload = null; image.onerror = null }
+  }, [imageUrl, comparison, opacity, preview, expanded])
+
+  function chooseImage(file: File) {
+    const request = ++selection.current
+    setImageError("")
+    if (!file.type.startsWith("image/") || file.size > 25 * 1024 * 1024) {
+      setImageError("Choose a still image up to 25 MB. The previous image is unchanged.")
+      return
+    }
+    const reader = new FileReader()
+    const fail = () => {
+      if (request === selection.current) setImageError("Could not read this image. Try a PNG, JPEG, or WebP file. The previous image is unchanged.")
+    }
+    reader.onerror = fail
+    reader.onload = () => {
+      const candidate = new Image()
+      candidate.onerror = fail
+      candidate.onload = () => {
+        if (request !== selection.current) return
+        setImageUrl(String(reader.result))
+        setImageName(file.name)
+      }
+      candidate.src = String(reader.result)
+    }
+    reader.readAsDataURL(file)
+  }
+
+  const content = <div className="grid min-w-0 gap-3">
+    <canvas ref={canvasRef} className="aspect-video w-full rounded-md bg-black" height="540" width="960" aria-label={`Demonstration image: ${comparison}`} />
+    <fieldset className="flex flex-wrap gap-2">
+      <legend className="mb-2 text-sm font-medium">Compare demonstration</legend>
+      {["Original", "Split view", "Band colors"].map((choice) => <label key={choice} className="relative flex h-9 cursor-pointer items-center gap-2 rounded-md border px-3 text-sm has-checked:bg-accent has-focus-visible:ring-2 has-focus-visible:ring-ring">
+        <input type="radio" name="demonstration-comparison" value={choice} checked={comparison === choice} onChange={() => setComparison(choice)} />{choice}
+      </label>)}
+    </fieldset>
+    {comparison === "Split view" && <p className="text-xs text-muted-foreground">Original on the left. Band colors on the right.</p>}
+    <label className="grid gap-2 text-sm font-medium">Viewing opacity · {opacity}%
+      <input type="range" min="0" max="100" value={opacity} onChange={(event) => setOpacity(Number(event.target.value))} />
+    </label>
+    <p className="text-xs text-muted-foreground">Opacity changes this view only, never the exported LUT.</p>
+    <div className="flex flex-wrap gap-2">
+      <Button type="button" variant="outline" onClick={() => inputRef.current?.click()}>Choose image</Button>
+      {imageUrl !== referenceImage && <Button type="button" variant="ghost" onClick={() => { selection.current += 1; setImageUrl(referenceImage); setImageName("Reference photo"); setImageError("") }}>Reference photo</Button>}
+      <input ref={inputRef} className="sr-only" aria-label="Choose demonstration still image" type="file" accept="image/*" onChange={(event) => {
+        const file = event.target.files?.[0]
+        if (file) chooseImage(file)
+        event.target.value = ""
+      }} />
+    </div>
+    <p className="break-all text-xs text-muted-foreground" role="status">{imageName} · Images stay in this browser session. Maximum 25 MB.</p>
+    {imageError && <p className="text-sm text-destructive" role="alert">{imageError}</p>}
+  </div>
 
   return (
-    <aside className="z-30 xl:fixed xl:bottom-6 xl:right-6 xl:w-96">
+    <aside className="min-w-0 self-start @min-[64rem]:sticky @min-[64rem]:top-6" aria-label="Demonstration preview">
       <Card className="overflow-hidden border-white/15 bg-card/95 shadow-2xl backdrop-blur">
-        <CardHeader className="flex-row items-center justify-between gap-3 py-3">
+        <CardHeader className="flex flex-wrap items-center justify-between gap-3 py-3">
           <div>
-            <CardTitle className="text-base">Live LUT preview</CardTitle>
-            {!collapsed && <CardDescription>Exposure colors update as you edit.</CardDescription>}
+            <CardTitle className="text-base">Demonstration</CardTitle>
+            <CardDescription>Illustrative band colors on an sRGB still image.</CardDescription>
           </div>
           <Button
-            aria-controls="live-lut-preview-content"
-            aria-expanded={!collapsed}
-            className="-mr-2 gap-1"
+            ref={expandRef}
             type="button"
-            size="sm"
             variant="ghost"
-            onClick={() => setCollapsed((value) => !value)}
+            onClick={() => { setExpanded(true); dialogRef.current?.showModal() }}
           >
-            {collapsed ? "Show preview" : "Hide preview"}
-            {collapsed ? <ChevronDown aria-hidden="true" /> : <ChevronUp aria-hidden="true" />}
+            Expand preview
           </Button>
         </CardHeader>
-        {!collapsed && (
-          <CardContent id="live-lut-preview-content" className="grid gap-3 pb-4">
-            <canvas ref={canvasRef} className="aspect-video w-full rounded-md bg-black object-cover" height="360" width="640" aria-label={showLut ? "Image with the current LUT preview applied" : "Original preview image"} />
-            <div className="flex flex-wrap items-center gap-2">
-              <Button type="button" size="sm" variant={showLut ? "default" : "outline"} onClick={() => setShowLut((value) => !value)}>{showLut ? "LUT on" : "LUT off"}</Button>
-              <Button type="button" size="sm" variant="outline" onClick={() => inputRef.current?.click()}>Choose image</Button>
-              {imageUrl !== referenceImage && <Button type="button" size="sm" variant="ghost" onClick={() => setImageUrl(referenceImage)}>Reference photo</Button>}
-              <input ref={inputRef} className="sr-only" type="file" accept="image/*" onChange={(event) => {
-                const file = event.target.files?.[0]
-                if (!file) return
-                const reader = new FileReader()
-                reader.onload = () => setImageUrl(String(reader.result))
-                reader.readAsDataURL(file)
-                event.target.value = ""
-              }} />
-            </div>
-            <label className="grid gap-1 text-xs font-medium">Image encoding
-              <select className={fieldClass} value={inputMode} onChange={(event) => setInputMode(event.target.value as "display" | "log")}>
-                <option value="display">Already graded / sRGB image</option>
-                <option value="log">Camera log · {preview?.setup.profile ?? "selected camera"}</option>
-              </select>
-            </label>
-            <label className="grid gap-1 text-xs font-medium">Overlay opacity · {opacity}%
-              <input type="range" min="0" max="100" value={opacity} onChange={(event) => setOpacity(Number(event.target.value))} />
-            </label>
-            <p className="text-[11px] text-muted-foreground">At 100%, band colors match their configured hex values exactly. Lower opacity blends them with the image. Images stay in this browser session.</p>
-          </CardContent>
-        )}
+        <CardContent className="grid gap-3 pb-4">
+          <p className="text-sm text-muted-foreground">A graded image cannot verify original camera exposure. This demonstration illustrates relative brightness and band colors; it does not apply the exported LUT.</p>
+          {!expanded && content}
+        </CardContent>
       </Card>
+      <dialog ref={dialogRef} aria-labelledby="expanded-preview-title" className="m-auto max-h-[90dvh] w-[min(72rem,calc(100%-2rem))] overflow-auto rounded-xl border bg-card p-4 text-card-foreground backdrop:bg-black/70" onClose={() => { setExpanded(false); expandRef.current?.focus() }}>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+          <h2 id="expanded-preview-title" className="text-lg font-semibold">Expanded demonstration</h2>
+          <Button type="button" variant="outline" onClick={() => dialogRef.current?.close()}>Close preview</Button>
+        </div>
+        <p className="mb-3 text-sm text-muted-foreground">Illustration only. A graded image cannot verify original camera exposure; this does not apply the exported LUT.</p>
+        {expanded && content}
+      </dialog>
     </aside>
   )
 }
@@ -497,7 +499,7 @@ export function ExposureGraph({
     </div>
     <div
       ref={graph}
-      className="relative flex h-28 touch-none overflow-hidden rounded-lg border"
+      className="relative isolate flex h-28 touch-none overflow-hidden rounded-lg border"
       aria-label={`Editable exposure graph from ${preview.minimum} to ${preview.maximum} ${preview.unit}`}
     >
       {preview.colors.map((color, index) => (
@@ -878,21 +880,19 @@ export function App() {
   }
 
   return (
-    <main className="mx-auto flex min-h-svh w-full max-w-7xl flex-col gap-6 p-4 py-8 sm:p-8">
+    <main className="mx-auto flex min-h-svh w-full max-w-[100rem] flex-col gap-6 p-4 py-8 sm:p-8">
       <header>
         <h1 className="font-heading text-4xl font-semibold tracking-tight">LUT Builder</h1>
         <p className="text-muted-foreground">Local diagnostic scene-exposure LUT editor</p>
       </header>
 
-      <LutImagePreview preview={preview} />
-
-      <section className="grid gap-6">
+      <section className="@container grid gap-6">
         <Card>
           <CardHeader>
             <CardTitle>Configuration</CardTitle>
             <CardDescription>Choose the camera-to-display transform before editing exposure bands.</CardDescription>
           </CardHeader>
-          <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <CardContent className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,14rem),1fr))] gap-4">
             <label className="grid gap-1 text-sm font-medium">
               Camera
               <select className={fieldClass} value={setup.profile} onChange={(e) => patchSetup({ profile: e.target.value })}>
@@ -927,27 +927,29 @@ export function App() {
               <input type="checkbox" checked={setup.legal_range} onChange={(e) => patchSetup({ legal_range: e.target.checked })} />
               <span className="flex items-center gap-1.5">Legal/video range (off = Full range) <InfoTooltip text="Encodes output in video/legal range instead of full data range. Enable only when the monitoring pipeline expects legal-range levels." /></span>
             </label>
-            <label className="grid gap-1 text-sm font-medium sm:col-span-2">
+            <label className="grid gap-1 text-sm font-medium">
               Output filename
               <input className={fieldClass} value={setup.output} onChange={(e) => patchSetup({ output: e.target.value })} />
             </label>
           </CardContent>
         </Card>
 
-        <Card className="overflow-hidden">
+        <div className="grid min-w-0 items-start gap-6 @min-[64rem]:grid-cols-[minmax(0,1fr)_minmax(22rem,0.65fr)]">
+        <div className="grid min-w-0 gap-6">
+        <Card className="min-w-0 overflow-hidden">
           <CardHeader className="grid gap-4">
             <div>
               <CardTitle className="text-lg font-semibold">Exposure bands</CardTitle>
               <CardDescription>{setup.fill_mode ? "Drag a separator or edit its boundary. Every value is filled by a color zone." : "Drag a marker or edit its row. Higher bands win overlaps."}</CardDescription>
             </div>
-            <div className="grid w-full gap-5 xl:grid-cols-[auto_minmax(28rem,36rem)] xl:justify-between">
+            <div className="grid min-w-0 gap-5">
               <div className="flex flex-wrap items-end gap-5">
                 <div className="grid gap-1">
-                <span className="text-[11px] font-medium text-muted-foreground">Band geometry</span>
+                <span className="text-sm font-semibold">Arrangement</span>
                 <div className="flex flex-wrap items-end gap-2">
                 {!setup.fill_mode && (
                   <>
-                    <label className="grid gap-1 text-xs font-medium">Band preset
+                    <label className="grid w-48 max-w-full gap-1 text-xs font-medium">Band preset
                       <select className={fieldClass} value={bandPreset} onChange={(event) => setBandPreset(event.target.value as BandPreset)}>
                         <option value="standard">Standard · 7 bands</option>
                         <option value="detailed">Detailed · {mode === "ire" ? "9" : "10"} bands</option>
@@ -957,7 +959,7 @@ export function App() {
                   </>
                 )}
                 {!setup.fill_mode && (
-                <label className="grid gap-1 text-xs font-medium">All half-widths ({mode === "ire" ? "IRE" : "stops"})
+                <label className="grid w-40 max-w-full gap-1 text-xs font-medium">All half-widths ({mode === "ire" ? "IRE" : "stops"})
                   <input
                     aria-label="All half-widths"
                     className={fieldClass}
@@ -994,9 +996,9 @@ export function App() {
                 </div>
                 <Button type="button" size="lg" onClick={addBand}>Add band</Button>
               </div>
-              <div className="grid gap-2">
+              <div className="grid gap-2 border-t pt-4">
                 <div className="grid gap-1">
-                <span className="text-[11px] font-medium text-muted-foreground">Color automation</span>
+                <span className="text-sm font-semibold">Band colors</span>
                 <div className="flex flex-wrap items-end gap-2">
                 <label className="grid gap-1 text-xs font-medium">Color all bands
                 <select
@@ -1014,7 +1016,7 @@ export function App() {
                 </div>
                 {colorPreset === "gradient" && (
                   <div className="grid gap-2 rounded-lg bg-muted/25 p-3">
-                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,14rem),1fr))] gap-3">
                       <label className="grid min-w-0 gap-1.5 text-sm font-medium">Ramp preset
                         <select
                           className={`${fieldClass} w-full`}
@@ -1078,7 +1080,7 @@ export function App() {
                     : updateBand(current, index, { stop }))}
                   onWidthChange={(index, width) => setSetup((current) => updateBand(current, index, { width }))}
                 />
-                <div className="overflow-x-auto rounded-lg border">
+                <div className="relative overflow-x-auto rounded-lg border">
                   <table className="w-full table-fixed min-w-[38rem] text-sm">
                     <thead className="bg-muted/50 text-left text-xs text-muted-foreground"><tr><th className="w-20 px-3 py-2">Band</th><th className="w-1/5 px-3 py-2">Color</th><th className="px-3 py-2">{setup.fill_mode ? "Boundary to next color" : mode === "ire" ? "Center (IRE)" : "Center (stops)"}</th><th className="px-3 py-2">{setup.fill_mode ? "Coverage" : `Half-width (${mode === "ire" ? "IRE" : "stops"})`}</th><th className="w-32 px-3 py-2"><span className="sr-only">Actions</span></th></tr></thead>
                     <tbody>{setup.bands.map((band, index) => (
@@ -1122,7 +1124,7 @@ export function App() {
                 Colors pixels when any recorded RGB channel reaches this profile&apos;s configured code-value limits. The high warning means a recorded channel may be clipped and unrecoverable; the low warning means shadow detail may be buried in noise, not that it crosses a precise clipping point. These are not guaranteed physical sensor limits because a LUT sees processed RGB—not RAW sensor data—and the true limits vary by camera model, recording mode, EI/ISO, and signal range.
               </CardDescription>
             </CardHeader>
-            <CardContent className="grid gap-5 sm:grid-cols-2">
+            <CardContent className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,14rem),1fr))] gap-5">
               <div className="grid gap-3">
                 <label className="flex items-center gap-2 text-sm font-medium">
                   <input type="checkbox" checked={setup.low_signal_warning} onChange={(e) => patchSetup({ low_signal_warning: e.target.checked })} />
@@ -1145,20 +1147,23 @@ export function App() {
             <CardTitle>Generate LUT</CardTitle>
             <CardDescription>Build the final {setup.profile} to {setup.target} transformation.</CardDescription>
           </CardHeader>
-          <CardFooter className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
+          <CardFooter className="flex flex-wrap gap-3">
             <Button size="lg" disabled={isGenerating || Boolean(validationError)} onClick={generate}>
               {isGenerating && <Spinner data-icon="inline-start" />}
-              {isGenerating ? "Generating…" : <><span className="lg:hidden">Generate LUT</span><span className="hidden lg:inline">Generate {setup.profile} → {setup.target} LUT</span></>}
+              {isGenerating ? "Generating…" : "Generate LUT"}
             </Button>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="flex flex-wrap gap-2">
               <Button type="button" variant="outline" onClick={() => importInput.current?.click()}>Import JSON</Button>
               <Button type="button" variant="outline" onClick={downloadConfig}>Export JSON</Button>
               <input ref={importInput} className="sr-only" type="file" accept="application/json,.json" onChange={(event) => { const file = event.target.files?.[0]; if (file) void importFile(file); event.target.value = "" }} />
             </div>
-            <p className="min-h-5 text-sm text-muted-foreground sm:col-span-2" role="status" aria-live="polite">{status}</p>
+            <p className="min-h-5 w-full text-sm text-muted-foreground" role="status" aria-live="polite">{status}</p>
           </CardFooter>
         </Card>
 
+        </div>
+        <LutImagePreview preview={preview} />
+        </div>
       </section>
     </main>
   )

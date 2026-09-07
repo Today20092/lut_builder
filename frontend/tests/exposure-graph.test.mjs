@@ -40,7 +40,7 @@ const bundle = await build({
   platform: "node",
   stdin: {
     contents: `
-      export { ColorPicker, ExposureGraph, displayPreviewOverlayAt, overlayForExposure, previewColorAt, previewOverlayAt } from "./src/App.tsx";
+      export { ColorPicker, ExposureGraph, LutImagePreview, displayPreviewOverlayAt, overlayForExposure, previewColorAt, previewOverlayAt } from "./src/App.tsx";
       export { default as React, act } from "react";
       export { createRoot } from "react-dom/client";
     `,
@@ -53,7 +53,7 @@ stop()
 const bundleDirectory = await mkdtemp(join(process.cwd(), "tests", ".graph-"))
 const bundlePath = join(bundleDirectory, "graph.mjs")
 await writeFile(bundlePath, bundle.outputFiles[0].text)
-const { ColorPicker, ExposureGraph, displayPreviewOverlayAt, overlayForExposure, previewColorAt, previewOverlayAt, React, act, createRoot } = await import(pathToFileURL(bundlePath).href)
+const { ColorPicker, ExposureGraph, LutImagePreview, displayPreviewOverlayAt, overlayForExposure, previewColorAt, previewOverlayAt, React, act, createRoot } = await import(pathToFileURL(bundlePath).href)
 await rm(bundleDirectory, { recursive: true })
 
 const preview = {
@@ -67,6 +67,88 @@ const setup = {
   band_mode: "stops",
   fill_mode: false,
 }
+
+test("demonstration compares pixels, preserves setup, replaces images, and keeps dialog choices", async () => {
+  const images = []
+  let rendered
+  const original = new Uint8ClampedArray(960 * 4).fill(255)
+  for (let i = 0; i < original.length; i += 4) original.set([128, 128, 128, 255], i)
+  globalThis.Image = class {
+    naturalWidth = 960
+    naturalHeight = 540
+    set src(value) { this.url = value; images.push(this) }
+  }
+  globalThis.FileReader = class {
+    readAsDataURL(file) { this.result = `data:image/png,${file.name}`; this.onload() }
+  }
+  const prototype = window.HTMLCanvasElement.prototype
+  const getContext = prototype.getContext
+  prototype.getContext = () => ({
+    clearRect() {}, drawImage() { rendered = original.slice() },
+    getImageData() { return { data: original.slice() } },
+    putImageData(pixels) { rendered = pixels.data },
+  })
+  window.HTMLDialogElement.prototype.showModal = function () { this.open = true }
+  window.HTMLDialogElement.prototype.close = function () { this.open = false; this.dispatchEvent(new window.Event("close")) }
+  const container = document.createElement("div")
+  document.body.append(container)
+  const root = createRoot(container)
+  const configured = { ...setup, bands: [{ stop: 0, width: 10, color: "#ff0000" }] }
+  const before = structuredClone(configured)
+  const draw = async () => { await act(() => images.at(-1).onload?.()) }
+  const click = async (text) => {
+    const button = [...container.querySelectorAll("button")].find((item) => item.textContent === text)
+    await act(() => button.click())
+    return button
+  }
+  try {
+    await act(() => root.render(React.createElement(LutImagePreview, { preview: { ...preview, overlays: ["#ff0000"], setup: configured } })))
+    await draw()
+    assert.match(container.textContent, /graded image cannot verify original camera exposure/)
+    assert.deepEqual([...rendered.slice(0, 4)], [128, 128, 128, 255])
+    assert.deepEqual([...rendered.slice(480 * 4, 481 * 4)], [255, 0, 0, 255])
+    const choice = (value) => container.querySelector(`input[value='${value}']`)
+    await act(() => choice("Original").click())
+    await draw()
+    assert.deepEqual(rendered, original)
+    await act(() => choice("Band colors").click())
+    await draw()
+    assert.deepEqual([...rendered.slice(0, 4)], [255, 0, 0, 255])
+    const slider = container.querySelector("input[type=range]")
+    await act(() => {
+      Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set.call(slider, "0")
+      slider.dispatchEvent(new window.Event("input", { bubbles: true }))
+    })
+    await draw()
+    assert.deepEqual(rendered, original)
+    assert.deepEqual(configured, before)
+    const trigger = await click("Expand preview")
+    assert.equal(container.querySelector("dialog").open, true)
+    assert.equal(container.querySelector("dialog input[value='Band colors']").checked, true)
+    await click("Close preview")
+    assert.equal(document.activeElement, trigger)
+    assert.equal(choice("Band colors").checked, true)
+    const upload = async (file) => {
+      const input = container.querySelector("input[type=file]")
+      Object.defineProperty(input, "files", { configurable: true, value: [file] })
+      await act(() => input.dispatchEvent(new window.Event("change", { bubbles: true })))
+    }
+    await upload(new window.File(["bad"], "broken.png", { type: "image/png" }))
+    await act(() => images.at(-1).onerror())
+    assert.match(container.querySelector("[role=alert]").textContent, /previous image is unchanged/)
+    await upload(new window.File(["image"], "portrait.png", { type: "image/png" }))
+    await draw()
+    assert.match(container.querySelector("[role=status]").textContent, /portrait.png/)
+    await click("Reference photo")
+    assert.match(container.querySelector("[role=status]").textContent, /Reference photo/)
+  } finally {
+    await act(() => root.unmount())
+    container.remove()
+    prototype.getContext = getContext
+    delete globalThis.Image
+    delete globalThis.FileReader
+  }
+})
 
 test("image preview samples and clamps the current LUT colors", () => {
   assert.equal(previewColorAt(["#000000", "#777777", "#ffffff"], 0), "#000000")
