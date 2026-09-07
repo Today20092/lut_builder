@@ -9,6 +9,7 @@ import {
 import { Popover } from "@base-ui/react/popover"
 
 import { Button } from "@/components/ui/button"
+import { BandNumberInput } from "./BandNumberInput"
 import {
   Card,
   CardContent,
@@ -25,6 +26,7 @@ import {
   applyBandPreset,
   applyFillPreset,
   activeRampAnchors,
+  bandId,
   changeMode,
   contrastTextColor,
   createBand,
@@ -423,6 +425,8 @@ export function ExposureGraph({
   onSelect,
   onChange,
   onWidthChange,
+  onEditStart,
+  onEditEnd,
 }: {
   setup: Setup
   preview: Preview
@@ -431,6 +435,8 @@ export function ExposureGraph({
   onSelect: (index: number) => void
   onChange: (index: number, stop: number) => void
   onWidthChange: (index: number, width: number) => void
+  onEditStart?: () => void
+  onEditEnd?: () => void
 }) {
   const graph = useRef<HTMLDivElement>(null)
   const position = (value: number) =>
@@ -461,7 +467,7 @@ export function ExposureGraph({
   const unitLabel = setup.band_mode === "stops" ? "stops from reference" : preview.unit
   const selectedReadout = selected && (setup.fill_mode
     ? `Boundary ${selectedBand + 1} · ${selected.stop} ${preview.unit}`
-    : `Band ${selectedBand + 1} · center ${selected.stop} ${preview.unit} · ±${selected.width} ${preview.unit}`)
+    : `Band ${selectedBand + 1} · center ${selected.stop} ${preview.unit} · total width ${Number((selected.width * 2).toFixed(6))} ${preview.unit} · boundaries ${Number((selected.stop - selected.width).toFixed(6))} to ${Number((selected.stop + selected.width).toFixed(6))} ${preview.unit}${selected.stop < preview.minimum || selected.stop > preview.maximum ? " · outside visible range" : ""}`)
 
   function handleKeyDown(event: KeyboardEvent<HTMLButtonElement>, index: number) {
     const direction =
@@ -472,6 +478,7 @@ export function ExposureGraph({
           : null
     if (direction === null) return
     event.preventDefault()
+    onSelect(index)
     onChange(index, stepBandValue(setup.bands[index].stop, direction, increment, ...bounds))
   }
 
@@ -495,11 +502,14 @@ export function ExposureGraph({
     <div className="grid gap-1">
     <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 text-xs">
       <span className="font-medium">Exposure · {unitLabel}</span>
-      <span className="text-muted-foreground">Range {preview.minimum} to {preview.maximum} {preview.unit}</span>
+      <span className="text-muted-foreground">Range {preview.minimum} to {preview.maximum} {preview.unit}{setup.band_mode === "stops" ? " · Reference 0 stops" : ""}</span>
     </div>
     <div
       ref={graph}
       className="relative isolate flex h-28 touch-none overflow-hidden rounded-lg border"
+      onPointerUp={onEditEnd}
+      onPointerCancel={onEditEnd}
+      onLostPointerCapture={onEditEnd}
       aria-label={`Editable exposure graph from ${preview.minimum} to ${preview.maximum} ${preview.unit}`}
     >
       {preview.colors.map((color, index) => (
@@ -579,26 +589,32 @@ export function ExposureGraph({
             aria-label={`Resize ${side < 0 ? "left" : "right"} edge of band ${index + 1}`}
             aria-valuemin={0.1}
             aria-valuenow={band.width}
-            aria-valuetext={`${band.width} ${preview.unit} half-width`}
+            aria-valuetext={`${Number((band.width * 2).toFixed(6))} ${preview.unit} total width`}
             className={`absolute inset-y-0 z-20 w-3 -translate-x-1/2 cursor-ew-resize bg-transparent outline-none after:absolute after:inset-y-0 after:left-1/2 after:w-0.5 after:-translate-x-1/2 after:bg-white after:shadow hover:after:w-1 focus-visible:ring-2 focus-visible:ring-ring ${selectedBand === index ? "after:w-1" : ""}`}
-            key={`${index}-${side}`}
+            key={`${bandId(band)}-${side}`}
             role="slider"
-            style={{ left: `${position(band.stop + side * band.width)}%` }}
+            style={{ left: `${position(band.stop + side * band.width)}%`, zIndex: selectedBand === index ? 30 : undefined }}
             type="button"
+            onFocus={() => onSelect(index)}
             onKeyDown={(event) => {
               const direction = event.key === "ArrowRight" || event.key === "ArrowUp" ? 1 : event.key === "ArrowLeft" || event.key === "ArrowDown" ? -1 : 0
               if (!direction) return
               event.preventDefault()
               onSelect(index)
-              onWidthChange(index, Math.max(0.1, Number((band.width + direction * side * 0.1).toFixed(1))))
+              onWidthChange(index, Math.max(0.1, Number((band.width + direction * side * 0.1).toFixed(6))))
             }}
             onPointerDown={(event) => {
+              onEditStart?.()
               onSelect(index)
               event.currentTarget.setPointerCapture(event.pointerId)
             }}
             onPointerMove={(event) => handleWidthPointerMove(event, index)}
           />
       )))}
+      {!setup.fill_mode && selected && (
+        <span aria-hidden="true" className="pointer-events-none absolute inset-y-0 z-[2] border-2 border-dashed border-white outline outline-1 outline-black"
+          style={{ left: `${position(selected.stop - selected.width)}%`, width: `${position(selected.stop + selected.width) - position(selected.stop - selected.width)}%` }} />
+      )}
       {setup.bands.map((band, index) => {
         if (setup.fill_mode && index === setup.bands.length - 1) return null
         const below = band.stop < preview.minimum
@@ -607,13 +623,14 @@ export function ExposureGraph({
         if (edge && selectedBand !== index) return null
         return (
           <button
-            key={`handle-${index}`}
+            key={`handle-${bandId(band)}`}
             type="button"
             className={setup.fill_mode
               ? `absolute inset-y-0 z-10 w-6 -translate-x-1/2 bg-transparent after:absolute after:inset-y-0 after:left-1/2 after:w-1 after:-translate-x-1/2 after:bg-background after:shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${selectedBand === index ? "ring-2 ring-ring" : ""}`
               : `absolute z-10 rounded-full border-2 border-background px-2 py-1 text-xs font-semibold shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${selectedBand === index ? "ring-2 ring-ring ring-offset-2" : ""}`}
             style={{
               left: `${position(band.stop)}%`,
+              zIndex: selectedBand === index ? 40 : undefined,
               ...(setup.fill_mode ? {} : {
                 backgroundColor: band.color,
                 color: contrastTextColor(band.color),
@@ -628,14 +645,16 @@ export function ExposureGraph({
               : `Band ${index + 1}, ${band.stop} ${preview.unit}${edge ? ", outside visible range" : ""}`}
             title={edge ? `${band.stop} ${preview.unit} is outside the visible range` : undefined}
             onClick={() => onSelect(index)}
+            onFocus={() => onSelect(index)}
             onKeyDown={(event) => handleKeyDown(event, index)}
             onPointerDown={(event) => {
+              onEditStart?.()
               onSelect(index)
               event.currentTarget.setPointerCapture(event.pointerId)
             }}
             onPointerMove={(event) => handlePointerMove(event, index)}
           >
-            {!setup.fill_mode && <>{below ? "← " : ""}{band.stop}{above ? " →" : ""}</>}
+            {!setup.fill_mode && <>{below ? "← " : ""}{index + 1}: {band.stop}{above ? " →" : ""}</>}
           </button>
         )
       })}
@@ -773,6 +792,8 @@ export function App() {
     return [vivid[1] ?? { l: 0.5, c: 0.2, h: 260 }, vivid.at(-2) ?? { l: 0.8, c: 0.2, h: 50 }]
   })
   const [selectedBandIndex, setSelectedBandIndex] = useState(0)
+  const [undo, setUndo] = useState<{ setup: Setup; selection: number; after: Setup } | null>(null)
+  const gesture = useRef<{ setup: Setup; selection: number } | null>(null)
   const [removingBandIndex, setRemovingBandIndex] = useState<number | null>(null)
   const importInput = useRef<HTMLInputElement>(null)
   const mode: Mode = setup.fill_mode ? "fill" : setup.band_mode
@@ -817,9 +838,34 @@ export function App() {
     setSetup((current) => ({ ...current, ...changes }))
   }
 
+  function editSetup(edit: (current: Setup) => Setup, selection = selectedBand) {
+    const next = edit(setup)
+    if (JSON.stringify(next) === JSON.stringify(setup)) return
+    setUndo({ ...(gesture.current ?? { setup, selection: selectedBand }), after: next })
+    const id = setup.bands[selection] && bandId(setup.bands[selection])
+    const nextIndex = next.bands.findIndex((band) => bandId(band) === id)
+    setSelectedBandIndex(nextIndex < 0 ? Math.max(0, Math.min(selection, next.bands.length - 1)) : nextIndex)
+    setSetup(next)
+  }
+
+  function undoEdit() {
+    if (!undo) return
+    const changes: Partial<Setup> = { bands: undo.setup.bands }
+    if (undo.setup.band_mode !== undo.after.band_mode) changes.band_mode = undo.setup.band_mode
+    if (undo.setup.fill_mode !== undo.after.fill_mode) changes.fill_mode = undo.setup.fill_mode
+    if (undo.setup.monochrome !== undo.after.monochrome) changes.monochrome = undo.setup.monochrome
+    setSetup((current) => ({ ...current, ...changes }))
+    setSelectedBandIndex(undo.selection)
+    setUndo(null)
+    setRemovingBandIndex(null)
+  }
+
   function addBand() {
     const band = createBand(setup.bands, mode === "ire" ? "ire" : "stops", catalog.palette)
-    if (band) patchSetup({ bands: orderBands([...setup.bands, band]) })
+    if (band) {
+      editSetup((current) => ({ ...current, bands: orderBands([...current.bands, band]) }))
+      setSelectedBandIndex(orderBands([...setup.bands, band]).indexOf(band))
+    }
     else setStatus("No non-overlapping band position is available.")
   }
 
@@ -862,6 +908,8 @@ export function App() {
         return result.setup
       })
       setSetup(imported)
+      setUndo(null)
+      setSelectedBandIndex(0)
       setStatus(`Imported ${file.name}.`)
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Import failed")
@@ -913,7 +961,7 @@ export function App() {
             </label>
             <label className="grid gap-1 text-sm font-medium">
               Band mode
-              <select className={fieldClass} value={mode} onChange={(e) => setSetup((current) => changeMode(current, e.target.value as Mode, catalog.palette))}>
+              <select className={fieldClass} value={mode} onChange={(e) => editSetup((current) => changeMode(current, e.target.value as Mode, catalog.palette))}>
                 <option value="stops">Stops</option>
                 <option value="ire">IRE</option>
                 <option value="fill">Fill</option>
@@ -955,21 +1003,20 @@ export function App() {
                         <option value="detailed">Detailed · {mode === "ire" ? "9" : "10"} bands</option>
                       </select>
                     </label>
-                    <Button type="button" size="lg" variant="outline" onClick={() => setSetup((current) => applyBandPreset(current, catalog.palette, bandPreset))}>Apply preset</Button>
+                    <Button type="button" size="lg" variant="outline" onClick={() => editSetup((current) => applyBandPreset(current, catalog.palette, bandPreset))}>Apply preset</Button>
                   </>
                 )}
                 {!setup.fill_mode && (
-                <label className="grid w-40 max-w-full gap-1 text-xs font-medium">All half-widths ({mode === "ire" ? "IRE" : "stops"})
-                  <input
-                    aria-label="All half-widths"
+                <label className="grid w-40 max-w-full gap-1 text-xs font-medium">All total widths ({mode === "ire" ? "IRE" : "stops"})
+                  <BandNumberInput
+                    aria-label="All total widths"
                     className={fieldClass}
                     disabled={setup.bands.length === 0}
-                    min="0"
+                    min={0}
                     placeholder="Mixed"
-                    step="0.1"
-                    type="number"
-                    value={setup.bands.every((band) => band.width === setup.bands[0]?.width) ? setup.bands[0]?.width ?? "" : ""}
-                    onChange={(event) => setSetup((current) => ({ ...current, bands: current.bands.map((band) => ({ ...band, width: Number(event.target.value) })) }))}
+                    step={0.2}
+                    value={setup.bands.length && setup.bands.every((band) => band.width === setup.bands[0].width) ? setup.bands[0].width * 2 : ""}
+                    onChange={(width) => editSetup((current) => current.bands.reduce((result, _, index) => updateBand(result, index, { width: width / 2 }), current))}
                   />
                 </label>
                 )}
@@ -989,7 +1036,7 @@ export function App() {
                         <option value="detailed">Detailed · 9 zones</option>
                       </select>
                     </label>
-                    <Button type="button" size="lg" variant="outline" onClick={() => setSetup((current) => applyFillPreset(current, catalog.palette, fillPreset))}>Apply preset</Button>
+                    <Button type="button" size="lg" variant="outline" onClick={() => editSetup((current) => applyFillPreset(current, catalog.palette, fillPreset))}>Apply preset</Button>
                   </>
                 )}
                 </div>
@@ -1011,7 +1058,7 @@ export function App() {
                   <option value="gradient">Perceptual color ramp</option>
                 </select>
                 </label>
-                <Button type="button" size="lg" variant="outline" onClick={() => setSetup((current) => applyColorPreset(current, catalog.palette, colorPreset, rampAnchors, lightnessProfile, rampPreset !== "custom"))}>Apply colors</Button>
+                <Button type="button" size="lg" variant="outline" onClick={() => editSetup((current) => applyColorPreset(current, catalog.palette, colorPreset, rampAnchors, lightnessProfile, rampPreset !== "custom"))}>Apply colors</Button>
                 </div>
                 </div>
                 {colorPreset === "gradient" && (
@@ -1069,30 +1116,33 @@ export function App() {
           <CardContent className="grid gap-4">
             {preview ? (
               <>
+                <Button type="button" variant="outline" disabled={!undo} onClick={undoEdit}>Undo last band edit</Button>
                 <ExposureGraph
                   setup={setup}
                   preview={preview}
                   increment={movementIncrement}
                   selectedBand={selectedBand}
                   onSelect={selectBand}
-                  onChange={(index, stop) => setSetup((current) => setup.fill_mode
+                  onEditStart={() => { gesture.current = { setup, selection: selectedBand } }}
+                  onEditEnd={() => { gesture.current = null }}
+                  onChange={(index, stop) => editSetup((current) => setup.fill_mode
                     ? updateFillBoundary(current, index, stop, movementIncrement)
-                    : updateBand(current, index, { stop }))}
-                  onWidthChange={(index, width) => setSetup((current) => updateBand(current, index, { width }))}
+                    : updateBand(current, index, { stop }), index)}
+                  onWidthChange={(index, width) => editSetup((current) => updateBand(current, index, { width }), index)}
                 />
                 <div className="relative overflow-x-auto rounded-lg border">
                   <table className="w-full table-fixed min-w-[38rem] text-sm">
-                    <thead className="bg-muted/50 text-left text-xs text-muted-foreground"><tr><th className="w-20 px-3 py-2">Band</th><th className="w-1/5 px-3 py-2">Color</th><th className="px-3 py-2">{setup.fill_mode ? "Boundary to next color" : mode === "ire" ? "Center (IRE)" : "Center (stops)"}</th><th className="px-3 py-2">{setup.fill_mode ? "Coverage" : `Half-width (${mode === "ire" ? "IRE" : "stops"})`}</th><th className="w-32 px-3 py-2"><span className="sr-only">Actions</span></th></tr></thead>
+                    <thead className="bg-muted/50 text-left text-xs text-muted-foreground"><tr><th className="w-20 px-3 py-2">Band</th><th className="w-1/5 px-3 py-2">Color</th><th className="px-3 py-2">{setup.fill_mode ? "Boundary to next color" : mode === "ire" ? "Position (IRE)" : "Position (stops)"}</th><th className="px-3 py-2">{setup.fill_mode ? "Coverage" : `Total width (${mode === "ire" ? "IRE" : "stops"})`}</th><th className="w-32 px-3 py-2"><span className="sr-only">Actions</span></th></tr></thead>
                     <tbody>{setup.bands.map((band, index) => (
-                      <tr className={`border-t ${selectedBand === index ? "bg-accent/60" : ""}`} key={index} onFocus={() => selectBand(index)} onClick={() => selectBand(index)}>
-                        <th className="p-3 text-left font-medium" scope="row">{setup.fill_mode ? "Color" : "Band"} {index + 1}</th>
-                        <td className="p-2"><ColorPicker hideLabel label={`Band ${index + 1} color`} value={band.color} palette={catalog.palette} onChange={(color) => setSetup((current) => updateBand(current, index, { color }))} /></td>
+                      <tr className={`border-t ${selectedBand === index ? "bg-accent/60" : ""}`} key={bandId(band)} onFocus={() => selectBand(index)} onClick={() => selectBand(index)}>
+                        <th className="p-3 text-left font-medium" scope="row">{setup.fill_mode ? "Color" : "Band"} {index + 1}{selectedBand === index && <span className="block text-xs">Selected</span>}</th>
+                        <td className="p-2"><ColorPicker hideLabel label={`Band ${index + 1} color`} value={band.color} palette={catalog.palette} onChange={(color) => editSetup((current) => updateBand(current, index, { color }), index)} /></td>
                         <td className="p-2">{setup.fill_mode && index === setup.bands.length - 1
                           ? <span className="text-muted-foreground">—</span>
-                          : <input aria-label={setup.fill_mode ? `Boundary after color ${index + 1}` : `Band ${index + 1} ${mode === "ire" ? "IRE" : "stops"}`} className={fieldClass} type="number" step={movementIncrement} min={mode === "ire" ? 0 : undefined} max={mode === "ire" ? 100 : undefined} value={band.stop} onChange={(event) => setSetup((current) => setup.fill_mode ? updateFillBoundary(current, index, Number(event.target.value), movementIncrement) : updateBand(current, index, { stop: Number(event.target.value) }))} />}</td>
+                          : <BandNumberInput aria-label={setup.fill_mode ? `Boundary after color ${index + 1}` : `Band ${index + 1} ${mode === "ire" ? "IRE" : "stops"}`} className={fieldClass} step={movementIncrement} min={mode === "ire" ? 0 : undefined} max={mode === "ire" ? 100 : undefined} value={band.stop} onChange={(stop) => editSetup((current) => setup.fill_mode ? updateFillBoundary(current, index, stop, movementIncrement) : updateBand(current, index, { stop }), index)} />}</td>
                         <td className="p-2">{setup.fill_mode
                           ? <span className="text-muted-foreground">{index === setup.bands.length - 1 ? "Fills the rest" : "Until boundary"}</span>
-                          : <input aria-label={`Band ${index + 1} half-width`} className={fieldClass} type="number" min="0" step="0.1" value={band.width} onChange={(event) => setSetup((current) => updateBand(current, index, { width: Number(event.target.value) }))} />}</td>
+                          : <BandNumberInput aria-label={`Band ${index + 1} total width`} className={fieldClass} min={0} step={0.2} value={band.width * 2} onChange={(width) => editSetup((current) => updateBand(current, index, { width: width / 2 }), index)} />}</td>
                         <td className="p-2"><Button
                           aria-label={removingBandIndex === index ? `Confirm remove band ${index + 1}` : `Remove band ${index + 1}`}
                           type="button"
@@ -1101,7 +1151,7 @@ export function App() {
                           onClick={(event) => {
                             event.stopPropagation()
                             if (removingBandIndex !== index) return setRemovingBandIndex(index)
-                            setSetup((current) => removeBand(current, index))
+                            editSetup((current) => removeBand(current, index))
                             setRemovingBandIndex(null)
                           }}
                         >{removingBandIndex === index ? "Confirm remove" : "Remove"}</Button></td>

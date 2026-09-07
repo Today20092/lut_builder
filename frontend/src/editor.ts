@@ -226,7 +226,7 @@ export function stepBandValue(
   minimum = -Infinity,
   maximum = Infinity,
 ) {
-  return snapBandValue(value + direction * increment, increment, minimum, maximum)
+  return Math.max(minimum, Math.min(maximum, Number((value + direction * increment).toFixed(6))))
 }
 
 export function contrastTextColor(hex: string) {
@@ -260,11 +260,11 @@ export function applyColorPreset(
     bands: setup.bands.map((band) => {
       if (preset === "gradient") {
         return gradient.length > 0
-          ? { ...band, color: sampleOklabRamp(gradient, (band.stop - minimum) / range) }
+          ? copyBand(band, { color: sampleOklabRamp(gradient, (band.stop - minimum) / range) })
           : band
       }
       const colorIndex = limits.findIndex((limit) => band.stop <= limit)
-      return { ...band, color: colors.get(FALSE_COLOR_NAMES[colorIndex < 0 ? 8 : colorIndex]) ?? band.color }
+      return copyBand(band, { color: colors.get(FALSE_COLOR_NAMES[colorIndex < 0 ? 8 : colorIndex]) ?? band.color })
     }),
   }
 }
@@ -317,6 +317,12 @@ export function resizeBandWidth(stop: number, edge: number) {
 export function bandId(band: Band) {
   rememberCreationOrder([band])
   return creationOrder.get(band)!
+}
+
+function copyBand(band: Band, changes: Partial<Band>) {
+  const updated = { ...band, ...changes }
+  creationOrder.set(updated, bandId(band))
+  return updated
 }
 
 export function createBand(
@@ -392,9 +398,7 @@ export function updateBand(
     bands: orderBands(
       setup.bands.map((band, current) => {
         if (current !== index) return band
-        const updated = { ...band, ...changes }
-        creationOrder.set(updated, creationOrder.get(band)!)
-        return updated
+        return copyBand(band, changes)
       }),
     ),
   }
@@ -417,10 +421,10 @@ export function updateFillBoundary(
     : setup.bands[index + 1].stop - increment
   const boundary = Math.max(minimum, Math.min(maximum, stop))
   const bands = setup.bands.map((band, current) =>
-    current === index ? { ...band, stop: boundary } : band,
+    current === index ? copyBand(band, { stop: boundary }) : band,
   )
   const last = bands.length - 1
-  bands[last] = { ...bands[last], stop: Math.max(bands[last].stop, bands[last - 1].stop + increment) }
+  bands[last] = copyBand(bands[last], { stop: Math.max(bands[last].stop, bands[last - 1].stop + increment) })
   return { ...setup, bands }
 }
 

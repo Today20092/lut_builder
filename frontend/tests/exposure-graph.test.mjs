@@ -33,14 +33,14 @@ dom.window.HTMLElement.prototype.hasPointerCapture = function (pointerId) {
 
 const bundle = await build({
   bundle: true,
-  external: ["@base-ui/react/popover", "react", "react/jsx-runtime", "react-dom", "react-dom/client"],
+  external: ["@base-ui/react/*", "lucide-react", "react", "react/jsx-runtime", "react-dom", "react-dom/client"],
   format: "esm",
   jsx: "automatic",
   loader: { ".jpg": "dataurl" },
   platform: "node",
   stdin: {
     contents: `
-      export { ColorPicker, ExposureGraph, LutImagePreview, displayPreviewOverlayAt, overlayForExposure, previewColorAt, previewOverlayAt } from "./src/App.tsx";
+      export { App, ColorPicker, ExposureGraph, LutImagePreview, displayPreviewOverlayAt, overlayForExposure, previewColorAt, previewOverlayAt } from "./src/App.tsx";
       export { default as React, act } from "react";
       export { createRoot } from "react-dom/client";
     `,
@@ -53,7 +53,7 @@ stop()
 const bundleDirectory = await mkdtemp(join(process.cwd(), "tests", ".graph-"))
 const bundlePath = join(bundleDirectory, "graph.mjs")
 await writeFile(bundlePath, bundle.outputFiles[0].text)
-const { ColorPicker, ExposureGraph, LutImagePreview, displayPreviewOverlayAt, overlayForExposure, previewColorAt, previewOverlayAt, React, act, createRoot } = await import(pathToFileURL(bundlePath).href)
+const { App, ColorPicker, ExposureGraph, LutImagePreview, displayPreviewOverlayAt, overlayForExposure, previewColorAt, previewOverlayAt, React, act, createRoot } = await import(pathToFileURL(bundlePath).href)
 await rm(bundleDirectory, { recursive: true })
 
 const preview = {
@@ -213,7 +213,7 @@ test("exposure graph dispatches keyboard and pointer edits without intercepting 
   assert.equal(scale.lastElementChild.textContent.trim(), "+7")
   assert.match(container.textContent, /Exposure · stops from reference/)
   assert.match(container.textContent, /Range -7 to 7 stops/)
-  assert.match(container.textContent, /Band 1 · center 0 stops · ±0.3 stops/)
+  assert.match(container.textContent, /Band 1 · center 0 stops · total width 0.6 stops · boundaries -0.3 to 0.3 stops/)
   assert.match(container.querySelector("[data-scale-guide='0']").className, /border-l-2/)
   graph.getBoundingClientRect = () => ({ left: 0, width: 100 })
 
@@ -331,4 +331,129 @@ test("color picker hides the complete ordered preset grid until requested", asyn
   assert.equal(document.querySelector("[aria-label='red-500']").getAttribute("aria-pressed"), "true")
   await act(() => root.unmount())
   container.remove()
+})
+
+test("width keyboard steps preserve typed precision and selected overlapping edges stay reachable", async () => {
+  const widths = []
+  const centers = []
+  const { container, root } = await mountGraph({
+    setup: { ...setup, bands: [{ stop: 0.1, width: 0.35, color: "#ffffff" }, { stop: 0.1, width: 0.35, color: "#000000" }] },
+    onWidthChange(index, width) { widths.push([index, width]) },
+    onChange(index, stop) { centers.push([index, stop]) },
+  })
+  const edge = container.querySelector("[aria-label='Resize right edge of band 1']")
+  await act(() => edge.dispatchEvent(new window.KeyboardEvent("keydown", { bubbles: true, key: "ArrowRight" })))
+  assert.deepEqual(widths, [[0, 0.45]])
+  assert.equal(edge.style.zIndex, "30")
+  await act(() => container.querySelector("[aria-label='Band 1, 0.1 stops']").dispatchEvent(new window.KeyboardEvent("keydown", { bubbles: true, key: "ArrowRight" })))
+  assert.deepEqual(centers, [[0, 0.35]])
+  await act(() => root.unmount())
+  container.remove()
+})
+
+test("band editing preserves valid generation data, selection, and one-step recovery", async () => {
+  window.LUT_BUILDER_SETUP = {
+    ...setup, profile: "Sony S-Log3", target: "Rec.709", cube_size: 17,
+    monochrome: true, legal_range: false, output: "test.cube",
+    low_signal_warning: false, high_signal_warning: false,
+    low_signal_hex: "#000000", high_signal_hex: "#ffffff",
+    bands: [{ stop: 0, width: 0.3, color: "#ffffff" }, { stop: 1, width: 0.5, color: "#ff0000" }],
+  }
+  window.LUT_BUILDER_CATALOG = { profiles: ["Sony S-Log3"], targets: ["Rec.709"], palette: [{ name: "blue-600", hex: "#2563eb" }, { name: "red-600", hex: "#dc2626" }] }
+  const requests = []
+  const originalFetch = globalThis.fetch
+  globalThis.Image = window.Image
+  globalThis.fetch = async (path, options) => {
+    const candidate = JSON.parse(options.body)
+    requests.push({ path, setup: candidate })
+    if (path === "/generate") return new Response("cube", { status: 200 })
+    return Response.json({ ...preview, setup: candidate, warnings: [], legend: [], overlays: [], input_overlays: [], input_exposure: [] })
+  }
+  const container = document.createElement("div")
+  document.body.append(container)
+  const root = createRoot(container)
+  const field = (label) => container.querySelector(`[aria-label='${label}']`)
+  const button = (text) => [...container.querySelectorAll("button")].find((item) => item.textContent === text)
+  const click = async (element) => { assert.ok(element); await act(() => element.click()) }
+  const key = async (element, key) => { await act(() => element.dispatchEvent(new window.KeyboardEvent("keydown", { bubbles: true, key }))) }
+  const type = async (element, value) => {
+    await act(() => {
+      Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set.call(element, value)
+      element.dispatchEvent(new window.Event("input", { bubbles: true }))
+    })
+  }
+  const generate = async () => {
+    await click([...container.querySelectorAll("button")].find((item) => item.textContent.startsWith("Generate LUT")))
+    return requests.filter(({ path }) => path === "/generate").at(-1).setup
+  }
+  try {
+    await act(() => root.render(React.createElement(App)))
+    await act(() => new Promise((resolve) => setTimeout(resolve, 300)))
+    assert.equal(field("Band 1 total width").value, "0.6")
+    await type(field("Band 1 stops"), "-")
+    assert.equal((await generate()).bands[0].stop, 0)
+    await type(field("Band 1 stops"), "2.25")
+    await key(field("Band 1 stops"), "Enter")
+    assert.match(container.querySelector("output").textContent, /Band 2 · center 2.25/)
+    await type(field("Band 2 total width"), "1.4")
+    await key(field("Band 2 total width"), "Enter")
+    assert.deepEqual((await generate()).bands[1], { stop: 2.25, width: 0.7, color: "#ffffff" })
+    await click(button("Undo last band edit"))
+    assert.equal(field("Band 2 total width").value, "0.6")
+    assert.equal(button("Undo last band edit").disabled, true)
+    await key(field("Band 2 stops"), "ArrowUp")
+    assert.equal(field("Band 2 stops").value, "2.5")
+    const wheel = new window.WheelEvent("wheel", { bubbles: true, deltaY: -100 })
+    await act(() => field("Band 2 stops").dispatchEvent(wheel))
+    assert.equal(field("Band 2 stops").value, "2.5")
+    const graph = container.querySelector("[aria-label^='Editable exposure graph']")
+    graph.getBoundingClientRect = () => ({ left: 0, width: 140 })
+    let handle = field("Band 2, 2.5 stops")
+    await act(() => handle.dispatchEvent(pointerEvent("pointerdown", { clientX: 95, pointerId: 3 })))
+    await act(() => handle.dispatchEvent(pointerEvent("pointermove", { clientX: 65, pointerId: 3 })))
+    handle = field("Band 1, -0.5 stops")
+    await act(() => handle.dispatchEvent(pointerEvent("pointermove", { clientX: 60, pointerId: 3 })))
+    await act(() => handle.dispatchEvent(pointerEvent("pointerup", { clientX: 60, pointerId: 3 })))
+    assert.equal((await generate()).bands[0].stop, -1)
+    await click(button("Undo last band edit"))
+    assert.equal(field("Band 2 stops").value, "2.5")
+    await click(field("Remove band 2"))
+    await click(field("Confirm remove band 2"))
+    assert.equal((await generate()).bands.length, 1)
+    await click(button("Undo last band edit"))
+    assert.match(container.querySelector("output").textContent, /Band 2 · center 2.5/)
+    await click(button("Add band"))
+    assert.equal((await generate()).bands.length, 3)
+    await click(button("Undo last band edit"))
+    assert.equal((await generate()).bands.length, 2)
+    await click(button("Apply colors"))
+    assert.notDeepEqual((await generate()).bands.map(({ color }) => color), ["#ff0000", "#ffffff"])
+    await click(button("Undo last band edit"))
+    assert.deepEqual((await generate()).bands.map(({ color }) => color), ["#ff0000", "#ffffff"])
+    await click(button("Apply preset"))
+    assert.equal((await generate()).bands.length, 7)
+    await click(button("Undo last band edit"))
+    assert.equal((await generate()).bands.length, 2)
+    await type(field("Band 2 total width"), "-1")
+    await key(field("Band 2 total width"), "Enter")
+    assert.equal(field("Band 2 total width").value, "0.6")
+    await type(field("Band 2 stops"), "10")
+    await key(field("Band 2 stops"), "Enter")
+    assert.ok(field("Band 2, 10 stops, outside visible range"))
+    await key(field("Band 2, 10 stops, outside visible range"), "ArrowLeft")
+    assert.equal(field("Band 2 stops").value, "9.75")
+    const modeSelect = [...container.querySelectorAll("select")].find((select) => [...select.options].some((option) => option.value === "ire"))
+    await act(() => { modeSelect.value = "ire"; modeSelect.dispatchEvent(new window.Event("change", { bubbles: true })) })
+    await type(field("Band 1 IRE"), "101")
+    await key(field("Band 1 IRE"), "Enter")
+    assert.equal(field("Band 1 IRE").value, "10")
+    await type(field("Band 1 IRE"), "0")
+    await key(field("Band 1 IRE"), "Enter")
+    await key(field("Band 1 IRE"), "ArrowDown")
+    assert.equal((await generate()).bands[0].stop, 0)
+  } finally {
+    await act(() => root.unmount())
+    container.remove()
+    globalThis.fetch = originalFetch
+  }
 })
