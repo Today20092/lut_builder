@@ -138,6 +138,47 @@ def test_preview_and_generation_accept_complete_version_1_setup():
         thread.join(timeout=5)
 
 
+def test_saved_palette_band_colors_survive_reload_and_change_generated_cube():
+    server, url, token = create_server()
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    config = {
+        "version": 1,
+        "profile": "Sony S-Log3",
+        "target": "Rec.709",
+        "cube_size": 17,
+        "bands": [
+            {"stop": -2, "width": 0.3, "color": "#000000"},
+            {"stop": 2, "width": 0.7, "color": "#ffffff"},
+        ],
+        "low_signal_warning": False,
+        "high_signal_warning": False,
+    }
+    try:
+        reloaded = LutSetup.from_config(json.loads(json.dumps(config))).to_config()
+        assert reloaded["bands"] == config["bands"]
+        with _request(url + "preview", token=token, payload=reloaded) as response:
+            assert json.load(response)["setup"]["bands"] == config["bands"]
+        with _request(url + "generate", token=token, payload=reloaded) as response:
+            original_cube = response.read().decode()
+        reloaded["bands"][0]["color"] = "#ffffff"
+        reloaded["bands"][1]["color"] = "#000000"
+        with _request(url + "generate", token=token, payload=reloaded) as response:
+            changed_cube = response.read().decode()
+        original_rows = [
+            line for line in original_cube.splitlines() if re.match(r"^[0-9.-]+ ", line)
+        ]
+        changed_rows = [
+            line for line in changed_cube.splitlines() if re.match(r"^[0-9.-]+ ", line)
+        ]
+        assert len(original_rows) == len(changed_rows) == 17**3
+        assert original_rows != changed_rows
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+
 def test_invalid_preview_is_actionable_and_does_not_poison_next_request():
     server, url, token = create_server()
     thread = threading.Thread(target=server.serve_forever, daemon=True)
