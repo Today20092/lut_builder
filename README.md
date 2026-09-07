@@ -57,6 +57,8 @@ Bare filenames are written to `output/luts/`. Enter an explicit path or use `--o
 
 `workspace.bat` opens the browser workspace; the build launchers start the interactive CLI.
 
+The Workbench's **Camera-matched** mode checks an untagged 16-bit RGB PNG or float32 RGB PFM against the actual exported cube. PNG decoding requires local FFmpeg. Confirm the source transfer, gamut and unchanged camera code values before checking. See [still verification](docs/still-verification.md) for supported formats, the explicit SDR view, precision tests and limitations.
+
 ## Commands
 
 | Command | Purpose |

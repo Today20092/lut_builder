@@ -1,22 +1,30 @@
 """Loopback-only browser workspace for LUT Builder."""
 
-from dataclasses import replace
+import base64
+from collections import deque
+import hashlib
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import mimetypes
 from pathlib import Path
 import re
 import secrets
-import tempfile
 import threading
 from urllib.parse import unquote, urlsplit
 import webbrowser
 
 from .colors import TAILWIND_COLORS
 from .data import PROFILE_CATALOG, oklch_to_hex
-from .engine import generate_lut
+from .engine import serialize_lut
 from .presets import WIDTH_PRESETS, suggest_color_for_stop
 from .setup import LutSetup, exposure_preview
+from .verification import (
+    MAX_SOURCE_BYTES,
+    VerificationResult,
+    decode_still,
+    display_png,
+    verify_rgb,
+)
 
 
 STATIC_ROOT = Path(__file__).with_name("static")
@@ -48,6 +56,13 @@ DEFAULT_SETUP = {
 }
 CATALOG = {
     "profiles": list(PROFILE_CATALOG.source_names()),
+    "source_interpretations": {
+        name: {
+            "transfer": PROFILE_CATALOG.source(name).log,
+            "gamut": PROFILE_CATALOG.source(name).gamut,
+        }
+        for name in PROFILE_CATALOG.source_names()
+    },
     "targets": list(PROFILE_CATALOG.target_names()),
     "palette": [
         {"name": f"{family}-{shade}", "hex": oklch_to_hex(*oklch)}
@@ -65,7 +80,9 @@ CONFIG_FIELDS = {*DEFAULT_SETUP, *LEGACY_FIELDS, "version"}
 
 
 def safe_output_name(value: object) -> str:
-    basename = str(value or DEFAULT_SETUP["output"]).replace("\\", "/").rsplit("/", 1)[-1]
+    basename = (
+        str(value or DEFAULT_SETUP["output"]).replace("\\", "/").rsplit("/", 1)[-1]
+    )
     stem = basename.rsplit(".", 1)[0]
     stem = re.sub(r"[^A-Za-z0-9_-]+", "_", stem).strip("_-") or "lut"
     return f"{stem}.cube"
@@ -119,7 +136,9 @@ def _preview_payload(payload: dict) -> dict:
     preview["warnings"] = []
     if not setup.bands:
         preview["warnings"].append("No exposure bands are configured.")
-    if setup.fill_mode and (setup.monochrome or any(band["width"] for band in setup.bands)):
+    if setup.fill_mode and (
+        setup.monochrome or any(band["width"] for band in setup.bands)
+    ):
         preview["warnings"].append("Fill mode ignores band widths and monochrome.")
     return preview
 
@@ -127,15 +146,103 @@ def _preview_payload(payload: dict) -> dict:
 def _generate_download(payload: dict) -> tuple[bytes, str]:
     setup = _setup_from_payload(payload)
     filename = safe_output_name(setup.output_filename)
-    with tempfile.TemporaryDirectory(prefix="lut-builder-") as directory:
-        output = generate_lut(
-            replace(setup, output_filename=str(Path(directory) / filename))
+    return serialize_lut(setup), filename
+
+
+class VerificationSession:
+    """One bounded job/result per local workspace, shared by request handlers."""
+
+    def __init__(self):
+        self.busy = threading.Lock()
+        self.lock = threading.Lock()
+        self.cancelled: deque[str] = deque(maxlen=32)
+        self.result: tuple[str, VerificationResult] | None = None
+
+    def cancel(self, request_id: str) -> None:
+        with self.lock:
+            self.cancelled.append(request_id)
+            if self.result and self.result[0] == request_id:
+                self.result = None
+
+    def get(self, request_id: str) -> VerificationResult:
+        with self.lock:
+            if self.result is None or self.result[0] != request_id:
+                raise ValueError(
+                    "Verification expired or was cancelled. Verify the current source and settings again."
+                )
+            return self.result[1]
+
+    def verify(self, payload: dict, request_id: str) -> dict:
+        def check_cancelled():
+            with self.lock:
+                if request_id in self.cancelled:
+                    raise ValueError("Verification cancelled.")
+
+        with self.lock:
+            self.result = None
+        check_cancelled()
+        source = payload.get("source")
+        interpretation = payload.get("interpretation")
+        config = payload.get("setup")
+        if (
+            not isinstance(source, dict)
+            or not isinstance(interpretation, dict)
+            or not isinstance(config, dict)
+        ):
+            raise ValueError(
+                "Verification needs source, interpretation and setup objects."
+            )
+        name, encoded = source.get("name"), source.get("data")
+        if (
+            not isinstance(name, str)
+            or not 0 < len(name) <= 255
+            or not isinstance(encoded, str)
+        ):
+            raise ValueError("Choose a named RGB PNG or PFM still.")
+        if len(encoded) > ((MAX_SOURCE_BYTES + 2) // 3) * 4:
+            raise ValueError("Still file exceeds the 48 MiB limit.")
+        try:
+            data = base64.b64decode(encoded, validate=True)
+        except ValueError as error:
+            raise ValueError(
+                "Could not read the uploaded still. Select the file again."
+            ) from error
+        rgb, facts = decode_still(data)
+        check_cancelled()
+        # PFM/PNG already contain RGB. A caller cannot request a second range/matrix conversion.
+        if interpretation.get("decoding") != "RGB; no color transform or range scaling":
+            raise ValueError(
+                "For stills, confirm RGB with no color transform or range scaling."
+            )
+        setup = _setup_from_payload(config)
+        result = verify_rgb(rgb, setup, interpretation, check_cancelled=check_cancelled)
+        result.provenance["source"] = {
+            "name": name,
+            "sha256": hashlib.sha256(data).hexdigest(),
+            "width": rgb.shape[1],
+            "height": rgb.shape[0],
+            **facts,
+        }
+        image = (
+            "data:image/png;base64,"
+            + base64.b64encode(display_png(result.display_rgb)).decode()
         )
-        return output.read_bytes(), filename
+        with self.lock:
+            if request_id in self.cancelled:
+                raise ValueError("Verification cancelled.")
+            self.result = request_id, result
+        return {
+            "request_id": request_id,
+            "width": rgb.shape[1],
+            "height": rgb.shape[0],
+            "image": image,
+            "provenance": result.provenance,
+        }
 
 
 class WorkspaceHandler(BaseHTTPRequestHandler):
     token = ""
+    verification: VerificationSession
 
     def do_GET(self) -> None:
         request_path = unquote(urlsplit(self.path).path)
@@ -161,7 +268,35 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
         self._send(200, asset.read_bytes(), content_type)
 
     def do_POST(self) -> None:
-        if self.path not in {"/preview", "/generate"}:
+        # Acquire before reading a large upload, so only one source is resident.
+        acquired = self.path == "/verify" and self.verification.busy.acquire(
+            blocking=False
+        )
+        if self.path == "/verify" and not acquired:
+            self._send_json(
+                409,
+                {
+                    "error": "Verification is busy. Cancel the current check or retry shortly."
+                },
+            )
+            return
+        try:
+            self._handle_post()
+        except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
+            pass  # Browser cancellation/disconnection; temporary files are scoped to the job.
+        finally:
+            if acquired:
+                self.verification.busy.release()
+
+    def _handle_post(self) -> None:
+        if self.path not in {
+            "/preview",
+            "/generate",
+            "/verify",
+            "/verify-pixel",
+            "/verify-cube",
+            "/verify-cancel",
+        }:
             self.send_error(404)
             return
         if self.headers.get_content_type() != "application/json":
@@ -174,7 +309,12 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
 
         try:
             length = int(self.headers.get("Content-Length", "0"))
-            if not 0 <= length <= 1_000_000:
+            maximum = (
+                ((MAX_SOURCE_BYTES + 2) // 3) * 4 + 1_000_000
+                if self.path == "/verify"
+                else 1_000_000
+            )
+            if not 0 <= length <= maximum:
                 raise ValueError("Request body is too large")
             payload = json.loads(self.rfile.read(length))
             if not isinstance(payload, dict):
@@ -182,12 +322,58 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
             if self.path == "/preview":
                 self._send_json(200, _preview_payload(payload))
                 return
-            cube, filename = _generate_download(payload)
-        except (json.JSONDecodeError, UnicodeDecodeError, ValueError) as error:
+            if self.path.startswith("/verify"):
+                request_id = payload.get("request_id")
+                if not isinstance(request_id, str) or not re.fullmatch(
+                    r"[A-Za-z0-9_-]{1,100}", request_id
+                ):
+                    raise ValueError("A unique verification request_id is required.")
+                if self.path == "/verify-cancel":
+                    self.verification.cancel(request_id)
+                    self._send_json(200, {"request_id": request_id, "cancelled": True})
+                    return
+                if self.path == "/verify":
+                    self._send_json(200, self.verification.verify(payload, request_id))
+                    return
+                result = self.verification.get(request_id)
+                if self.path == "/verify-pixel":
+                    x, y = payload.get("x"), payload.get("y")
+                    height, width, _ = result.source_rgb.shape
+                    if (
+                        type(x) is not int
+                        or type(y) is not int
+                        or not (0 <= x < width and 0 <= y < height)
+                    ):
+                        raise ValueError(
+                            "Pixel coordinates must be integers inside the original image, starting at 0."
+                        )
+                    self._send_json(
+                        200,
+                        {
+                            "request_id": request_id,
+                            "x": x,
+                            "y": y,
+                            "source_rgb": result.source_rgb[y, x].tolist(),
+                            "output_rgb": result.output_rgb[y, x].tolist(),
+                            "display_rgb": result.display_rgb[y, x].tolist(),
+                        },
+                    )
+                    return
+                cube = result.cube
+                filename = safe_output_name(result.provenance["settings"]["output"])
+            else:
+                cube, filename = _generate_download(payload)
+        except (
+            json.JSONDecodeError,
+            UnicodeDecodeError,
+            ValueError,
+            TypeError,
+            KeyError,
+        ) as error:
             self._send_json(400, {"error": str(error)})
             return
         except Exception as error:
-            self._send_json(500, {"error": f"LUT generation failed: {error}"})
+            self._send_json(500, {"error": f"LUT processing failed: {error}"})
             return
 
         self.send_response(200)
@@ -217,7 +403,11 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
 
 def create_server() -> tuple[ThreadingHTTPServer, str, str]:
     token = secrets.token_urlsafe(32)
-    handler = type("LaunchHandler", (WorkspaceHandler,), {"token": token})
+    handler = type(
+        "LaunchHandler",
+        (WorkspaceHandler,),
+        {"token": token, "verification": VerificationSession()},
+    )
     server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
     server.daemon_threads = True
     url = f"http://127.0.0.1:{server.server_port}/"
