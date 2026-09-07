@@ -22,12 +22,19 @@ pytestmark = pytest.mark.skipif(
 
 
 @pytest.fixture
-def media(tmp_path):
+def media(tmp_path, request):
     # S-Log3 camera codes: neutral ramp plus chromatic patches and excursions.
     # Lossless FFV1 makes the encoded YCbCr fixture exactly known.
     y = np.tile(np.array([0, 64, 171, 300, 420, 500, 940, 1023], dtype="<u2"), (16, 2))
     cb = np.full((16, 8), 552, dtype="<u2")
     cr = np.full((16, 8), 472, dtype="<u2")
+    pixel_format = "yuv422p10le"
+    if getattr(request, "param", None) == "spatial":
+        pixel_format = "yuv420p10le"
+        cb = (384 + 16 * np.arange(8)[None, :] + 8 * np.arange(8)[:, None]).astype(
+            "<u2"
+        )
+        cr = np.full((8, 8), 512, dtype="<u2")
     raw = tmp_path / "camera.raw"
     raw.write_bytes(y.tobytes() + cb.tobytes() + cr.tobytes())
     clip = tmp_path / "camera.mkv"
@@ -39,7 +46,7 @@ def media(tmp_path):
             "-f",
             "rawvideo",
             "-pixel_format",
-            "yuv422p10le",
+            pixel_format,
             "-video_size",
             "16x16",
             "-i",
@@ -191,6 +198,49 @@ def test_confirmed_override_cube_and_display(media, matrix, kr, kb, signal_range
     )
 
 
+@pytest.mark.parametrize("media", ["spatial"], indirect=True)
+def test_spatial_chroma_locations_reach_cube_pixels(media):
+    _, url, token, payload, y = media
+    blue = []
+    # Interior bilinear samples on a planar ramp have independently known
+    # positions. 4:2:0 center is offset half a luma pixel in both axes;
+    # left only vertically, top-left in neither axis.
+    for location, cx, cy in [
+        ("left", 3, 2.75),
+        ("center", 2.75, 2.75),
+        ("topleft", 3, 3),
+    ]:
+        payload["request_id"] = location
+        payload["interpretation"]["chroma_location"] = location
+        status, result = call(url, token, "verify-video", payload)
+        assert status == 200, result
+        assert result["provenance"]["interpretation"]["chroma_location"] == location
+        status, pixel = call(
+            url, token, "verify-pixel", {"request_id": location, "x": 6, "y": 6}
+        )
+        assert status == 200, pixel
+        luminance = (float(y[6, 6]) - 64) / 876
+        cb = (384 + 16 * cx + 8 * cy - 512) / 896
+        expected = [
+            luminance,
+            luminance - 2 * 0.0722 * (1 - 0.0722) / 0.7152 * cb,
+            luminance + 2 * (1 - 0.0722) * cb,
+        ]
+        np.testing.assert_allclose(pixel["source_rgb"], expected, atol=2e-6, rtol=0)
+        with _request(
+            url + "verify-cube", token=token, payload={"request_id": location}
+        ) as response:
+            cube = response.read()
+        np.testing.assert_allclose(
+            pixel["output_rgb"],
+            independent_cube(cube, np.array([pixel["source_rgb"]]))[0],
+            atol=1e-12,
+            rtol=0,
+        )
+        blue.append(pixel["source_rgb"][2])
+    assert len(set(blue)) == 3
+
+
 def test_missing_facts_stale_frame_source_and_cancel(media, monkeypatch):
     server, url, token, payload, _ = media
     for key, value in [
@@ -243,11 +293,55 @@ def test_missing_facts_stale_frame_source_and_cancel(media, monkeypatch):
     monkeypatch.setattr(session, "run", original)
     payload["request_id"] = "fresh-check"
     assert call(url, token, "verify-video", payload)[0] == 200
-    call(url, token, "video/start", {})
+    # Even reselecting the same ordinal expires the prior checked artifact.
+    assert (
+        call(
+            url, token, "video/frame", {"source_id": payload["source_id"], "index": 0}
+        )[0]
+        == 200
+    )
     assert (
         call(url, token, "verify-pixel", {"request_id": "fresh-check", "x": 0, "y": 0})[
             0
         ]
+        == 400
+    )
+    payload["request_id"] = "after-frame"
+    assert call(url, token, "verify-video", payload)[0] == 200
+    assert (
+        call(
+            url, token, "video/frame", {"source_id": payload["source_id"], "time": "99"}
+        )[0]
+        == 400
+    )
+    assert (
+        call(url, token, "verify-pixel", {"request_id": "after-frame", "x": 0, "y": 0})[
+            0
+        ]
+        == 400
+    )
+
+    def failed_decode(*args, **kwargs):
+        raise ValueError("Decoder unavailable for this frame")
+
+    monkeypatch.setattr(session, "run", failed_decode)
+    payload["request_id"] = "decode-error"
+    status, error = call(url, token, "verify-video", payload)
+    assert status == 400 and "Decoder unavailable" in error["error"]
+    assert (
+        call(
+            url, token, "verify-pixel", {"request_id": "decode-error", "x": 0, "y": 0}
+        )[0]
+        == 400
+    )
+    monkeypatch.setattr(session, "run", original)
+    payload["request_id"] = "before-replace"
+    assert call(url, token, "verify-video", payload)[0] == 200
+    call(url, token, "video/start", {})
+    assert (
+        call(
+            url, token, "verify-pixel", {"request_id": "before-replace", "x": 0, "y": 0}
+        )[0]
         == 400
     )
     assert call(url, token, "verify-video", payload)[0] == 400

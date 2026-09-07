@@ -210,7 +210,7 @@ class VideoSession:
     def decode_rgb(self, matrix, signal_range, chroma, check_cancelled=lambda: None):
         """Native planar samples to float RGB, without transfer or gamut conversion."""
         width, height = self.stream["width"], self.stream["height"]
-        conversion = f"zscale=matrixin={matrix}:rangein={signal_range}:chromalin={chroma}:matrix=gbr:range=full,format=gbrpf32le"
+        conversion = f"zscale=matrixin={matrix}:rangein={signal_range}:chromalin={chroma}:matrix=gbr:range=full:filter=bilinear,format=gbrpf32le"
         raw = self.run(
             "ffmpeg",
             [

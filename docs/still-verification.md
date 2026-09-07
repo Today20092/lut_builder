@@ -1,5 +1,7 @@
 # Camera-matched still verification
 
+For selected video frames, see [confirmed video verification](testing/video-verification.md). It reuses the verifier, pixel inspector, checked-cube download and SDR policy described here.
+
 In the Workbench, choose **Camera-matched**, select a supported still, select the source transfer function, gamut and range, then confirm the recording/export facts. Choose **Verify still**. The full frame is processed on the local Python server at its original resolution. No browser-decoded camera pixels enter the LUT.
 
 This verifies the declared source interpretation against the serialized LUT. It does not identify the recording profile, certify physical sensor exposure, or reproduce another application's display configuration.
