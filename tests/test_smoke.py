@@ -1,5 +1,4 @@
 # tests/test_smoke.py
-import json
 import tempfile
 from pathlib import Path
 
@@ -51,6 +50,7 @@ def test_oklch_to_hex():
 
 def test_hex_validation():
     from lut_builder.cli import pick_color  # noqa: F401 — just ensure it imports
+
     # Valid hex digits
     valid = "ff6600"
     assert len(valid) == 6
@@ -64,21 +64,23 @@ def test_hex_validation():
 def test_engine_runs():
     with tempfile.TemporaryDirectory() as tmpdir:
         out = Path(tmpdir) / "test.cube"
-        result = generate_lut(LutSetup(
-            profile_name="Sony S-Log3",
-            target_name="Rec.709",
-            cube_size=17,
-            bands=[{"stop": 0.0, "color": "#ff0000", "width": 0.25}],
-            band_mode="stops",
-            low_signal_warning=False,
-            low_signal_hex="",
-            high_signal_warning=False,
-            high_signal_hex="",
-            monochrome=True,
-            output_filename=str(out),
-            legal_range=False,
-            fill_mode=False,
-        ))
+        result = generate_lut(
+            LutSetup(
+                profile_name="Sony S-Log3",
+                target_name="Rec.709",
+                cube_size=17,
+                bands=[{"stop": 0.0, "color": "#ff0000", "width": 0.25}],
+                band_mode="stops",
+                low_signal_warning=False,
+                low_signal_hex="",
+                high_signal_warning=False,
+                high_signal_hex="",
+                monochrome=True,
+                output_filename=str(out),
+                legal_range=False,
+                fill_mode=False,
+            )
+        )
         assert Path(result).exists()
         assert Path(result).stat().st_size > 0
 
@@ -190,6 +192,7 @@ def test_log_target_uses_configured_transfer(monkeypatch, tmp_path):
     )
 
     generated = colour.read_LUT(str(output_path))
+    assert isinstance(generated, colour.LUT3D)
     assert generated.table == pytest.approx(colour.LUT3D(size=17).table, abs=1e-6)
 
 

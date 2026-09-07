@@ -4,12 +4,23 @@ import colour
 import numpy as np
 from datetime import datetime
 from pathlib import Path
+from dataclasses import replace
+import tempfile
 from .data import (
     MIDDLE_GREY,
     PROFILE_CATALOG,
     hex_to_rgb,
 )
 from .setup import LutSetup, map_exposure
+
+
+def serialize_lut(setup: LutSetup) -> bytes:
+    """Return the ordinary export, including its header and sampled table."""
+    with tempfile.TemporaryDirectory(prefix="lut-builder-") as directory:
+        output = generate_lut(
+            replace(setup, output_filename=str(Path(directory) / "export.cube"))
+        )
+        return output.read_bytes()
 
 
 def _srgb_overlay_to_target(hex_code: str, target, target_space) -> np.ndarray:
@@ -114,7 +125,9 @@ def generate_lut(setup: LutSetup) -> Path:
     if encoding == "oetf":
         final_data = colour.models.oetf(rgb_linear_tgt, function=target.transfer)
     else:
-        final_data = colour.models.log_encoding(rgb_linear_tgt, function=target.transfer)
+        final_data = colour.models.log_encoding(
+            rgb_linear_tgt, function=target.transfer
+        )
 
     # ------------------------------------------------------------------
     # 6b. Compute IRE values (only when band_mode == "ire")

@@ -51,15 +51,30 @@ Bare filenames are written to `output/luts/`. Enter an explicit path or use `--o
 
 | Platform | Launcher | First use |
 | --- | --- | --- |
+| Windows workspace | `workspace.bat` | Double-click it after installing uv. |
 | Windows | `build.bat` | Double-click it after installing uv. |
 | macOS | `build.command` | Run `chmod +x build.command` once, then double-click it. |
 
-Both launchers sync dependencies and start the same interactive CLI.
+`workspace.bat` opens the browser workspace; the build launchers start the interactive CLI.
+
+`uv run lut-builder workspace` uses [http://127.0.0.1:8765/](http://127.0.0.1:8765/).
+Keep using this address in the same browser to reuse named palettes after restarting.
+If the port is occupied, close the other workspace or application using it and retry.
+The launcher reports the conflict instead of changing the port. Clearing browser storage
+or using a different browser removes access to that browser's saved palettes.
+Applied band colors remain portable through Export JSON and Import JSON.
+
+See the [integrated acceptance report](docs/testing/integration.md) for checks and supported limits.
+
+The Workbench's **Camera-matched** mode checks an untagged 16-bit RGB PNG or float32 RGB PFM against the actual exported cube. PNG decoding requires local FFmpeg. Confirm the source transfer, gamut and unchanged camera code values before checking. See [still verification](docs/still-verification.md) for supported formats, the explicit SDR view, precision tests and limitations.
+
+Choose **Video** within Camera-matched mode to check one selected frame using local FFmpeg/FFprobe. Confirm transfer, gamut, YCbCr matrix, transport range, chroma location and native bit depth. The checker preserves float RGB, applies the same exported cube, and offers numerical pixels and the exact checked artifact. See [video verification](docs/testing/video-verification.md) for supported media, bounds and test evidence.
 
 ## Commands
 
 | Command | Purpose |
 | --- | --- |
+| `uv run lut-builder workspace` | Open the local browser workspace. |
 | `uv run lut-builder build` | Build a LUT interactively. |
 | `uv run lut-builder build --config setup.json` | Regenerate a saved setup without prompts. |
 | `uv run lut-builder build --config setup.json --output-dir ~/luts` | Regenerate into a chosen directory. |
@@ -136,7 +151,7 @@ Base:          Monochrome
 Range:         Full/data
 ```
 
-Later bands win where normal bands overlap. Encoded-signal warnings are applied after exposure bands and therefore have final priority.
+Bands are applied from low to high exposure, so higher-position bands win where ranges overlap. Bands at the same position retain creation order. Encoded-signal warnings are applied after exposure bands and therefore have final priority.
 
 ## Supported Camera Profiles
 
@@ -253,19 +268,31 @@ lut_builder/
 │   └── setup.py     # Shared setup validation and exposure mapping
 ├── tests/           # Numerical, semantic, CLI, and regression checks
 ├── docs/            # Research and agent guidance
+├── frontend/        # Shadcn workspace source
 ├── build.bat        # Windows launcher
 ├── build.command    # macOS launcher
+├── workspace.bat    # Windows browser workspace launcher
 └── pyproject.toml   # Package metadata and dependencies
 ```
 
 ## Development
 
+Use UV for Python dependencies and execution, Ruff for formatting and linting,
+and ty for type checking. Tool versions are recorded in `uv.lock`.
+
 ```bash
-uv sync
+uv sync --locked
 uv run pytest -q
+uv run ruff format --check .
+uv run ruff check .
+uv run ty check
 uv run lut-builder --help
 uv run lut-builder list
 ```
+
+Rebuild the bundled browser workspace after frontend changes with `cd frontend`, `pnpm install --frozen-lockfile`, and `pnpm build`.
+
+Run `uv run ruff format .` to apply formatting before submitting changes.
 
 The current suite covers config compatibility, catalog validation, log decoding, exposure mapping, signal-range semantics, target-gamut overlays, interpolation boundaries, and CLI output paths.
 

@@ -25,7 +25,22 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["src/lut_builder"]
 
+[tool.ruff]
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F"]
+
+[tool.ruff.lint.per-file-ignores]
+# Install the colour-science warning filter before importing the package.
+"src/lut_builder/cli.py" = ["E402"]
+
+[tool.ty.environment]
+python-version = "3.12"
+
 [dependency-groups]
 dev = [
     "pytest>=9.0.2",
+    "ruff>=0.16.6",
+    "ty>=0.0.78",
 ]

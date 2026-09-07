@@ -146,6 +146,7 @@ To find valid OETF function names:
 
 ```python
 import colour
+
 list(colour.OETFS.keys())
 ```
 

@@ -29,12 +29,8 @@ def test_encoded_signal_warnings_trigger_when_one_channel_crosses_threshold(tmp_
     )
 
     lut = colour.read_LUT(output)
-    np.testing.assert_allclose(
-        lut.apply([0.0, 0.5, 0.5]), [17 / 255, 0, 1], atol=1e-6
-    )
-    np.testing.assert_allclose(
-        lut.apply([0.5, 0.5, 1.0]), [1, 34 / 255, 0], atol=1e-6
-    )
+    np.testing.assert_allclose(lut.apply([0.0, 0.5, 0.5]), [17 / 255, 0, 1], atol=1e-6)
+    np.testing.assert_allclose(lut.apply([0.5, 0.5, 1.0]), [1, 34 / 255, 0], atol=1e-6)
 
 
 def test_preview_labels_warning_thresholds_as_encoded_signal():
@@ -85,7 +81,9 @@ def test_black_middle_grey_and_white_follow_selected_range(
 
     comments = output.read_text()
     assert "diagnostic scene-exposure transform" in comments
-    assert ("0=code 64, 100=code 940" if legal_range else "0=code 0, 100=code 1023") in comments
+    assert (
+        "0=code 64, 100=code 940" if legal_range else "0=code 0, 100=code 1023"
+    ) in comments
 
 
 @pytest.mark.parametrize("profile_name", PROFILE_CATALOG.source_names())
@@ -105,7 +103,9 @@ def test_legal_range_constrains_non_neutral_gamut_excursions(
                 legal_range=legal_range,
             )
         )
-        luts[legal_range] = colour.read_LUT(output)
+        lut = colour.read_LUT(output)
+        assert isinstance(lut, colour.LUT3D)
+        luts[legal_range] = lut
 
     non_neutral = np.ptp(colour.LUT3D(size=17).table, axis=-1) > 0
     excursions = non_neutral & np.any(np.isin(luts[False].table, [0, 1]), axis=-1)

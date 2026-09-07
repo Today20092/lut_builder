@@ -165,6 +165,7 @@ class CameraSource:
     encoded_signal_ceiling: float
     sources: tuple[str, ...]
 
+
 @dataclass(frozen=True)
 class TargetDisplay:
     name: str
@@ -246,7 +247,9 @@ class ProfileCatalog:
                 errors.append(
                     f"target [{name}] transfer must be a string; got {transfer!r}"
                 )
-            elif transfer not in (colour.OETFS if encoding == "oetf" else colour.LOG_ENCODINGS):
+            elif transfer not in (
+                colour.OETFS if encoding == "oetf" else colour.LOG_ENCODINGS
+            ):
                 errors.append(
                     f"target [{name}] transfer {transfer!r} is not supported for {encoding} encoding; choose a colour.{'OETFS' if encoding == 'oetf' else 'LOG_ENCODINGS'} key"
                 )
@@ -294,7 +297,11 @@ class ProfileCatalog:
 
 
 def _is_normalized_number(value: object) -> bool:
-    return not isinstance(value, bool) and isinstance(value, (int, float)) and 0 <= value <= 1
+    return (
+        not isinstance(value, bool)
+        and isinstance(value, (int, float))
+        and 0 <= value <= 1
+    )
 
 
 PROFILE_CATALOG = ProfileCatalog(_SOURCE_DATA, _TARGET_DATA)
