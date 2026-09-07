@@ -212,6 +212,96 @@ test("video controls show server-selected identity and reject stale frames after
   }
 })
 
+test("camera video selection confirms decoding, verifies, invalidates and rejects cancelled or stale replies", async () => {
+  const oldFetch = globalThis.fetch, oldFile = globalThis.File
+  globalThis.File = window.File
+  const calls = []
+  const selected = {
+    source_id: "camera-source", display: "data:image/png;base64,NEVER-VERIFY-THIS",
+    frame: { source_id: "camera-source", index: 0, pts: "5000", time_base: "1/1000", first_pts: "5000", relative_time: "0", seconds: 0, count: 4 },
+    facts: { stream: { color_space: "bt709", color_range: "tv", chroma_location: "left" }, frame: { color_space: "bt2020nc" } },
+    source: { precision_bits: 10, pixel_format: "yuv420p10le" },
+    provenance: { matrix: "bt2020nc", range: "limited", chroma_location: "left", view: "Illustration only." },
+  }
+  globalThis.fetch = async (path, options) => {
+    const payload = options.body instanceof window.File ? null : JSON.parse(options.body)
+    if (path === "/video/start") return { ok: true, json: async () => ({ source_id: selected.source_id }) }
+    if (path.startsWith("/video/upload")) return { ok: true, json: async () => selected }
+    if (path === "/verify-video" || path === "/video/frame") return new Promise((resolve) => calls.push({ path, payload, resolve }))
+    calls.push({ path, payload })
+    return { ok: true, json: async () => ({ cancelled: true }) }
+  }
+  const container = document.createElement("div")
+  document.body.append(container)
+  const root = createRoot(container)
+  let camera = { setup: { profile: "Sony", target: "Rec.709", cube_size: 17, bands: [] }, interpretations: { Sony: { transfer: "S-Log3", gamut: "S-Gamut3.Cine" } } }
+  const render = () => act(() => root.render(React.createElement(LutImagePreview, { preview: null, camera })))
+  const button = (name) => [...container.querySelectorAll("button")].find((b) => b.textContent === name)
+  const click = (name) => act(() => button(name).click())
+  const set = async (label, value) => {
+    const input = [...container.querySelectorAll("label")].find((e) => e.textContent.startsWith(label)).querySelector("select")
+    await act(() => { input.value = value; input.dispatchEvent(new window.Event("change", { bubbles: true })) })
+  }
+  const confirm = () => act(() => container.querySelector("input[type=checkbox]").click())
+  const finish = (job) => act(() => job.resolve({ ok: true, json: async () => ({ request_id: job.payload.request_id, image: "data:image/png;base64,verified", width: 16, height: 16, provenance: { warnings: [], comparison_unavailable: "No camera reference viewing transform.", source: { frame: job.payload.frame } } }) }))
+  try {
+    await render()
+    const input = container.querySelector("input[accept='.mp4,.mov,.mkv']")
+    Object.defineProperty(input, "files", { value: [new window.File(["video"], "camera.mkv")] })
+    await act(() => input.dispatchEvent(new window.Event("change", { bubbles: true })))
+    assert.equal(container.querySelector("canvas, img"), null)
+    assert.match(container.textContent, /Suggestion from metadata: bt2020nc/)
+    assert.equal(button("Verify selected frame").disabled, true)
+    for (const [label, value] of [["YCbCr matrix", "bt709"], ["Signal range", "full"], ["Chroma location", "center"], ["Component bit depth", "10"], ["Source transfer function", "S-Log3"], ["Source gamut", "S-Gamut3.Cine"]]) await set(label, value)
+    await confirm()
+    await click("Verify selected frame")
+    let job = calls.at(-1)
+    assert.deepEqual(job.payload.frame, selected.frame)
+    assert.equal(job.payload.source, undefined)
+    assert.equal(job.payload.interpretation.signal_range, "full")
+    assert.equal(job.payload.interpretation.bit_depth, 10)
+    assert.doesNotMatch(JSON.stringify(job.payload), /NEVER-VERIFY/)
+    await finish(job)
+    assert.ok(container.querySelector("img"))
+    assert.equal(button("Original").disabled, true)
+    assert.ok(button("Inspect pixel"))
+    assert.ok(button("Download checked cube"))
+    camera = { ...camera, setup: { ...camera.setup, legal_range: true } }
+    await render()
+    assert.equal(container.querySelector("img"), null)
+    await click("Verify selected frame")
+    job = calls.at(-1)
+    await set("Signal range", "limited")
+    assert.equal(container.querySelector("input[type=checkbox]").checked, false)
+    await finish(job)
+    assert.equal(container.querySelector("img"), null)
+    await confirm()
+    await click("Verify selected frame")
+    job = calls.at(-1)
+    await click("Cancel verification")
+    await finish(job)
+    assert.equal(container.querySelector("img"), null)
+    await click("Verify selected frame")
+    job = calls.at(-1)
+    await click("Next frame")
+    assert.equal(button("Verify selected frame"), undefined)
+    await finish(job)
+    assert.equal(container.querySelector("img"), null)
+    const frameJob = calls.findLast((call) => call.path === "/video/frame")
+    await act(() => frameJob.resolve({ ok: true, json: async () => ({ ...selected, frame: { ...selected.frame, index: 1, pts: "5300", relative_time: "3/10", seconds: .3 } }) }))
+    assert.match(container.textContent, /Selected 0.300000 s/)
+    assert.equal(button("Verify selected frame").disabled, true)
+    await click("Release video")
+    assert.equal(button("Verify selected frame"), undefined)
+    assert.ok(calls.some((call) => call.path === "/verify-cancel"))
+  } finally {
+    await act(() => root.unmount())
+    container.remove()
+    globalThis.fetch = oldFetch
+    globalThis.File = oldFile
+  }
+})
+
 test("image preview samples and clamps the current LUT colors", () => {
   assert.equal(previewColorAt(["#000000", "#777777", "#ffffff"], 0), "#000000")
   assert.equal(previewColorAt(["#000000", "#777777", "#ffffff"], 0.5), "#777777")

@@ -59,6 +59,8 @@ Bare filenames are written to `output/luts/`. Enter an explicit path or use `--o
 
 The Workbench's **Camera-matched** mode checks an untagged 16-bit RGB PNG or float32 RGB PFM against the actual exported cube. PNG decoding requires local FFmpeg. Confirm the source transfer, gamut and unchanged camera code values before checking. See [still verification](docs/still-verification.md) for supported formats, the explicit SDR view, precision tests and limitations.
 
+Choose **Video** within Camera-matched mode to check one selected frame using local FFmpeg/FFprobe. Confirm transfer, gamut, YCbCr matrix, transport range, chroma location and native bit depth. The checker preserves float RGB, applies the same exported cube, and offers numerical pixels and the exact checked artifact. See [video verification](docs/testing/video-verification.md) for supported media, bounds and test evidence.
+
 ## Commands
 
 | Command | Purpose |

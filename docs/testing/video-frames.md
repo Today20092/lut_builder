@@ -1,5 +1,7 @@
 # Video frame selection, ticket 37
 
+Selected frames now connect to the exported-cube checker. See [confirmed video verification](video-verification.md) for the camera workflow, confirmed decoding contract and ticket 38 evidence. The ticket 37 record below describes the original extraction handoff.
+
 Implemented on `codex/workbench-ticket-5` from `c944573fe15fbdecfd25b6632b83518a956fbfbc`, after blocker 34. Scope: [ticket 37](https://github.com/Today20092/lut_builder/issues/37) under [specification 33](https://github.com/Today20092/lut_builder/issues/33).
 
 ## Behavior

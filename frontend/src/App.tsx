@@ -107,7 +107,8 @@ function srgbToLinear(value: number) {
   return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4
 }
 
-type VideoFrame = {
+export type VideoFrame = {
+  name?: string
   source_id: string
   display: string
   frame: { index: number; pts: string; time_base: string; first_pts: string; relative_time: string; seconds: number; count: number }
@@ -136,7 +137,7 @@ function releaseVideo(source_id: string) {
   }).catch(() => {}) // Server expiry also cleans up if the page has disconnected.
 }
 
-export function LutImagePreview({ preview }: { preview: Preview | null }) {
+export function LutImagePreview({ preview, camera }: { preview: Preview | null; camera?: { setup: Setup; interpretations: SourceInterpretations } }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const dialogRef = useRef<HTMLDialogElement>(null)
@@ -154,6 +155,7 @@ export function LutImagePreview({ preview }: { preview: Preview | null }) {
   const [video, setVideo] = useState<VideoFrame | null>(null)
   const [videoBusy, setVideoBusy] = useState("")
   const [videoTime, setVideoTime] = useState("0")
+  const [frameRevision, setFrameRevision] = useState(0)
 
   useEffect(() => {
     const cleanup = () => {
@@ -192,7 +194,7 @@ export function LutImagePreview({ preview }: { preview: Preview | null }) {
       videoSource.current = source_id
       const result = await videoRequest<VideoFrame>(`upload?source_id=${encodeURIComponent(source_id)}`, file, controller.signal)
       if (request !== selection.current) return
-      setVideo(result)
+      setVideo({ ...result, name: file.name })
       setVideoTime("0")
       setImageUrl(result.display)
       setImageName(file.name)
@@ -209,6 +211,7 @@ export function LutImagePreview({ preview }: { preview: Preview | null }) {
 
   async function selectVideoFrame(position: { time: string } | { index: number }) {
     const request = ++selection.current
+    setFrameRevision((value) => value + 1)
     setVideoBusy("Decoding the selected presentation frame…")
     setImageError("")
     const controller = new AbortController()
@@ -216,7 +219,7 @@ export function LutImagePreview({ preview }: { preview: Preview | null }) {
     try {
       const result = await videoRequest<VideoFrame>("frame", { source_id: videoSource.current, ...position }, controller.signal)
       if (request !== selection.current) return
-      setVideo(result)
+      setVideo({ ...result, name: video?.name })
       setImageUrl(result.display)
     } catch (error) {
       if (request === selection.current) setImageError(`${error instanceof Error ? error.message : "Frame extraction failed"} The displayed frame is unchanged.`)
@@ -301,6 +304,7 @@ export function LutImagePreview({ preview }: { preview: Preview | null }) {
   }
 
   const content = <div className="grid min-w-0 gap-3">
+    {!camera && <>
     <canvas ref={canvasRef} className="aspect-video w-full rounded-md bg-black" height="540" width="960" aria-label={`Demonstration image: ${comparison}`} />
     <fieldset className="flex flex-wrap gap-2">
       <legend className="mb-2 text-sm font-medium">Compare demonstration</legend>
@@ -313,22 +317,23 @@ export function LutImagePreview({ preview }: { preview: Preview | null }) {
       <input type="range" min="0" max="100" value={opacity} onChange={(event) => setOpacity(Number(event.target.value))} />
     </label>
     <p className="text-xs text-muted-foreground">Opacity changes this view only, never the exported LUT.</p>
+    </>}
     <div className="flex flex-wrap gap-2">
-      <Button type="button" variant="outline" onClick={() => inputRef.current?.click()}>Choose image</Button>
+      {!camera && <Button type="button" variant="outline" onClick={() => inputRef.current?.click()}>Choose image</Button>}
       <Button type="button" variant="outline" onClick={() => videoInput.current?.click()}>Choose video</Button>
-      {imageUrl !== referenceImage && <Button type="button" variant="ghost" onClick={() => { stopVideo(); setImageUrl(referenceImage); setImageName("Reference photo"); setImageError("") }}>Reference photo</Button>}
+      {!camera && imageUrl !== referenceImage && <Button type="button" variant="ghost" onClick={() => { stopVideo(); setImageUrl(referenceImage); setImageName("Reference photo"); setImageError("") }}>Reference photo</Button>}
       <input ref={inputRef} className="sr-only" aria-label="Choose demonstration still image" type="file" accept="image/*" onChange={(event) => {
         const file = event.target.files?.[0]
         if (file) chooseImage(file)
         event.target.value = ""
       }} />
-      <input ref={videoInput} className="sr-only" aria-label="Choose local demonstration video" type="file" accept=".mp4,.mov,.mkv" onChange={(event) => {
+      <input ref={videoInput} className="sr-only" aria-label={camera ? "Choose local camera video" : "Choose local demonstration video"} type="file" accept=".mp4,.mov,.mkv" onChange={(event) => {
         const file = event.target.files?.[0]
         if (file) void chooseVideo(file)
         event.target.value = ""
       }} />
     </div>
-    <p className="break-all text-xs text-muted-foreground" role="status">{imageName} · {video ? "Video stays on this computer in temporary server storage." : "Still images stay in this browser session. Maximum 25 MB."}</p>
+    <p className="break-all text-xs text-muted-foreground" role="status">{camera && !video ? "No camera video selected." : imageName} · {camera || video ? "Video stays on this computer in temporary server storage." : "Still images stay in this browser session. Maximum 25 MB."}</p>
     <p className="text-xs text-muted-foreground">Video: MP4/MOV/MKV, H.264, HEVC, ProRes 422 or FFV1. Progressive, square pixels, no rotation. Up to 256 MB, 1920 × 1080, 120 seconds and 10,000 frames. Processing limit: 60 seconds per stage. One video per app launch; expires after 15 idle minutes.</p>
     {videoBusy && <div className="flex flex-wrap items-center gap-2"><p role="status" className="text-sm">{videoBusy}</p><Button type="button" variant="outline" onClick={() => { stopVideo(); setImageUrl(referenceImage); setImageName("Reference photo"); setImageError("Video cancelled and temporary data released.") }}>Cancel video</Button></div>}
     {video && <div className="grid gap-3 rounded-md border p-3">
@@ -350,24 +355,26 @@ export function LutImagePreview({ preview }: { preview: Preview | null }) {
         </dl>
         <p className="mt-2 text-xs">Decoded component depth: {video.source.precision_bits} bits. Camera profile suggestions: none. Missing metadata stays unknown; codec and matrix do not identify camera gamma or gamut.</p>
       </details>
-      <details><summary className="cursor-pointer text-sm">Demonstration decoding assumptions</summary>
+      {!camera && <details><summary className="cursor-pointer text-sm">Demonstration decoding assumptions</summary>
         <p className="mt-2 text-xs">Unconfirmed matrix {video.provenance.matrix}, range {video.provenance.range}, chroma location {video.provenance.chroma_location}. Supported frame tags take precedence over stream tags; missing or unsupported tags use BT.709 / limited / left for this illustration.</p>
         <p className="mt-2 text-xs">{video.provenance.view} Native {video.source.pixel_format} samples are retained separately for later verification. No exported LUT has been applied.</p>
-      </details>
+      </details>}
     </div>}
     {imageError && <p className="text-sm text-destructive" role="alert">{imageError}</p>}
+    {camera && video && !videoBusy && !imageError && <CameraVerification key={`${video.source_id}:${frameRevision}`} {...camera} video={video} />}
   </div>
 
   return (
-    <aside className="min-w-0 self-start @min-[64rem]:sticky @min-[64rem]:top-6" aria-label="Demonstration preview">
+    <aside className="min-w-0 self-start @min-[64rem]:sticky @min-[64rem]:top-6" aria-label={camera ? "Camera video selection" : "Demonstration preview"}>
       <Card className="overflow-hidden border-white/15 bg-card/95 shadow-2xl backdrop-blur">
         <CardHeader className="flex flex-wrap items-center justify-between gap-3 py-3">
           <div>
-            <CardTitle className="text-base">Demonstration</CardTitle>
-            <CardDescription>Illustrative band colors on an image or selected video frame.</CardDescription>
+            <CardTitle className="text-base">{camera ? "Camera video frame" : "Demonstration"}</CardTitle>
+            <CardDescription>{camera ? "Select a native frame, confirm its interpretation, then verify." : "Illustrative band colors on an image or selected video frame."}</CardDescription>
           </div>
           <Button
             ref={expandRef}
+            hidden={!!camera}
             type="button"
             variant="ghost"
             onClick={() => { setExpanded(true); dialogRef.current?.showModal() }}
@@ -376,7 +383,7 @@ export function LutImagePreview({ preview }: { preview: Preview | null }) {
           </Button>
         </CardHeader>
         <CardContent className="grid gap-3 pb-4">
-          <p className="text-sm text-muted-foreground">A graded image cannot verify original camera exposure. This demonstration illustrates relative brightness and band colors; it does not apply the exported LUT.</p>
+          {!camera && <p className="text-sm text-muted-foreground">A graded image cannot verify original camera exposure. This demonstration illustrates relative brightness and band colors; it does not apply the exported LUT.</p>}
           {!expanded && content}
         </CardContent>
       </Card>
@@ -394,12 +401,14 @@ export function LutImagePreview({ preview }: { preview: Preview | null }) {
 
 function WorkbenchPreview({ preview, setup, catalog }: { preview: Preview | null; setup: Setup; catalog: Catalog }) {
   const [mode, setMode] = useState("Demonstration")
+  const [sourceKind, setSourceKind] = useState("Still")
   return <div className="grid min-w-0 self-start gap-3 @min-[64rem]:sticky @min-[64rem]:top-6">
     <fieldset className="flex flex-wrap gap-2">
       <legend className="mb-2 text-sm font-medium">Preview mode</legend>
       {["Demonstration", "Camera-matched"].map((choice) => <label key={choice} className="flex h-9 cursor-pointer items-center gap-2 rounded-md border px-3 text-sm has-checked:bg-accent has-focus-visible:ring-2 has-focus-visible:ring-ring"><input type="radio" name="preview-mode" checked={mode === choice} onChange={() => setMode(choice)} />{choice}</label>)}
     </fieldset>
-    {mode === "Demonstration" ? <LutImagePreview preview={preview} /> : <CameraVerification setup={setup} interpretations={catalog.source_interpretations ?? {}} />}
+    {mode === "Camera-matched" && <fieldset className="flex gap-3"><legend>Camera source</legend>{["Still", "Video"].map((kind) => <label key={kind} className="flex h-9 items-center gap-2"><input type="radio" name="camera-source" checked={sourceKind === kind} onChange={() => setSourceKind(kind)} />{kind}</label>)}</fieldset>}
+    {mode === "Demonstration" ? <LutImagePreview key="demo" preview={preview} /> : sourceKind === "Video" ? <LutImagePreview key="camera" preview={null} camera={{ setup, interpretations: catalog.source_interpretations ?? {} }} /> : <CameraVerification setup={setup} interpretations={catalog.source_interpretations ?? {}} />}
   </div>
 }
 
