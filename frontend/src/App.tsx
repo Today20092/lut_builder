@@ -9,6 +9,7 @@ import {
 import { Popover } from "@base-ui/react/popover"
 
 import { Button } from "@/components/ui/button"
+import { PaletteEditor } from "./PaletteEditor"
 import { BandNumberInput } from "./BandNumberInput"
 import {
   Card,
@@ -22,10 +23,8 @@ import { Spinner } from "@/components/ui/spinner"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import referenceImage from "@/assets/lut-preview-reference.jpg"
 import {
-  applyColorPreset,
   applyBandPreset,
   applyFillPreset,
-  activeRampAnchors,
   bandId,
   changeMode,
   contrastTextColor,
@@ -36,24 +35,16 @@ import {
   hsvToHex,
   importSetup,
   isHexColor,
-  maxSrgbChroma,
-  oklabSeparation,
   resizeBandWidth,
   removeBand,
   snapBandValue,
   stepBandValue,
   orderBands,
-  oklchToHex,
-  sampleOklabRamp,
   updateBand,
   updateFillBoundary,
-  vividRampAnchors,
-  widestSrgbRamp,
-  type LightnessProfile,
   type FillPreset,
   type BandPreset,
   type Mode,
-  type OklchAnchor,
   type PaletteColor,
   type Setup,
 } from "@/editor"
@@ -689,91 +680,6 @@ function InfoTooltip({ text }: { text: string }) {
   )
 }
 
-function OklchEndpointPicker({
-  points,
-  onChange,
-}: {
-  points: [OklchAnchor, OklchAnchor]
-  onChange: (points: [OklchAnchor, OklchAnchor]) => void
-}) {
-  const canvasRef = useRef<HTMLCanvasElement>(null)
-  const sharedChroma = points[0].c
-  const maximumSharedChroma = Math.min(0.35, maxSrgbChroma(points[0]), maxSrgbChroma(points[1]))
-  const separation = oklabSeparation(points[0], points[1]) * 100
-
-  useEffect(() => {
-    const canvas = canvasRef.current
-    const context = canvas?.getContext("2d")
-    if (!canvas || !context) return
-    const image = context.createImageData(canvas.width, canvas.height)
-    for (let y = 0; y < canvas.height; y += 1) {
-      for (let x = 0; x < canvas.width; x += 1) {
-        const hex = oklchToHex({ l: 1 - y / (canvas.height - 1), c: sharedChroma, h: x / (canvas.width - 1) * 360 })
-        const offset = (y * canvas.width + x) * 4
-        image.data[offset] = Number.parseInt(hex.slice(1, 3), 16)
-        image.data[offset + 1] = Number.parseInt(hex.slice(3, 5), 16)
-        image.data[offset + 2] = Number.parseInt(hex.slice(5, 7), 16)
-        image.data[offset + 3] = 255
-      }
-    }
-    context.putImageData(image, 0, 0)
-  }, [sharedChroma])
-
-  function move(event: PointerEvent<HTMLButtonElement>, index: number) {
-    const bounds = event.currentTarget.parentElement!.getBoundingClientRect()
-    const h = Math.max(0, Math.min(359, (event.clientX - bounds.left) / bounds.width * 360))
-    const l = Math.max(0, Math.min(1, 1 - (event.clientY - bounds.top) / bounds.height))
-    onChange(points.map((point, pointIndex) => pointIndex === index ? { ...point, h, l } : point) as [OklchAnchor, OklchAnchor])
-  }
-
-  return (
-    <div className="grid max-w-xl gap-3">
-      <div
-        aria-label="Custom OKLCH endpoints: horizontal is hue and vertical is lightness"
-        className="relative h-56 overflow-hidden rounded-xl border border-neutral-700 bg-black bg-clip-padding"
-      >
-        <canvas aria-hidden="true" className="pointer-events-none absolute inset-0 size-full" height="112" ref={canvasRef} width="180" />
-        {points.map((point, index) => (
-          <button
-            aria-label={`Drag ${index === 0 ? "shadow" : "highlight"} endpoint`}
-            className="absolute size-7 -translate-x-1/2 -translate-y-1/2 touch-none rounded-full border-2 border-white shadow-[0_0_0_2px_#000] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            key={index}
-            style={{ backgroundColor: oklchToHex(point), left: `${point.h / 360 * 100}%`, top: `${(1 - point.l) * 100}%` }}
-            type="button"
-            onPointerDown={(event) => { event.currentTarget.setPointerCapture(event.pointerId); move(event, index) }}
-            onPointerMove={(event) => { if (event.currentTarget.hasPointerCapture(event.pointerId)) move(event, index) }}
-          />
-        ))}
-      </div>
-      <div className="grid grid-cols-[1fr_auto] items-end gap-3">
-        <label className="grid gap-1 text-xs font-medium">Shared chroma: {sharedChroma.toFixed(2)}
-          <input
-            aria-label="Custom ramp chroma"
-            max="0.35"
-            min="0"
-            step="0.01"
-            type="range"
-            value={sharedChroma}
-            onChange={(event) => onChange(points.map((point) => ({ ...point, c: Number(event.target.value) })) as [OklchAnchor, OklchAnchor])}
-          />
-        </label>
-        <div className="flex gap-2">
-          <Button type="button" size="sm" variant="outline" onClick={() => onChange(points.map((point) => ({ ...point, c: maximumSharedChroma })) as [OklchAnchor, OklchAnchor])}>
-            Max vividness
-          </Button>
-          <Button type="button" size="sm" variant="outline" onClick={() => onChange(widestSrgbRamp())}>
-            Max sRGB range
-          </Button>
-        </div>
-      </div>
-      <div className="flex justify-between text-xs text-muted-foreground">
-        {points.map((point, index) => <span key={index}>{index === 0 ? "Shadow" : "Highlight"}: OKLCH({point.l.toFixed(2)} {point.c.toFixed(2)} {Math.round(point.h)}°)</span>)}
-      </div>
-      <div className="text-xs text-muted-foreground">OKLab separation: {separation.toFixed(1)} · Lightness difference: {(Math.abs(points[1].l - points[0].l) * 100).toFixed(1)}</div>
-    </div>
-  )
-}
-
 export function App() {
   const catalog = window.LUT_BUILDER_CATALOG
   const [setup, setSetup] = useState<Setup>(window.LUT_BUILDER_SETUP)
@@ -782,15 +688,8 @@ export function App() {
   const [status, setStatus] = useState("")
   const [isGenerating, setIsGenerating] = useState(false)
   const [stopIncrement, setStopIncrement] = useState<1 | 0.5 | 0.25>(0.25)
-  const [colorPreset, setColorPreset] = useState<"false-color" | "gradient">("gradient")
   const [fillPreset, setFillPreset] = useState<FillPreset>("standard")
   const [bandPreset, setBandPreset] = useState<BandPreset>("standard")
-  const [rampPreset, setRampPreset] = useState<"vivid" | "exposure" | "custom">("vivid")
-  const [lightnessProfile, setLightnessProfile] = useState<LightnessProfile>("custom")
-  const [customRampAnchors, setCustomRampAnchors] = useState<[OklchAnchor, OklchAnchor]>(() => {
-    const vivid = vividRampAnchors(catalog.palette)
-    return [vivid[1] ?? { l: 0.5, c: 0.2, h: 260 }, vivid.at(-2) ?? { l: 0.8, c: 0.2, h: 50 }]
-  })
   const [selectedBandIndex, setSelectedBandIndex] = useState(0)
   const [undo, setUndo] = useState<{ setup: Setup; selection: number; after: Setup } | null>(null)
   const gesture = useRef<{ setup: Setup; selection: number } | null>(null)
@@ -799,15 +698,6 @@ export function App() {
   const mode: Mode = setup.fill_mode ? "fill" : setup.band_mode
   const movementIncrement = mode === "ire" ? 1 : stopIncrement
   const selectedBand = Math.max(0, Math.min(selectedBandIndex, setup.bands.length - 1))
-  const rampAnchors = rampPreset === "custom" ? customRampAnchors : vividRampAnchors(catalog.palette)
-  const profiledRampAnchors = activeRampAnchors(
-    rampAnchors,
-    lightnessProfile,
-    setup.low_signal_warning,
-    setup.high_signal_warning,
-    rampPreset !== "custom",
-  )
-  const rampPreview = Array.from({ length: 25 }, (_, index) => sampleOklabRamp(profiledRampAnchors, index / 24))
   const selectBand = (index: number) => {
     setSelectedBandIndex(index)
     setRemovingBandIndex(null)
@@ -1043,74 +933,7 @@ export function App() {
                 </div>
                 <Button type="button" size="lg" onClick={addBand}>Add band</Button>
               </div>
-              <div className="grid gap-2 border-t pt-4">
-                <div className="grid gap-1">
-                <span className="text-sm font-semibold">Band colors</span>
-                <div className="flex flex-wrap items-end gap-2">
-                <label className="grid gap-1 text-xs font-medium">Color all bands
-                <select
-                  aria-label="Color all bands"
-                  className={fieldClass}
-                  value={colorPreset}
-                  onChange={(event) => setColorPreset(event.target.value as "false-color" | "gradient")}
-                >
-                  <option value="false-color">False color by exposure</option>
-                  <option value="gradient">Perceptual color ramp</option>
-                </select>
-                </label>
-                <Button type="button" size="lg" variant="outline" onClick={() => editSetup((current) => applyColorPreset(current, catalog.palette, colorPreset, rampAnchors, lightnessProfile, rampPreset !== "custom"))}>Apply colors</Button>
-                </div>
-                </div>
-                {colorPreset === "gradient" && (
-                  <div className="grid gap-2 rounded-lg bg-muted/25 p-3">
-                    <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,14rem),1fr))] gap-3">
-                      <label className="grid min-w-0 gap-1.5 text-sm font-medium">Ramp preset
-                        <select
-                          className={`${fieldClass} w-full`}
-                          value={rampPreset}
-                          onChange={(event) => {
-                            const preset = event.target.value as "vivid" | "exposure" | "custom"
-                            setRampPreset(preset)
-                            if (preset === "vivid") setLightnessProfile("custom")
-                            if (preset === "exposure") setLightnessProfile("ascending")
-                            if (preset === "custom") setLightnessProfile("custom")
-                          }}
-                        >
-                          <option value="vivid">Vivid</option>
-                          <option value="exposure">Exposure</option>
-                          <option value="custom">Custom</option>
-                        </select>
-                      </label>
-                  <div className="grid min-w-0 gap-1.5 text-sm font-medium">
-                    <span className="flex items-center gap-1.5">
-                      <label htmlFor="lightness-profile">Lightness profile</label>
-                      <InfoTooltip text="Ascending follows exposure brightness. Even keeps every band similarly visible. Custom uses the picker handles' vertical positions." />
-                    </span>
-                    <select id="lightness-profile" className={`${fieldClass} w-full`} value={lightnessProfile} onChange={(event) => setLightnessProfile(event.target.value as LightnessProfile)}>
-                          <option value="ascending">Ascending</option>
-                          <option value="even">Even</option>
-                          <option value="custom">Custom</option>
-                        </select>
-                  </div>
-                    </div>
-                    <div>
-                      <div className="mb-1 text-xs font-medium">Preset ramp preview</div>
-                      <div
-                        aria-label="Preset ramp preview; this shows colors, not band coverage"
-                        className="h-4 overflow-hidden rounded-sm"
-                        style={{
-                          backgroundColor: rampPreview[0],
-                          backgroundImage: `linear-gradient(to right, ${rampPreview.map((color, index) => `${color} ${index / (rampPreview.length - 1) * 100}%`).join(", ")})`,
-                        }}
-                      />
-                      <p className="mt-1 text-[11px] text-muted-foreground">Color preview only; actual coverage is controlled by the bands below.</p>
-                    </div>
-                    {rampPreset === "custom" && (
-                      <OklchEndpointPicker points={customRampAnchors} onChange={setCustomRampAnchors} />
-                    )}
-                  </div>
-                )}
-              </div>
+              <PaletteEditor setup={setup} palette={catalog.palette} onApply={(next) => editSetup(() => next)} />
             </div>
           </CardHeader>
           <CardContent className="grid gap-4">

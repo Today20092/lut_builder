@@ -351,6 +351,129 @@ test("width keyboard steps preserve typed precision and selected overlapping edg
   container.remove()
 })
 
+test("custom palettes draft, persist, reload, and reach generation without changing geometry", async () => {
+  const initial = {
+    ...setup, profile: "Sony S-Log3", target: "Rec.709", cube_size: 17,
+    monochrome: true, legal_range: false, output: "palette.cube",
+    low_signal_warning: false, high_signal_warning: false,
+    low_signal_hex: "#000000", high_signal_hex: "#ffffff",
+    bands: [{ stop: -2, width: 0.3, color: "#ffffff" }, { stop: 2, width: 0.7, color: "#ff0000" }],
+  }
+  window.LUT_BUILDER_SETUP = initial
+  window.LUT_BUILDER_CATALOG = { profiles: [initial.profile], targets: [initial.target], palette: [] }
+  window.localStorage.clear()
+  window.localStorage.setItem("lut-builder.palettes.v1", '{"bad":true}')
+  const requests = []
+  const originalFetch = globalThis.fetch
+  globalThis.Image = window.Image
+  globalThis.fetch = async (path, options) => {
+    const candidate = JSON.parse(options.body)
+    requests.push({ path, setup: candidate })
+    if (path === "/generate") return new Response("cube", { status: 200 })
+    return Response.json({ ...preview, setup: candidate, warnings: [], legend: [], overlays: [] })
+  }
+  const container = document.createElement("div")
+  document.body.append(container)
+  let root = createRoot(container)
+  const field = (label) => container.querySelector(`[aria-label='${label}']`)
+  const button = (text) => [...container.querySelectorAll("button")].find((item) => item.textContent === text)
+  const click = async (element) => { assert.ok(element); await act(() => element.click()) }
+  const type = async (element, value) => {
+    assert.ok(element)
+    await act(() => {
+      Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set.call(element, value)
+      element.dispatchEvent(new window.Event("input", { bubbles: true }))
+    })
+  }
+  const choose = async (value) => { await act(() => { field("Reuse saved palette").value = value; field("Reuse saved palette").dispatchEvent(new window.Event("change", { bubbles: true })) }) }
+  const generate = async () => {
+    await click(button("Generate LUT"))
+    return requests.filter(({ path }) => path === "/generate").at(-1).setup
+  }
+  const mount = async () => { await act(() => root.render(React.createElement(App))); await act(() => new Promise((resolve) => setTimeout(resolve, 300))) }
+  try {
+    await mount()
+    assert.match(container.textContent, /Saved palettes could not be read/)
+    const ramp = () => field("Draft palette ramp from low to high exposure").style.background
+    const vividRamp = ramp()
+    await type(field("Color intensity"), "0")
+    assert.notEqual(ramp(), vividRamp)
+    await type(field("Color intensity"), "100")
+    await click(container.querySelector("input[value='ascending']"))
+    assert.notEqual(ramp(), vividRamp)
+    await click(container.querySelector("input[value='custom']"))
+    assert.equal(field("Remove color 1").disabled, true)
+    await type(field("Anchor 1 hex color"), "#000000")
+    await type(field("Anchor 2 hex color"), "#ffffff")
+    await click(button("Add color"))
+    await type(field("Anchor 3 hex color"), "#ff0000")
+    await click(field("Move color 3 earlier"))
+    assert.equal(field("Anchor 2 hex color").value, "#ff0000")
+    await click(field("Remove color 2"))
+    assert.equal(field("Anchor 2 hex color").value, "#ffffff")
+    assert.deepEqual((await generate()).bands, initial.bands)
+    await type(field("Anchor 1 hex color"), "#bad")
+    assert.equal(button("Apply colors").disabled, true)
+    await type(field("Anchor 1 hex color"), "#000000")
+    await click(button("Apply colors"))
+    const applied = await generate()
+    assert.deepEqual(applied.bands, [{ stop: -2, width: 0.3, color: "#000000" }, { stop: 2, width: 0.7, color: "#ffffff" }])
+    assert.match(container.textContent, /Palette applied to bands/)
+    await click(field("Open Band 1 color picker"))
+    await type(document.querySelector("[aria-label='Band 1 color hex color']"), "#123456")
+    assert.equal((await generate()).bands[0].color, "#123456")
+    assert.match(container.textContent, /Applying will replace manual overrides/)
+    await click(button("Apply colors"))
+    assert.deepEqual((await generate()).bands, applied.bands)
+    await click(button("Undo last band edit"))
+    assert.equal((await generate()).bands[0].color, "#123456")
+    assert.match(container.textContent, /Applying will replace manual overrides/)
+    await click(button("Apply colors"))
+    await type(field("Palette name"), "Neutral")
+    const originalSet = window.Storage.prototype.setItem
+    window.Storage.prototype.setItem = () => { throw new Error("quota") }
+    try { await click(button("Save new palette")) } finally { window.Storage.prototype.setItem = originalSet }
+    assert.match(container.textContent, /Could not save palettes/)
+    assert.deepEqual((await generate()).bands, applied.bands)
+    await click(button("Save new palette"))
+    await click(button("Save new palette"))
+    assert.match(container.textContent, /That name is already saved/)
+    assert.equal(field("Reuse saved palette").options.length, 2)
+    await type(field("Palette name"), "Neutral renamed")
+    await click(button("Rename saved palette"))
+    await type(field("Anchor 2 hex color"), "#00ff00")
+    await click(button("Replace saved palette"))
+    await act(() => root.unmount())
+    root = createRoot(container)
+    await mount()
+    await choose("Neutral renamed")
+    assert.equal(field("Anchor 2 hex color").value, "#00ff00")
+    assert.deepEqual((await generate()).bands, initial.bands)
+    await click(button("Apply colors"))
+    const reused = await generate()
+    assert.notEqual(reused.bands[1].color, initial.bands[1].color)
+    assert.deepEqual(reused.bands.map(({ stop, width }) => ({ stop, width })), initial.bands.map(({ stop, width }) => ({ stop, width })))
+    await click(button("Delete saved palette"))
+    assert.equal(field("Reuse saved palette").options.length, 1)
+    assert.deepEqual((await generate()).bands, reused.bands)
+    const modeSelect = [...container.querySelectorAll("select")].find((select) => [...select.options].some((option) => option.value === "ire"))
+    for (const mode of ["ire", "fill"]) {
+      await act(() => { modeSelect.value = mode; modeSelect.dispatchEvent(new window.Event("change", { bubbles: true })) })
+      const before = await generate()
+      await click(button("Apply colors"))
+      const after = await generate()
+      assert.deepEqual(after.bands.map(({ stop, width }) => ({ stop, width })), before.bands.map(({ stop, width }) => ({ stop, width })))
+      assert.equal(after.band_mode, before.band_mode)
+      assert.equal(after.fill_mode, before.fill_mode)
+    }
+  } finally {
+    await act(() => root.unmount())
+    container.remove()
+    globalThis.fetch = originalFetch
+    window.localStorage.clear()
+  }
+})
+
 test("band editing preserves valid generation data, selection, and one-step recovery", async () => {
   window.LUT_BUILDER_SETUP = {
     ...setup, profile: "Sony S-Log3", target: "Rec.709", cube_size: 17,
