@@ -9,7 +9,8 @@ import re
 import secrets
 import tempfile
 import threading
-from urllib.parse import unquote, urlsplit
+import time
+from urllib.parse import parse_qs, unquote, urlsplit
 import webbrowser
 
 from .colors import TAILWIND_COLORS
@@ -17,6 +18,7 @@ from .data import PROFILE_CATALOG, oklch_to_hex
 from .engine import generate_lut
 from .presets import WIDTH_PRESETS, suggest_color_for_stop
 from .setup import LutSetup, exposure_preview
+from .video import MAX_UPLOAD, VideoStore
 
 
 STATIC_ROOT = Path(__file__).with_name("static")
@@ -136,6 +138,7 @@ def _generate_download(payload: dict) -> tuple[bytes, str]:
 
 class WorkspaceHandler(BaseHTTPRequestHandler):
     token = ""
+    videos: VideoStore
 
     def do_GET(self) -> None:
         request_path = unquote(urlsplit(self.path).path)
@@ -161,6 +164,9 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
         self._send(200, asset.read_bytes(), content_type)
 
     def do_POST(self) -> None:
+        if urlsplit(self.path).path.startswith("/video/"):
+            self._video_request()
+            return
         if self.path not in {"/preview", "/generate"}:
             self.send_error(404)
             return
@@ -199,6 +205,67 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(cube)
 
+    def _video_request(self) -> None:
+        if not secrets.compare_digest(self.headers.get("X-LUT-Builder-Token", ""), self.token):
+            self._send_json(403, {"error": "Invalid launch token"})
+            return
+        path = urlsplit(self.path)
+        session = None
+        try:
+            length = int(self.headers.get("Content-Length", "0"))
+            if path.path == "/video/upload":
+                if self.headers.get_content_type() != "application/octet-stream":
+                    raise ValueError("Video upload requires application/octet-stream.")
+                if not 0 < length <= MAX_UPLOAD:
+                    raise ValueError("Choose a video up to 256 MB.")
+                source_id = parse_qs(path.query).get("source_id", [""])[0]
+                session = self.videos.get(source_id)
+                with session.operation():
+                    if session.frames:
+                        raise ValueError("Start a new source before replacing a video.")
+                    self.connection.settimeout(2)
+                    deadline = time.monotonic() + 60
+                    with (session.root / "input").open("wb") as output:
+                        remaining = length
+                        while remaining:
+                            session.check()
+                            if time.monotonic() > deadline:
+                                raise ValueError("Upload exceeded the 60-second limit.")
+                            data = self.rfile.read1(min(remaining, 1024 * 1024))
+                            if not data:
+                                raise ValueError("Video upload was interrupted.")
+                            output.write(data)
+                            remaining -= len(data)
+                    session.probe()
+                    result = session.select({"time": "0"})
+            else:
+                if self.headers.get_content_type() != "application/json" or not 0 < length <= 4096:
+                    raise ValueError("Video controls require a JSON object up to 4096 bytes.")
+                self.connection.settimeout(2)
+                payload = json.loads(self.rfile.read(length))
+                if not isinstance(payload, dict):
+                    raise ValueError("JSON body must be an object.")
+                if path.path == "/video/start":
+                    result = self.videos.start()
+                elif path.path == "/video/cancel":
+                    self.videos.cancel(payload.get("source_id"))
+                    result = {"cancelled": True}
+                elif path.path == "/video/frame":
+                    session = self.videos.get(payload.get("source_id"))
+                    with session.operation():
+                        result = session.select(payload)
+                else:
+                    raise ValueError("Unknown video operation.")
+            self._send_json(200, result)
+        except (ValueError, KeyError, TypeError, ZeroDivisionError, OSError) as error:
+            if session and path.path == "/video/upload":
+                session.cancel()
+            self._send_json(400, {"error": str(error)})
+        except Exception:
+            if session:
+                session.cancel()
+            self._send_json(500, {"error": "Video processing failed. Choose the source again."})
+
     def _send_json(self, status: int, payload: dict) -> None:
         self._send(status, json.dumps(payload).encode(), "application/json")
 
@@ -209,16 +276,30 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
         self.send_header("Cache-Control", "no-store")
         self.send_header("X-Content-Type-Options", "nosniff")
         self.end_headers()
-        self.wfile.write(body)
+        try:
+            self.wfile.write(body)
+        except (ConnectionError, TimeoutError):
+            pass  # A cancelled browser request may disconnect before the reply.
 
     def log_message(self, format: str, *args: object) -> None:
         return
 
 
-def create_server() -> tuple[ThreadingHTTPServer, str, str]:
+class WorkspaceServer(ThreadingHTTPServer):
+    videos: VideoStore
+
+    def server_close(self):
+        if hasattr(self, "videos"):
+            self.videos.close()
+        super().server_close()
+
+
+def create_server() -> tuple[WorkspaceServer, str, str]:
     token = secrets.token_urlsafe(32)
     handler = type("LaunchHandler", (WorkspaceHandler,), {"token": token})
-    server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
+    server = WorkspaceServer(("127.0.0.1", 0), handler)
+    handler.videos = VideoStore()
+    server.videos = handler.videos
     server.daemon_threads = True
     url = f"http://127.0.0.1:{server.server_port}/"
     return server, url, token
