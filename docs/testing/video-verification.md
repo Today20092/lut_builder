@@ -1,6 +1,6 @@
 # Confirmed video verification, ticket 38
 
-Implemented on `codex/workbench-ticket-6`, from integrated baseline `83dd4b38c65c57c62190cd6abdeef3897620bb6a`. Implementation commit: `2f5fbea`. Follow-up verification and this handoff are committed on the same branch. The original Documents checkout was not changed; no merge or issue closure was performed.
+Implemented on `codex/workbench-ticket-6`, from integrated baseline `83dd4b38c65c57c62190cd6abdeef3897620bb6a`. Implementation commit: `2f5fbea`; spatial chroma/lifecycle coverage and integration documentation: `8f560f4`. Final test results are committed on the same branch. The original Documents checkout was not changed; no merge or issue closure was performed.
 
 ## Connected workflow
 
@@ -40,7 +40,7 @@ Tests use deterministic synthetic camera-code samples in lossless 10-bit 4:2:2 F
 
 Checks on Windows, FFmpeg/FFprobe 8.1.2, Colour 0.4.7, NumPy 2.4.2:
 
-- `uv run pytest -q`: 142 passed.
+- `uv run pytest -q`: 143 passed in 88.68 seconds after all changes.
 - `npm --prefix frontend test`: 33 passed.
 - `npm --prefix frontend run build`: TypeScript and production build passed.
 - Changed Python files pass Ruff and targeted ty. New/changed verification UI and test code pass ESLint except the four existing `App.tsx` Fast Refresh export diagnostics at unchanged lines 73, 77, 81 and 94. Prior repository-wide findings are recorded in [still verification](../still-verification.md).
@@ -49,4 +49,4 @@ Checks on Windows, FFmpeg/FFprobe 8.1.2, Colour 0.4.7, NumPy 2.4.2:
 
 Files changed: `src/lut_builder/video.py`, `src/lut_builder/web.py`, `frontend/src/App.tsx`, `frontend/src/CameraVerification.tsx`, `tests/test_video_verification.py`, `frontend/tests/exposure-graph.test.mjs`, rebuilt static index/assets, and verification documentation. No engine/LUT mathematics or dependencies changed.
 
-Standards review: no actionable findings against the integrated baseline. Spec review: no blocking implementation mismatch or scope creep. Its documentation and spatial chroma coverage notes were addressed with this record and the 4:2:0 ramp regression.
+Standards review: no actionable findings against the integrated baseline or follow-up. Spec review: no blocking implementation mismatch or scope creep. Its documentation and spatial chroma coverage notes were addressed with this record and the 4:2:0 ramp regression. Both independent reviewers rechecked `2f5fbea..8f560f4` and reported no remaining findings.
