@@ -11,13 +11,19 @@ Create custom false-color LUTs to check camera exposure. Choose the exposure ban
 
 [Get started](#quick-start) · [Web interface](#web-interface) · [Roadmap](#roadmap) · [User guide](docs/guide.md) · [Report a problem](https://github.com/Today20092/lut_builder/issues)
 
-If you are comfortable with the command line, you can use LUT Builder today. It walks you through each setting and can rebuild a LUT from a saved setup. You do not need to write Python code.
+## Main goal: open your browser and make a LUT
 
-But installing uv and entering terminal commands can stop people from trying the tool at all. You should not need to learn Python or command-line tools to make a false-color LUT. This is why we are working on a web interface. Our goal is to let you choose your camera, adjust band widths and colors, preview the result, and save a LUT without those setup steps.
+Our highest priority is a browser-only app that anyone can use without downloading an application, installing uv or Python, or entering terminal commands. Once ready, this will be the main recommended way to use LUT Builder. The command line will remain an optional choice.
 
-The current web interface is an early local version. It runs in your browser, but still requires Git, uv, and the setup commands below. Removing that setup barrier is part of the roadmap.
+The goal is simple: open a link, choose your camera, adjust the bands and colors, save your presets in the browser, and download the `.cube` files you need. All LUT calculations should run on your device.
+
+We want this to work wherever you are, on a computer, tablet, or phone, across browsers. Touch controls, small screens, preset storage, and file downloads are part of that goal. We will publish tested browser support and limits before release. Presets saved in one browser will not automatically appear on another device; setup export and import will let you keep a copy and move your work.
+
+This browser-only version is not available yet. Follow [ticket #9](https://github.com/Today20092/lut_builder/issues/9) for the work. The current Workbench runs in a browser but still needs a local Python server, Git, uv, and the setup below.
 
 ## Quick start
+
+These instructions are for the current local version. The planned browser-only app will not need these steps.
 
 You need [Git](https://git-scm.com/) and [uv](https://docs.astral.sh/uv/getting-started/installation/). The setup below is for Windows or macOS. uv manages Python 3.12 or newer and the project dependencies.
 
@@ -71,14 +77,14 @@ If port 8765 is in use, close the other workspace or application using it and tr
 
 ## Roadmap
 
-Our goal is to let people create false-color LUTs without installing Python tools, using uv, or entering terminal commands. The visual editor is one part of that work. Making it easy to start is just as important.
+The main priority is [browser-only LUT Builder on GitHub Pages, ticket #9](https://github.com/Today20092/lut_builder/issues/9). The intended experience is to open a link and make a LUT, including on a phone.
 
 | Status | Work |
 | --- | --- |
-| Available | Command-line builder with guided prompts and saved JSON setups. |
-| Available, still being improved | Local web interface with visual band editing, color controls, previews, and LUT export. |
-| In progress | Build an easy-to-use web interface for people who do not know the command line or uv. |
-| Planned | Provide a way to open and use the interface without installing uv or entering terminal commands. |
+| Highest priority, planned | Publish the browser-only app with local calculations, saved browser presets, and direct `.cube` downloads. No application download or command-line setup. |
+| Part of the browser release | Make the workflow usable with touch controls on phones and tablets, and test it across desktop and mobile browsers. |
+| Available now | Local Workbench with visual band editing, color controls, previews, and LUT export. Requires local setup. |
+| Available, optional path | Command-line builder with guided prompts and saved JSON setups. |
 | Planned | Improve help and examples for choosing settings and making a first LUT. |
 | Ongoing | Check results with real cameras and monitors, and use feedback to improve profile coverage. |
 
