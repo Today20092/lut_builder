@@ -70,26 +70,24 @@ Results:
 | Check | Result |
 | --- | --- |
 | Locked frontend install and ESLint | Passed |
-| Frontend tests | 65 passed |
+| Frontend tests | 64 passed |
 | Combined local and Pages builds | Passed |
 | Pages-path manual acceptance, Chromium | Passed at both widths |
 | Pages-path manual acceptance, Firefox | Passed at both widths |
 | Pages-path manual acceptance, WebKit | Passed at both widths |
+| Existing browser-only acceptance | Passed in all three engines at desktop, phone, and tablet widths |
 | Local Vite preview, Chromium | Passed at both widths |
 | Actual Python local server, Chromium | Passed at both widths, including search |
 | Current browser screenshot | Captured and included in the first-LUT guide |
 | Visual inspection | Desktop and narrow manual screenshots inspected, including dark appearance |
 | Ruff format and lint | Passed |
-| `uv run ty check src tests` | Passed |
-| `uv run ty check` | Blocked by unresolved imports in unrelated untracked `.scratch/filename-commit` and `.scratch/verify39` copies |
-| `uv run pytest -q` | 144 passed, one Windows media-cleanup timing failure |
-| Failed media test plus `tests/test_web.py` retry | 7 passed; documentation routes, search JS, missing pages and traversal rejection included |
+| `uv run ty check` | Passed in the isolated PR worktree |
+| `uv run pytest -q` | 158 passed; documentation routes, search JS, missing pages and traversal rejection included |
 | `git diff --check` | Passed |
 
-The Python failure was
-`test_invalid_media_and_processing_deadline_cleanup[True]`: Windows kept the
-temporary `command.err` file open during forced process-termination fallback.
-Its isolated retry passed. Media processing was not changed for this task.
+The initial shared-checkout run encountered a Windows media-cleanup timing failure.
+The isolated PR worktree's full suite passed, with two existing colour-science
+Canon Log 3 numerical warnings. Media processing was not changed for this task.
 
 ## Scope and remaining checks
 
@@ -101,15 +99,13 @@ examples. Sony and Panasonic vendor documents were retrieved directly; inaccessi
 vendor URLs and missing historical derivations are identified explicitly rather
 than presented as established evidence.
 
-Concurrent editor work changed the reference-photo panel and setup controls while
-the manual was being written. Those changes were preserved and the manual was
-updated against the resulting interface. Rebuilt assets include the current shared
-checkout; this report does not claim authorship or a separate review of that work.
+The PR was reconciled against the published main branch in an isolated worktree.
+The manual describes camera-log IRE defaults, legacy target IRE, and the published
+setup, output-range, and palette controls. Separate local mobile-workflow changes
+were excluded. The screenshot was refreshed from this reconciled build.
 
-No commit, push, or live deployment was performed. Successful local Pages-path
-checks do not establish a successful GitHub Actions deployment. Check the deployed
-URL and Actions run after publishing. The existing broader browser-only acceptance
-script was not rerun in this task; the new manual-specific script and the full
-frontend unit/parity suite were run. Physical phones/tablets, assistive technology,
+Successful local Pages-path checks do not establish a successful GitHub Actions
+deployment; the PR and deployment runs provide that evidence after publishing.
+Physical phones/tablets, assistive technology,
 and camera/monitor hardware were not tested. Emulated widths do not establish those
 results. No real camera threshold calibration is claimed.

@@ -11,7 +11,7 @@ Do not infer sensor clipping from the color alone. Disabling the warning can hel
 
 ## Exposure colors look wrong
 
-Check the log curve **and** gamut, any preceding camera-to-display transform, and the input range. A proxy may already be display-rendered despite its filename. The **Legal/video range** switch only changes LUT output; it cannot repair an input mismatch.
+Check the log curve **and** gamut, any preceding camera-to-display transform, and the input range. A proxy may already be display-rendered despite its filename. **Full / Data** versus **Video / Legal** only changes LUT output; it cannot repair an input mismatch.
 
 New IRE selections measure camera-log encoded luma on a full-code-range percentage scale. Older setups can retain target-display IRE and are labeled Legacy setup. Check that basis before comparing values; neither interpretation promises an identical reading on every waveform. Green is a chosen reference, not a universal skin-tone target. Rec.2020 output needs an appropriate downstream interpretation; it is not HDR.
 

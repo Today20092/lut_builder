@@ -12,7 +12,8 @@ description: What each configuration, band, graph, palette, and warning control 
 | Output settings | Opens cube size, base-image, range, and filename settings. |
 | Cube size | 17³, 33³, or 65³ samples. Larger cubes better resolve narrow bands; host interpolation still softens boundaries. |
 | Monochrome base | Makes uncovered portions of the base image gray. Disabled in Fill because zones cover the image. |
-| Legal/video range | Encodes output into 10-bit-equivalent codes 64–940; off uses 0–1023. Does not change input range or warning thresholds. Avoid a second legal-range conversion in the host. |
+| Output range: Full / Data or Video / Legal | Full uses 0–1 (10-bit-equivalent codes 0–1023); Legal packs output into 64–940. Does not change input range or warning thresholds. Avoid a second legal-range conversion in the host. |
+| Which should I use? | Explains how to match the device applying the LUT, distinguish input conversion from LUT output packing, and test a grayscale ramp. |
 | Customize output filename | Opens the filename template. `%inputgamma%`, `%targetgamma%`, and `%id%` expand to profile, target, and a settings-derived ID. A fixed name also works. |
 | Use automatic filename | Restores the built-in template. The ID is stable for the same settings; it is not a unique camera or media identifier. |
 
@@ -61,7 +62,7 @@ Click a band or warning swatch. Use the saturation/value area and hue control, n
 | --- | --- |
 | Choose a starting palette | Select Exposure zones or Reference emphasis to create a draft. |
 | Shape your gradient | Edit the gradient dots and blend controls. |
-| About exposure colors / legend | Explains the reference and the low-to-high exposure colors. Green is a chosen reference, not universally correct exposure. |
+| What does the reference mean? / legend | Explains the reference and the low-to-high exposure colors. Green is a chosen reference, not universally correct exposure. |
 | Gradient dots | Change the anchor colors and their positions. Add, select, move, or remove editable dots using the shown controls. The exposure reference remains fixed in position. |
 | Blend: Colorful · OKLCH | Blends around a hue circle; colors are fitted to sRGB. |
 | Hue path | Shorter or longer route around the hue circle. Only applies to Colorful. |

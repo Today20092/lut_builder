@@ -11,7 +11,7 @@ In **Configuration**, choose **Camera recording**. For example, use **Sony S-Log
 
 Choose **Target display** to match the destination. Use Rec.709 for an SDR Rec.709 monitoring path. Rec.2020 here is an SDR diagnostic output, not an HDR conversion.
 
-Open **Output settings**. Select a cube size supported by your device: 33³ is a useful starting point if supported; 65³ samples narrow transitions more closely but produces a larger file. Leave **Legal/video range** off unless the receiving path specifically expects legal-range LUT output. This switch changes output, not the camera input interpretation.
+Open **Output settings**. Select a cube size supported by your device: 33³ is a useful starting point if supported; 65³ samples narrow transitions more closely but produces a larger file. Keep **Full / Data** unless the receiving path specifically expects **Video / Legal** LUT output. This setting changes output, not the camera input interpretation.
 
 ## 2. Mark exposure bands
 

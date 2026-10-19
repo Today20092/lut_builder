@@ -54,7 +54,7 @@ For example, with a Sony profile and both warnings enabled, the grid input `(0, 
 
 The RGB values must already be in the domain expected by the log decoder. A 10-bit full-range code can be normalized as `code / 1023`. When a signal genuinely requires video-range expansion, the corresponding conversion is `(code - 64) / 876`. These are different inputs. Do not apply expansion simply because a file uses a video container.
 
-The builder's **Legal/video range** checkbox changes the final LUT **output** into the 64–940 interval. It does not reinterpret the input and does not fix a camera/profile mismatch. Blackmagic's profile has a specific expanded-input convention explained in its [profile reference](../profiles/#blackmagic-film-gen-5).
+The builder's **Video / Legal** output-range choice changes the final LUT **output** into the 64–940 interval. It does not reinterpret the input and does not fix a camera/profile mismatch. Blackmagic's profile has a specific expanded-input convention explained in its [profile reference](../profiles/#blackmagic-film-gen-5).
 
 ## What the warnings cannot establish
 
