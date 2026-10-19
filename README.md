@@ -69,4 +69,5 @@ The browser editor is available now. Current priorities are real phone and camer
 
 ## License
 
-[MIT](LICENSE).
+[MIT](LICENSE) for LUT Builder's code. The optional browser decoder has its own
+[third-party license and source notices](THIRD_PARTY.md).
