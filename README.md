@@ -77,10 +77,14 @@ If port 8765 is in use, close the other workspace or application using it and tr
 
 The main priority is [browser-only LUT Builder on GitHub Pages, ticket #9](https://github.com/Today20092/lut_builder/issues/9). The intended experience is to open a link and make a LUT, including on a phone.
 
+After the browser release, the priority is to make that experience simple, smooth, and easy to use, especially for videographers creating monitoring LUTs for their cameras. Guide improvements with feedback from people using the tool: what they use it for, how it fits their workflow, what works well, and where they get confused or frustrated.
+
 | Status | Work |
 | --- | --- |
 | Highest priority, planned | Publish the browser-only app with local calculations, saved browser presets, and direct `.cube` downloads. No application download or command-line setup. |
 | Part of the browser release | Make the workflow usable with touch controls on phones and tablets, and test it across desktop and mobile browsers. |
+| Next priority after the browser release | Ask users about their workflows and watch them create, export, and load a monitoring LUT onto their camera or monitor. Identify confusing steps, bugs, missing guidance, and controls that work well. |
+| Guided by user feedback | Simplify the path from opening the browser app to using a LUT on a camera. Prioritize recurring obstacles, preserve what users value, and check improvements with users across desktop and mobile. |
 | Available now | Local Workbench with visual band editing, color controls, previews, and LUT export. Requires local setup. |
 | Available, optional path | Command-line builder with guided prompts and saved JSON setups. |
 | Planned | Improve help and examples for choosing settings and making a first LUT. |
