@@ -45,6 +45,8 @@ boundary and connect cancellation with `AbortSignal`. Keep `editor.ts` state
 transitions, LUT/color calculations and data, and presentational components as plain
 TypeScript; they stay pure or describe React/DOM rendering. Consult current Effect 4
 documentation before using its APIs; do not copy Effect 3 patterns.
+Use `Context.Service` and `Layer` when dependencies need shared provisioning or
+replacement; keep one-off browser APIs at their Effect boundary.
 
 For workspace behavior or browser acceptance checks, read
 [integration verification](docs/testing/integration.md) for launch commands,
