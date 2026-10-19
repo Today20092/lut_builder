@@ -214,4 +214,5 @@ export function cubeFilename(output: string) {
 }
 
 export const browserProfiles = Object.keys(sourceInfo)
+export const browserInterpretations = Object.fromEntries(Object.entries(sourceInfo).map(([name, info]) => [name, { transfer: info.log, gamut: info.gamut }]))
 export const browserTargets = Object.keys(targets)

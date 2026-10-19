@@ -17,7 +17,7 @@ Create custom false-color LUTs to check camera exposure. Choose the exposure ban
 
 Choose your camera, adjust exposure bands and colors, save named presets in this browser, and download `.cube` files. LUT calculations run on your device. Saved presets do not sync between devices; export setup JSON to back up or transfer your work.
 
-The current browser release supports LUT creation and download. Exposure preview and camera-matched still/video verification are not included. Phone, touch, and cross-browser testing is still in progress; see the [browser support matrix](docs/browser-support.md).
+The current browser release supports on-device LUT creation and camera-matched verification for the formats and limits in the [browser support matrix](docs/browser-support.md). A camera-exposure media preview is not included. Phone, touch, and cross-browser testing is still in progress.
 
 ## Quick start
 

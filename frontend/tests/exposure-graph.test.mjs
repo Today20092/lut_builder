@@ -768,8 +768,7 @@ test("browser-only app generates and downloads through a local worker without ba
   const root = createRoot(container)
   try {
     await act(() => root.render(React.createElement(App)))
-    assert.match(container.textContent, /Camera-matched still and video verification are not available/)
-    assert.equal(container.querySelector('a[href="https://github.com/Today20092/lut_builder/issues/39"]').textContent, "Track browser verification support")
+    assert.ok(container.querySelector('[aria-label="Browser camera verification"]'))
     const marker = container.querySelector('button[aria-label="Band 1, 0 stops"]')
     assert.ok(marker, "static app exposes the editable graph without a backend preview")
     assert.ok(container.querySelector('[aria-label="Band 1 total width"]'))

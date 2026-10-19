@@ -87,7 +87,8 @@ function readStill(file: File): Effect.Effect<string, StillReadError> {
   })
 }
 
-function CheckedImage({ result }: { result: CheckedStill }) {
+export function CheckedImage({ result, localRequest }: { result: CheckedStill; localRequest?: typeof request }) {
+  const send = localRequest ?? request
   const [x, setX] = useState("0")
   const [y, setY] = useState("0")
   const [pixel, setPixel] = useState<Pixel | null>(null)
@@ -106,7 +107,7 @@ function CheckedImage({ result }: { result: CheckedStill }) {
     sampleController.current = controller
     setError("")
     try {
-      const response = await request("/verify-pixel", { request_id: result.request_id, x: Number(x), y: Number(y) }, controller.signal)
+      const response = await send("/verify-pixel", { request_id: result.request_id, x: Number(x), y: Number(y) }, controller.signal)
       const next = Schema.decodeUnknownSync(PixelSchema)(await response.json())
       if (sequence === sampleRequest.current) setPixel(next)
     } catch (failure) {
@@ -117,7 +118,7 @@ function CheckedImage({ result }: { result: CheckedStill }) {
   async function download() {
     setError("")
     try {
-      const response = await request("/verify-cube", { request_id: result.request_id })
+      const response = await send("/verify-cube", { request_id: result.request_id })
       const url = URL.createObjectURL(await response.blob())
       const anchor = document.createElement("a")
       anchor.href = url

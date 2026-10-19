@@ -26,6 +26,7 @@ import { Spinner } from "@/components/ui/spinner"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import referenceImage from "@/assets/lut-preview-reference.jpg"
 import { CameraVerification, type SourceInterpretations } from "@/CameraVerification"
+import { BrowserVerification } from "./BrowserVerification"
 import { browserProfiles, browserTargets, cubeFilename } from "@/lutEngine"
 import { deleteSetupPreset, readSetupPresets, saveSetupPreset, type SetupPreset } from "@/setupPresets"
 import { decodeSetup, SetupSchema, SetupValidationError } from "@/setupSchema"
@@ -429,7 +430,7 @@ export function LutImagePreview({ preview, camera }: { preview: Preview | null; 
 function WorkbenchPreview({ preview, setup, catalog, browserOnly }: { preview: Preview | null; setup: Setup; catalog: Catalog; browserOnly: boolean }) {
   const [mode, setMode] = useState("Demonstration")
   const [sourceKind, setSourceKind] = useState("Still")
-  if (browserOnly) return <Card className="min-w-0 self-start"><CardHeader><CardTitle>Preview and camera verification</CardTitle></CardHeader><CardContent><p className="text-sm text-muted-foreground">The GitHub Pages editor generates LUTs on this device. Camera-matched still and video verification are not available in this browser build. The demonstration image is illustrative and does not apply the exported LUT. <a className="underline" href="https://github.com/Today20092/lut_builder/issues/39">Track browser verification support</a>.</p></CardContent></Card>
+  if (browserOnly) return <BrowserVerification setup={setup} />
   return <div className="grid min-w-0 self-start gap-3 @min-[64rem]:sticky @min-[64rem]:top-6">
     <fieldset className="flex flex-wrap gap-2">
       <legend className="mb-2 text-sm font-medium">Preview mode</legend>
