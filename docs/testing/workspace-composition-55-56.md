@@ -98,4 +98,13 @@ certification, HDR viewing or calibrated-display check was performed. Cube sampl
 can blur or miss narrow markers, and large imported setups can exceed browser
 storage quota; those limitations are visible in the product and composition guide.
 
-Final strict Linux result and design documentation: pending final run/recording.
+Final strict Linux run
+[39336861778](https://github.com/Today20092/lut_builder/actions/runs/39336861778)
+passed **all 78 tests**, including every layout/accessibility case and all 48
+zero-tolerance screenshot comparisons. It validated baseline commit `5f7d8f6`;
+subsequent changes only record design/review evidence. The root
+[workspace design system](../../DESIGN.md) and `.impeccable/design.json` capture
+the shipped tokens and components; the manual's design system remains separate.
+Temporary implementer worktrees were removed after preserving generated evidence.
+The original checkout's uncommitted guidance/drafts remain untouched. The completed
+integration branch is pushed for review; these tickets do not change main.

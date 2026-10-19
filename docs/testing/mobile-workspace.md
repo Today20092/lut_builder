@@ -1,5 +1,10 @@
 # Mobile workspace redesign (#55)
 
+Final integrated gates are complete. The
+[combined acceptance report](workspace-composition-55-56.md) supersedes the
+source-handoff checklist below and records the passing full Linux matrix, reviewed
+baselines, real-media checks, final design documentation and resolved reviews.
+
 ## Implementation
 
 `WorkspaceShell.tsx` owns task navigation and responsive layout. Base UI Tabs
