@@ -25,7 +25,10 @@ try {
     })
     const activate = (locator) => touch ? locator.tap() : locator.click()
     const button = (name) => page.getByRole("button", { name, exact: true })
-    const panel = async (name) => activate(page.getByRole("tab", { name, exact: true }))
+    const panel = async (name) => {
+      await activate(page.getByRole("tab", { name, exact: true }))
+      await page.getByRole("tab", { name, exact: true, selected: true }).waitFor()
+    }
     const download = async (name) => {
       const pending = page.waitForEvent("download")
       await activate(button(name))
@@ -139,6 +142,15 @@ try {
     console.log(JSON.stringify({ engine, version: browser.version(), viewport, touchEmulation: touch, startupMs: Math.round(startupMs), generationMs: timings, mainThreadHeapBytesAfterDownloads: heapSamples }))
     await context.close()
   }
+} catch (error) {
+  for (const context of browser.contexts()) for (const page of context.pages()) {
+    console.error("Browser acceptance failure state", await page.evaluate(() => ({
+      selectedTab: document.querySelector('[role="tab"][aria-selected="true"]')?.textContent,
+      openDisclosures: Array.from(document.querySelectorAll('details[open] > summary')).map(node => node.textContent),
+    })))
+    if (process.env.BROWSER_EVIDENCE) await page.screenshot({ path: process.env.BROWSER_EVIDENCE, fullPage: true })
+  }
+  throw error
 } finally {
   await browser.close()
 }
