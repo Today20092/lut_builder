@@ -1082,6 +1082,78 @@ test("browser-only app generates and downloads through a local worker without ba
   }
 })
 
+test("StrictMode browser verification keeps inspection and exact cube download alive until invalidation", async () => {
+  const originalWorker = globalThis.Worker
+  const originalImageData = globalThis.ImageData
+  const originalContext = window.HTMLCanvasElement.prototype.getContext
+  const originalDataURL = window.HTMLCanvasElement.prototype.toDataURL
+  const originalCreate = URL.createObjectURL
+  const originalRevoke = URL.revokeObjectURL
+  const originalClick = window.HTMLAnchorElement.prototype.click
+  let worker
+  let downloaded
+  globalThis.Worker = class {
+    constructor() { worker = this }
+    postMessage() {}
+    terminate() {}
+  }
+  globalThis.ImageData = class {}
+  window.HTMLCanvasElement.prototype.getContext = () => ({ putImageData() {} })
+  window.HTMLCanvasElement.prototype.toDataURL = () => "data:image/png;base64,test"
+  URL.createObjectURL = (blob) => { downloaded = blob; return "blob:checked" }
+  URL.revokeObjectURL = () => {}
+  window.HTMLAnchorElement.prototype.click = () => {}
+  const container = document.createElement("div")
+  document.body.append(container)
+  const root = createRoot(container)
+  const settings = { ...setup, profile: "Sony S-Log3", target: "Rec.709", legal_range: false }
+  const render = (value) => act(() => root.render(React.createElement(React.StrictMode, null, React.createElement(BrowserVerification, { setup: value }))))
+  const button = (name) => [...container.querySelectorAll("button")].find((node) => node.textContent === name)
+  const cube = "# exact checked bytes\r\nLUT_3D_SIZE 2\n"
+  const complete = () => act(() => worker.onmessage({ data: { type: "complete", value: {
+    width: 1, height: 1, source: Float64Array.from([-0.25, 0.5, 1.25]), output: Float64Array.from([0, 0, 0]),
+    rgba: Uint8ClampedArray.from([0, 0, 0, 255]), cube,
+    provenance: { cube_sha256: "checked-cube", comparison_unavailable: "No reference", warnings: [] },
+  } } }))
+  try {
+    await render(settings)
+    const input = container.querySelector('input[type="file"]')
+    Object.defineProperty(input, "files", { value: [new window.File(["camera"], "camera.pfm")] })
+    await act(() => input.dispatchEvent(new window.Event("change", { bubbles: true })))
+    for (const [index, value] of ["S-Log3", "S-Gamut3.Cine"].entries()) {
+      const select = container.querySelectorAll("select")[index]
+      select.value = value
+      await act(() => select.dispatchEvent(new window.Event("change", { bubbles: true })))
+    }
+    for (const checkbox of container.querySelectorAll('input[type="checkbox"]')) await act(() => checkbox.click())
+    assert.equal(button("Verify still").disabled, false)
+    await act(() => button("Verify still").click())
+    await complete()
+    await act(() => button("Inspect pixel").click())
+    assert.match(container.querySelector("output")?.textContent ?? container.textContent, /Source RGB: -0.2500000000, 0.5000000000, 1.250000000/)
+    await act(() => button("Download checked cube").click())
+    assert.equal(await downloaded.text(), cube)
+    await render({ ...settings, legal_range: true })
+    assert.equal(button("Inspect pixel"), undefined)
+    assert.equal(button("Download checked cube"), undefined)
+    await act(() => button("Verify still").click())
+    await complete()
+    await act(() => button("Inspect pixel").click())
+    assert.ok(container.querySelector("output"))
+  } finally {
+    await act(() => root.unmount())
+    assert.equal(container.childElementCount, 0)
+    container.remove()
+    globalThis.Worker = originalWorker
+    globalThis.ImageData = originalImageData
+    window.HTMLCanvasElement.prototype.getContext = originalContext
+    window.HTMLCanvasElement.prototype.toDataURL = originalDataURL
+    URL.createObjectURL = originalCreate
+    URL.revokeObjectURL = originalRevoke
+    window.HTMLAnchorElement.prototype.click = originalClick
+  }
+})
+
 test("browser video shortcuts select interval frames, clamp jumps and respect fields and busy state", async () => {
   const originalWorker = globalThis.Worker
   let worker

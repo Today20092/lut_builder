@@ -36,6 +36,15 @@ test("released local results reject late pixels and preserve server expiry failu
   await assert.rejects(Effect.runPromise(expired.cube()), /expired/)
 })
 
+test("released browser results reject pending pixel inspection and checked cube reads", async () => {
+  const result = browserVerifiedResult({ ...metadata, source: Float64Array.from(pixel.source_rgb), output: Float64Array.from(pixel.output_rgb), cube }, { target: "Rec.709", legal_range: false }, metadata.image)
+  const inspecting = Effect.runPromise(result.inspect(0, 0))
+  const downloading = Effect.runPromise(result.cube())
+  await Effect.runPromise(result.release())
+  await assert.rejects(inspecting, /no longer current/)
+  await assert.rejects(downloading, /no longer current/)
+})
+
 test("local pixel cancellation reaches the result transport", async () => {
   let signal
   const result = localVerifiedResult(metadata, async (_path, _payload, requestSignal) => {
