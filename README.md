@@ -65,7 +65,9 @@ If the tool helps your work, you can support its development through [GitHub Spo
 
 ## Roadmap
 
-The browser editor is available now. Current priorities are real phone and camera/monitor testing, clearer tutorials, and profile coverage backed by source evidence. Follow [GitHub Issues](https://github.com/Today20092/lut_builder/issues) for ongoing work.
+The browser editor is available now. The next priority is feedback from videographers using it on a shoot. Watch people create, export, and load a LUT onto their camera or monitor. Use that feedback to fix recurring obstacles, clarify tutorials, and preserve controls that work well. Check improvements on desktop and phones.
+
+Real phone and camera/monitor testing and profile coverage backed by source evidence remain priorities. Follow [GitHub Issues](https://github.com/Today20092/lut_builder/issues) for ongoing work.
 
 ## License
 
