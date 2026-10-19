@@ -2,7 +2,8 @@
 
 Primary target: `frontend/src/App.tsx`; related: `WorkspaceShell.tsx`, `index.css`.
 Mode: **Operate**. Build path: code-led (application screen).
-Seed: none — user-pinned Lightroom direction and task layout from issue #55.
+Seed: not run; user-pinned Lightroom direction and task layout from issue #55;
+workflow deviation. No corroborated seed or unavailable-roll result is claimed.
 
 ## Purpose
 

@@ -85,6 +85,10 @@ execute the complete gate.
 Independent Standards review findings were fixed and rechecked: named-library
 data preservation, Effect interruption, Schema envelope validation and shared
 serialization. Independent Spec review found no remaining confirmed defects.
+The fresh visual reviewer cleared all 48 states. Its sole process correction was
+to record that no randomized design seed ran: the implemented direction follows
+the user's pinned Lightroom brief. The surface contract now discloses that workflow
+deviation; no retroactive seed provenance or complete seed gate is claimed.
 Keyboard acceptance additionally exposed and fixed graph focus changing panels;
 merely focusing a handle now preserves the current panel, while explicit activation
 opens band editing. Removal confirmation survives focus within the selected band.

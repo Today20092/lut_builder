@@ -35,7 +35,9 @@ undo, setup import/export and still/video verification. Infrequent configuration
 presets, file management, cube size and filenames belong outside frequent edits.
 Restore supported setup state without claiming to retain camera media access.
 No accounts, cloud synchronization or physical sensor clipping claims.
-Imported-LUT composition is defined separately in issue #56.
+Import a single baked 3D .cube viewing LUT, confirm its camera input and output
+interpretation, and export it with source-exposure diagnostics. Portable setups
+embed the exact imported LUT; exposure is measured before the look.
 
 ## Brand Commitments
 
