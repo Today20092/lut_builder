@@ -989,7 +989,7 @@ test("setup changes are recoverable, deletion is deliberate, and feedback stays 
     assert.ok(button("Replace saved setup"), "case-insensitive replacements are explicit")
     assert.match(container.textContent, /overwrites that saved copy/)
     await click("Replace saved setup")
-    assert.equal(JSON.parse(window.localStorage.getItem(storageKey))[0].setup.cube_size, 17)
+    assert.equal(JSON.parse(window.localStorage.getItem(storageKey)).presets[0].setup.cube_size, 17)
     assert.equal(liveMessages("Named LUT setup saved").length, 1)
     assert.doesNotMatch(output(), /Named LUT setup saved/)
     assert.equal(container.querySelector('a[href="#photo-result"]').textContent, "View photo result")
