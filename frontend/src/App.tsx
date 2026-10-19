@@ -16,6 +16,7 @@ import { Data, Effect, Result, Schema } from "effect"
 import { Button } from "@/components/ui/button"
 import { PaletteEditor, type PalettePreview } from "./PaletteEditor"
 import { ExposurePreview } from "./ExposurePreview"
+import { ReferencePreview } from "./ReferencePreview"
 import { KeyboardHelp } from "./KeyboardHelp"
 import { isTypingTarget } from "./keyboard"
 import { tailwindPalette } from "./tailwindPalette"
@@ -450,7 +451,7 @@ export function LutImagePreview({ preview, camera }: { preview: Preview | null; 
 }
 
 function WorkbenchPreview({ preview, setup, catalog, browserOnly }: { preview: Preview | null; setup: Setup; catalog: Catalog; browserOnly: boolean }) {
-  const [mode, setMode] = useState("Demonstration")
+  const [mode, setMode] = useState("Camera-matched")
   const [sourceKind, setSourceKind] = useState("Still")
   if (browserOnly) return <BrowserVerification setup={setup} />
   return <div className="grid min-w-0 self-start gap-3 @min-[64rem]:sticky @min-[64rem]:top-6">
@@ -990,14 +991,14 @@ function InfoTooltip({ text }: { text: string }) {
 export function App() {
   const browserOnly = !window.LUT_BUILDER_TOKEN
   const catalog = window.LUT_BUILDER_CATALOG ?? browserCatalog
-  const [{ setup, selection: selectedBand, undo }, dispatch] = useReducer(reduceEditor, window.LUT_BUILDER_SETUP ?? browserSetup, createEditorState)
+  const [{ setup, selection: selectedBand, undo, revision }, dispatch] = useReducer(reduceEditor, window.LUT_BUILDER_SETUP ?? browserSetup, createEditorState)
   const [preview, setPreview] = useState<Preview | null>(null)
   const [validationError, setValidationError] = useState("")
-  const [presetRead] = useState(() => browserOnly
-    ? Effect.runSync(Effect.result(readSetupPresets(() => window.localStorage)))
-    : Result.succeed([]))
+  const [presetRead] = useState(() => Effect.runSync(Effect.result(readSetupPresets(() => window.localStorage))))
   const [status, setStatus] = useState(() => Result.isFailure(presetRead) ? presetRead.failure.message : "")
   const [isGenerating, setIsGenerating] = useState(false)
+  const [isLoadingSetup, setIsLoadingSetup] = useState(false)
+  const loadRequest = useRef(0)
   const workerRef = useRef<AbortController | null>(null)
   const [setupPresets, setSetupPresets] = useState<SetupPreset[]>(() => Result.isSuccess(presetRead) ? presetRead.success : [])
   const [presetName, setPresetName] = useState("")
@@ -1056,7 +1057,7 @@ export function App() {
   }
 
   function undoEdit() {
-    if (!undo) return
+    if (!undo || isGenerating || isLoadingSetup) return
     dispatch({ type: "undo" })
     setRemovingBandIndex(null)
   }
@@ -1070,6 +1071,7 @@ export function App() {
   }
 
   async function generate() {
+    if (isGenerating || isLoadingSetup) return
     setIsGenerating(true)
     setStatus(`Generating ${setup.cube_size}³ LUT…`)
     const controller = browserOnly ? new AbortController() : null
@@ -1129,6 +1131,8 @@ export function App() {
   }
 
   async function importFile(file: File) {
+    const request = ++loadRequest.current
+    setIsLoadingSetup(true)
     try {
       const text = await Effect.runPromise(Effect.tryPromise({
         try: () => file.text(),
@@ -1140,10 +1144,14 @@ export function App() {
         const result = await postJson("/preview", validated)
         return result.setup
       })
+      if (request !== loadRequest.current) return
       dispatch({ type: "import", setup: imported })
+      setPalettePreview(null)
       setStatus(`Imported ${file.name}.`)
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Import failed")
+      if (request === loadRequest.current) setStatus(error instanceof Error ? error.message : "Import failed")
+    } finally {
+      if (request === loadRequest.current) setIsLoadingSetup(false)
     }
   }
 
@@ -1169,13 +1177,19 @@ export function App() {
   async function loadPreset() {
     const preset = setupPresets.find((item) => item.name === selectedPreset)
     if (!preset) return
+    const request = ++loadRequest.current
+    setIsLoadingSetup(true)
     try {
       const validated = await Effect.runPromise(decodeSetup(preset.setup))
       const next = browserOnly ? validated : (await postJson("/preview", validated)).setup
+      if (request !== loadRequest.current) return
       dispatch({ type: "import", setup: next })
+      setPalettePreview(null)
       setStatus(`Loaded ${preset.name}.`)
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Could not load this preset.")
+      if (request === loadRequest.current) setStatus(error instanceof Error ? error.message : "Could not load this preset.")
+    } finally {
+      if (request === loadRequest.current) setIsLoadingSetup(false)
     }
   }
 
@@ -1195,16 +1209,32 @@ export function App() {
         <h1 className="font-heading text-3xl font-semibold tracking-tight">LUT Builder</h1>
         <p className="text-muted-foreground">{browserOnly ? "Browser-based diagnostic scene-exposure LUT editor" : "Local diagnostic scene-exposure LUT editor"}</p>
         </div>
-        <nav aria-label="Workbench sections" className="flex flex-wrap gap-4 text-sm font-medium">
-          <a className="underline" href={`${import.meta.env.BASE_URL}docs/`} target="_blank" rel="noreferrer">Help / Manual <span className="sr-only">(opens in a new tab)</span></a>
-          <KeyboardHelp canUndo={Boolean(undo)} onUndo={undoEdit} />
-          <a className="underline-offset-4 hover:underline" href="#configuration">01 Configure</a>
-          <a className="underline-offset-4 hover:underline" href="#exposure-bands">02 Edit bands</a>
-          <a className="underline-offset-4 hover:underline" href="#export">03 Download</a>
+        <a className="inline-flex min-h-11 items-center text-sm underline" href={`${import.meta.env.BASE_URL}docs/`} target="_blank" rel="noreferrer">Help / Manual <span className="sr-only">(opens in a new tab)</span></a>
+        <a className="inline-flex min-h-11 items-center text-sm underline" href="https://github.com/Today20092/lut_builder/issues/new/choose" target="_blank" rel="noreferrer">Report an issue · GitHub</a>
+        <nav aria-label="Workbench sections" className="flex w-full items-center justify-between gap-1 text-sm font-medium sm:w-auto sm:gap-4">
+          <span className="hidden sm:inline-flex"><KeyboardHelp canUndo={Boolean(undo)} onUndo={undoEdit} /></span>
+          <a className="inline-flex min-h-11 items-center px-1 underline-offset-4 hover:underline" href="#configuration">01 Configure</a>
+          <a className="inline-flex min-h-11 items-center px-1 underline-offset-4 hover:underline" href="#exposure-bands">02 Edit bands</a>
+          <a className="inline-flex min-h-11 items-center px-1 underline-offset-4 hover:underline" href="#export">03 Download</a>
         </nav>
       </header>
 
-      <section className="@container grid gap-6">
+      <fieldset disabled={isGenerating || isLoadingSetup} className="@container grid min-w-0 gap-6">
+        <details className="rounded-lg border p-4">
+          <summary className="cursor-pointer font-medium">Load setup · optional</summary>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            <label className="grid gap-1 text-sm font-medium">Saved setup in this browser
+              <select className={fieldClass} value={selectedPreset} onChange={(event) => setSelectedPreset(event.target.value)}><option value="">Choose a setup</option>{setupPresets.map((preset) => <option key={preset.name} value={preset.name}>{preset.name}</option>)}</select>
+            </label>
+            <div className="flex flex-wrap items-end gap-2">
+              <Button type="button" variant="outline" disabled={!selectedPreset} onClick={() => void loadPreset()}>Load setup</Button>
+              <Button type="button" variant="ghost" disabled={!selectedPreset} onClick={removePreset}>Delete setup</Button>
+              <Button type="button" variant="outline" onClick={() => importInput.current?.click()}>Import setup file</Button>
+              <input ref={importInput} className="sr-only" tabIndex={-1} aria-label="Import setup JSON file" type="file" accept="application/json,.json" onChange={(event) => { const file = event.target.files?.[0]; if (file) void importFile(file); event.target.value = "" }} />
+            </div>
+            <p role="status" className="text-sm sm:col-span-2">{isLoadingSetup ? "Loading setup…" : status}</p>
+          </div>
+        </details>
         <Card id="configuration" className="scroll-mt-6">
           <CardHeader>
             <CardTitle><h2>Configuration</h2></CardTitle>
@@ -1269,7 +1299,7 @@ export function App() {
           </CardContent>
         </Card>
 
-        <div className="grid min-w-0 items-start gap-6 @min-[64rem]:grid-cols-[minmax(0,1fr)_minmax(22rem,0.65fr)]">
+        <div className="grid min-w-0 items-start gap-6">
         <div className="grid min-w-0 gap-6">
         <Card id="exposure-bands" className="min-w-0 scroll-mt-6 overflow-visible">
           <ExposurePreview setup={setup} preview={palettePreview} minimum={graphMinimum} maximum={graphMaximum} unit={graphPreview.unit} />
@@ -1352,7 +1382,7 @@ export function App() {
                   </label>
                 )}
               {setup.band_mode === "stops" && <label className="grid min-w-0 gap-1.5 text-xs font-medium sm:col-span-2">Visible range (± stops)
-                <BandNumberInput aria-label="Graph range in stops" className={fieldClass} value={graphRange} min={1} max={100} step={1} onChange={setGraphRange} />
+                <select aria-label="Graph range in stops" className={fieldClass} value={graphRange} onChange={(event) => setGraphRange(Number(event.target.value))}>{Array.from({ length: 20 }, (_, index) => index + 1).map((value) => <option key={value} value={value}>±{value} stops</option>)}</select>
                 <span className="text-xs font-normal text-muted-foreground">Zooms the graph; your bands stay unchanged.</span>
               </label>}
                 </div>
@@ -1417,7 +1447,7 @@ export function App() {
               </>
             ) : <p className="text-sm text-muted-foreground">{browserOnly ? "The browser build creates LUTs locally; exposure preview is not included in this release." : "Preparing preview…"}</p>}
             {validationError && <p className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive" role="alert">{validationError}</p>}
-            <PaletteEditor setup={setup} palette={catalog.palette} onApply={applyPalette} onPreview={setPalettePreview} />
+            <PaletteEditor key={revision} setup={setup} palette={catalog.palette} onApply={applyPalette} onPreview={setPalettePreview} />
           </CardContent>
         </Card>
 
@@ -1430,7 +1460,7 @@ export function App() {
               </CardDescription>
               <details className="text-xs text-muted-foreground">
                 <summary className="cursor-pointer text-sm">How to interpret these warnings</summary>
-                <p className="mt-2">The high warning marks a channel that may be clipped; the low warning marks shadow detail that may be buried in noise. A LUT sees processed RGB, not RAW sensor data. Limits vary by camera model, recording mode, EI/ISO, and signal range.</p>
+                <p className="mt-2">Any encoded RGB channel can trigger a warning, including a low channel in a bright, saturated subject. The exported cube includes half a grid step of tolerance. Warnings override exposure bands; high wins if both trigger. A LUT sees processed RGB, not RAW sensor data. Purple/red are editable indicator colors, not proof of noise or sensor clipping.</p>
               </details>
             </CardHeader>
             <CardContent className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,14rem),1fr))] gap-5">
@@ -1451,31 +1481,24 @@ export function App() {
             </CardContent>
         </Card>
 
-        {browserOnly && <Card>
+        </div>
+        <ReferencePreview setup={palettePreview?.valid ? palettePreview.setup : setup} draft={Boolean(palettePreview?.valid)} />
+        <details className="min-w-0 rounded-lg border p-4"><summary className="cursor-pointer font-medium">Use original camera media · image or video</summary><div className="mt-4"><p className="text-xs text-muted-foreground">Camera verification requires known source settings. <a className="underline" href={`${import.meta.env.BASE_URL}docs/verification/`} target="_blank" rel="noreferrer">Preview and source interpretation help (new tab)</a></p><WorkbenchPreview preview={preview} setup={{ ...setup, output: outputFilename(setup) }} catalog={catalog} browserOnly={browserOnly} /></div></details>
+        <Card>
           <CardHeader>
-            <CardTitle>Saved LUT setups</CardTitle>
-            <CardDescription>Named setup presets are separate from color palettes and stay in this browser.</CardDescription>
+            <CardTitle>Save setup · optional</CardTitle>
+            <CardDescription>Keep your settings for next time.</CardDescription>
           </CardHeader>
           <CardContent className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,14rem),1fr))] items-end gap-3">
             <label className="grid gap-1 text-sm font-medium">Preset name
               <input className={fieldClass} value={presetName} onChange={(event) => setPresetName(event.target.value)} maxLength={80} />
             </label>
             <Button type="button" variant="outline" onClick={saveCurrentPreset}>Save current setup</Button>
-            <label className="grid gap-1 text-sm font-medium">Saved setup
-              <select className={fieldClass} value={selectedPreset} onChange={(event) => setSelectedPreset(event.target.value)}>
-                <option value="">Choose a setup</option>
-                {setupPresets.map((preset) => <option key={preset.name} value={preset.name}>{preset.name}</option>)}
-              </select>
-            </label>
-            <div className="flex flex-wrap gap-2">
-              <Button type="button" variant="outline" disabled={!selectedPreset} onClick={() => void loadPreset()}>Load setup</Button>
-              <Button type="button" variant="outline" disabled={!selectedPreset} onClick={removePreset}>Delete setup</Button>
-            </div>
+            <Button type="button" variant="outline" onClick={downloadConfig}>Export setup file</Button>
+            <p role="status" className="text-sm sm:col-span-2">{status}</p>
           </CardContent>
-        </Card>}
-
-        </div>
-        <aside className="grid min-w-0 gap-6 @min-[64rem]:sticky @min-[64rem]:top-6" aria-label="Output and preview">
+        </Card>
+        <aside className="grid min-w-0 gap-6" aria-label="LUT output">
         <Card id="export" className="scroll-mt-6">
           <CardHeader>
             <CardTitle><h2>Generate LUT</h2></CardTitle>
@@ -1484,6 +1507,9 @@ export function App() {
           <CardContent className="grid gap-2">
             <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Output · {setup.cube_size}³ .cube</span>
             <output className="break-all font-mono text-sm" aria-label="Output filename preview">{outputFilename(setup)}</output>
+            <p className="text-sm">{setup.legal_range ? "Legal/video range" : "Full range"} · {setup.band_mode === "stops" ? "Exposure stops" : "IRE"} · {setup.fill_mode ? "Fill zones" : setup.monochrome ? "Bands on monochrome" : "Bands on color"}</p>
+            <ul aria-label="Output band colors and boundaries" className="grid grid-cols-2 gap-2 sm:grid-cols-4">{setup.bands.map((band, index) => <li key={index} className="grid gap-1 rounded border p-2 text-xs"><span className="h-6 rounded" style={{ backgroundColor: band.color }} /><span>{setup.fill_mode ? `${index === 0 ? '−∞' : setup.bands[index - 1].stop} to ${index === setup.bands.length - 1 ? '+∞' : band.stop}` : `${Number((band.stop - band.width).toFixed(3))} to ${Number((band.stop + band.width).toFixed(3))}`} {setup.band_mode === "stops" ? "stops" : "IRE"}</span><span className="font-mono">{band.color}</span></li>)}</ul>
+            {[[setup.low_signal_warning, "Low recorded signal", setup.low_signal_hex], [setup.high_signal_warning, "High recorded signal", setup.high_signal_hex]].map(([enabled, label, color]) => enabled && <p key={String(label)} className="flex items-center gap-2 text-xs"><span className="size-5 rounded border" style={{ backgroundColor: String(color) }} />{label} · {color}</p>)}
             {palettePreview && <p className="text-xs text-muted-foreground" role="status">Your palette preview is not applied. This download uses the current band colors. <a href="#exposure-bands" className="underline">Return to palette preview</a>.</p>}
             {browserOnly && <p className="text-xs text-muted-foreground">Generated on this device. Export JSON to back up your setup; browser storage does not sync and may be cleared.</p>}
           </CardContent>
@@ -1492,21 +1518,14 @@ export function App() {
               {isGenerating && <Spinner data-icon="inline-start" />}
               {isGenerating ? "Generating…" : "Generate LUT"}
             </Button>
-            {browserOnly && isGenerating && <Button type="button" variant="outline" onClick={() => workerRef.current?.abort()}>Cancel</Button>}
-            <div className="flex flex-wrap gap-2">
-              <Button type="button" variant="outline" onClick={() => importInput.current?.click()}>Import JSON</Button>
-              <Button type="button" variant="outline" onClick={downloadConfig}>Export JSON</Button>
-              <input ref={importInput} className="sr-only" tabIndex={-1} aria-label="Import setup JSON file" type="file" accept="application/json,.json" onChange={(event) => { const file = event.target.files?.[0]; if (file) void importFile(file); event.target.value = "" }} />
-            </div>
             <p className="min-h-5 w-full text-sm text-muted-foreground" role="status" aria-live="polite">{status}</p>
           </CardFooter>
         </Card>
 
-        <p className="text-xs text-muted-foreground">Camera verification requires known source settings. <a className="underline" href={`${import.meta.env.BASE_URL}docs/verification/`} target="_blank" rel="noreferrer">Preview and source interpretation help (new tab)</a></p>
-        <WorkbenchPreview preview={preview} setup={{ ...setup, output: outputFilename(setup) }} catalog={catalog} browserOnly={browserOnly} />
         </aside>
         </div>
-      </section>
+      </fieldset>
+      {browserOnly && isGenerating && <Button type="button" variant="outline" onClick={() => workerRef.current?.abort()}>Cancel generation</Button>}
     </main>
   )
 }

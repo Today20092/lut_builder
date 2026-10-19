@@ -399,3 +399,14 @@ test("version-1 import/export round trips and invalid imports preserve state", a
   )
   assert.equal(setup.profile, "Sony S-Log3")
 })
+
+test("loading a setup clears edit gestures and changes the palette workflow identity", () => {
+  const original = createEditorState(setup)
+  const dragging = reduceEditor(original, { type: "begin" })
+  const loaded = reduceEditor(dragging, { type: "import", setup: { ...setup, target: "Rec.2020" } })
+  assert.equal(loaded.gesture, null)
+  assert.equal(loaded.undo, null)
+  assert.equal(loaded.selection, 0)
+  assert.equal(loaded.revision, original.revision + 1)
+  assert.equal(loaded.setup.target, "Rec.2020")
+})

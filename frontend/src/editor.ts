@@ -22,6 +22,7 @@ export type Setup = {
 
 type BandEditSnapshot = { setup: Setup; selection: number }
 export type EditorState = BandEditSnapshot & {
+  revision: number
   undo: (BandEditSnapshot & { after: Setup }) | null
   gesture: BandEditSnapshot | null
 }
@@ -35,7 +36,7 @@ type EditorAction =
   | { type: "begin" | "end" | "undo" }
 
 export function createEditorState(setup: Setup): EditorState {
-  return { setup, selection: 0, undo: null, gesture: null }
+  return { setup, selection: 0, undo: null, gesture: null, revision: 0 }
 }
 
 export function reduceEditor(state: EditorState, action: EditorAction): EditorState {
@@ -43,7 +44,7 @@ export function reduceEditor(state: EditorState, action: EditorAction): EditorSt
     case "select":
       return { ...state, selection: Math.max(0, Math.min(action.selection, state.setup.bands.length - 1)) }
     case "import":
-      return { ...state, setup: action.setup, selection: 0, undo: null }
+      return { ...state, setup: action.setup, selection: 0, undo: null, gesture: null, revision: state.revision + 1 }
     case "add": {
       const next = reduceEditor(state, {
         type: "edit",

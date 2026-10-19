@@ -13,19 +13,27 @@ function OklchPicker({ color, onChange }: { color: string; onChange: (color: str
     { key: "c", label: "Chroma", max: 0.4, step: 0.001, display: channels.c.toFixed(3) },
     { key: "h", label: "Hue", max: 360, step: 1, display: `${Math.round(channels.h)}°` },
   ] as const
+  function change(key: 'l' | 'c' | 'h', value: number) {
+    const next = { ...channels, [key]: value }
+    const hex = oklchToHex(next)
+    setEdited({ hex, channels: next })
+    onChange(hex)
+  }
   return <div className="grid gap-4">
-    {controls.map(({ key, label, max, step, display }) => <label key={key} className="grid gap-2 text-sm">
+    {controls.map(({ key, label, max, step, display }) => <div key={key} className="grid gap-2 text-sm">
       <span className="flex justify-between gap-3"><span>{label}</span><span className="font-mono text-xs text-muted-foreground">{display}</span></span>
       <input type="range" aria-label={`Color ${label.toLowerCase()}`} min={0} max={max} step={step} value={channels[key]}
-        className="oklch-slider"
+        className="oklch-slider pointer-adjustment"
         style={{ background: `linear-gradient(to right, ${Array.from({ length: 25 }, (_, index) => oklchToHex({ ...channels, [key]: index / 24 * max })).join(",")})` }}
         onChange={(event) => {
-          const next = { ...channels, [key]: Number(event.target.value) }
-          const hex = oklchToHex(next)
-          setEdited({ hex, channels: next })
-          onChange(hex)
+          change(key, Number(event.target.value))
         }} />
-    </label>)}
+      <div className="touch-adjustment flex items-center gap-3">
+        <Button type="button" variant="outline" aria-label={`Decrease ${label.toLowerCase()}`} disabled={channels[key] <= 0} onClick={() => change(key, Math.max(0, channels[key] - (key === 'h' ? 5 : 0.01)))}>−</Button>
+        <span className="flex-1 text-center">{display}</span>
+        <Button type="button" variant="outline" aria-label={`Increase ${label.toLowerCase()}`} disabled={channels[key] >= max} onClick={() => change(key, Math.min(max, channels[key] + (key === 'h' ? 5 : 0.01)))}>+</Button>
+      </div>
+    </div>)}
     <p className="text-xs text-muted-foreground">{channels.c > maxSrgbChroma(channels) + 0.002
       ? "Outside sRGB: chroma is reduced in the saved color to keep it displayable."
       : "OKLCH controls · colors are saved as sRGB hex."}</p>
@@ -40,11 +48,12 @@ function OklchPicker({ color, onChange }: { color: string; onChange: (color: str
   </div>
 }
 
-export function GradientPicker({ colors, positions, blend, huePath, exposureScale, exposureUnit = "stops", onChange }: {
+export function GradientPicker({ colors, positions, blend, huePath, displayColors, exposureScale, exposureUnit = "stops", onChange }: {
   colors: string[]
   positions: number[]
   blend: GradientBlend
   huePath: HuePath
+  displayColors?: string[]
   exposureScale?: number[]
   exposureUnit?: string
   onChange: (colors: string[], positions: number[]) => void
@@ -60,7 +69,7 @@ export function GradientPicker({ colors, positions, blend, huePath, exposureScal
   }
   const referenceIndex = exposureAnchored ? positions.indexOf(0.5) : -1
   const anchors = colors.map((color, index) => ({ ...hexToOklch(isHexColor(color) ? color : "#2563eb"), position: positions[index] }))
-  const gradient = Array.from({ length: 65 }, (_, index) => sampleOklabRamp(anchors, index / 64, blend, huePath)).join(",")
+  const gradient = (displayColors ?? Array.from({ length: 65 }, (_, index) => sampleOklabRamp(anchors, index / 64, blend, huePath))).join(",")
 
   function add(position?: number) {
     if (colors.length >= 32) return
@@ -96,21 +105,19 @@ export function GradientPicker({ colors, positions, blend, huePath, exposureScal
 
   return <div className="grid gap-4 rounded-lg border p-4">
     <div className="flex justify-between gap-2 text-xs text-muted-foreground"><span>{exposureAnchored ? `≤ ${positionLabel(0)}` : "Low exposure"}</span>{exposureAnchored && <span>{positionLabel(0.5)} · ref</span>}<span>{exposureAnchored ? `≥ ${positionLabel(1)}` : "High exposure"}</span></div>
-    <div className="overflow-x-auto rounded-md pb-2">
-    <div className="px-6" style={{ minWidth: Math.max(448, colors.length * 56) }}>
-    <div className="relative h-20" role="group" aria-label="Gradient color stops">
-      <button type="button" aria-label="Add color on gradient" className="absolute inset-x-0 top-5 h-10 w-full rounded-md border" style={{ background: `linear-gradient(to right, ${gradient})` }}
+    <div className="mx-6 relative h-14" role="group" aria-label="Gradient color stops">
+      <button type="button" aria-label="Add color on gradient" className="gradient-bar absolute inset-x-0 top-3 h-8 w-full rounded-md border" style={{ background: `linear-gradient(to right, ${gradient})` }}
         onClick={(event) => {
           const bounds = event.currentTarget.getBoundingClientRect()
           add(event.detail === 0 || bounds.width === 0 ? undefined : Math.max(0, Math.min(1, (event.clientX - bounds.left) / bounds.width)))
         }} />
       {colors.map((color, index) => <button key={index} type="button" role="slider" aria-label={`Color stop ${index + 1}`} title={index === referenceIndex ? `Reference color: fixed at ${positionLabel(0.5)}. You can edit its color.` : undefined} aria-valuemin={index === referenceIndex ? 50 : Math.round((index === 0 ? 0 : positions[index - 1] + 0.01) * 100)} aria-valuemax={index === referenceIndex ? 50 : Math.round((index === colors.length - 1 ? 1 : positions[index + 1] - 0.01) * 100)} aria-valuenow={Math.round(positions[index] * 100)} aria-valuetext={`${positionLabel(positions[index])}, ${color}${selected === index ? ", selected" : ""}`} aria-orientation="horizontal"
-        className="absolute top-4 flex size-12 -translate-x-1/2 touch-none items-center justify-center rounded-md"
+        className="absolute top-1 flex size-12 -translate-x-1/2 touch-pan-y items-center justify-center rounded-md"
         style={{ left: `${positions[index] * 100}%` }}
         onFocus={() => setSelection(index)}
         onClick={() => setSelection(index)}
         onPointerDown={(event) => {
-          if (event.button !== 0) return
+          if (event.button !== 0 || event.pointerType === "touch") return
           setSelection(index)
           event.currentTarget.focus()
           event.currentTarget.setPointerCapture(event.pointerId)
@@ -133,16 +140,22 @@ export function GradientPicker({ colors, positions, blend, huePath, exposureScal
         <span aria-hidden="true" className={`size-6 rounded-full border-2 border-white shadow-[0_0_0_1px_#171717] ${selected === index ? "ring-2 ring-foreground ring-offset-4 ring-offset-card" : ""}`} style={{ background: isHexColor(color) ? color : "#2563eb" }} />
       </button>)}
     </div>
-    </div>
-    </div>
-    <p className="text-xs text-muted-foreground">Swipe across the bar for more room. Tap a dot to edit; drag to move.{exposureAnchored && ` Reference stays at ${positionLabel(0.5)}.`}</p>
-    <div className="grid grid-cols-2 gap-2">
-      <Button type="button" variant="outline" disabled={colors.length >= 32} onClick={() => add()}>Add color</Button>
-      <Button type="button" variant="outline" aria-label="Remove selected color" disabled={colors.length <= 2 || selected === referenceIndex} onClick={remove}>Remove color</Button>
+    <div className="flex flex-wrap items-center justify-between gap-2">
+      <p className="pointer-adjustment text-xs text-muted-foreground">Click the bar to add a color. Drag a dot to move it.{exposureAnchored && ` The reference dot stays at ${positionLabel(0.5)}.`}</p>
+      <Button type="button" variant="outline" size="sm" disabled={colors.length >= 32} onClick={() => add()}>Add color</Button>
     </div>
     <div className="grid gap-4 border-t pt-4">
+      <div className="touch-adjustment grid gap-3">
+        <label className="grid gap-1 text-sm">Selected color<select aria-label="Selected color" className={fieldClass} value={selected} onChange={(event) => setSelection(Number(event.target.value))}>{colors.map((_, index) => <option key={index} value={index}>Color {index + 1} · {positionLabel(positions[index])}</option>)}</select></label>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button type="button" variant="outline" disabled={selected === referenceIndex || positions[selected] <= (selected === 0 ? 0 : positions[selected - 1] + 0.01)} onClick={() => move(selected, positions[selected] - 0.01)}>Move left</Button>
+          <Button type="button" variant="outline" disabled={selected === referenceIndex || positions[selected] >= (selected === colors.length - 1 ? 1 : positions[selected + 1] - 0.01)} onClick={() => move(selected, positions[selected] + 0.01)}>Move right</Button>
+        </div>
+        <p className="text-xs text-muted-foreground">Tap to select. Use buttons to adjust; swipe vertically to scroll.</p>
+      </div>
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h4 className="text-sm font-medium">Color {selected + 1} <span className="font-normal text-muted-foreground">· {positionLabel(positions[selected])}{selected === referenceIndex ? " · reference" : exposureAnchored ? "" : " of ramp"}</span></h4>
+          <Button type="button" variant="ghost" size="sm" aria-label="Remove selected color" disabled={colors.length <= 2 || selected === referenceIndex} onClick={remove}>Remove selected color</Button>
+          <h4 className="text-sm font-medium">Color {selected + 1} <span className="font-normal text-muted-foreground">· {positionLabel(positions[selected])}{selected === referenceIndex ? " · reference" : exposureAnchored ? "" : " of ramp"}</span></h4>
       </div>
       <OklchPicker key={selected} color={colors[selected]} onChange={(color) => onChange(colors.map((item, index) => index === selected ? color : item), positions)} />
     </div>
