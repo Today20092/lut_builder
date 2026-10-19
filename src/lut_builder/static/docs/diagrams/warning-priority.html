@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Which color wins?</title>
+<style>
+  :root { color-scheme: light dark; --paper: #f7f7f7; --card: #fff; --ink: #171717; --muted: #666; --rule: #d4d4d4; }
+  @media (prefers-color-scheme: dark) { :root { --paper: #171717; --card: #262626; --ink: #fafafa; --muted: #b3b3b3; --rule: #525252; } }
+  * { box-sizing: border-box; } body { margin: 0; background: var(--paper); color: var(--ink); font-family: ui-sans-serif, system-ui, sans-serif; }
+  .diagram-container { width: 100%; overflow-x: auto; } .diagram-container:focus-visible { outline: 2px solid var(--ink); outline-offset: -3px; }
+  svg { display: block; width: 100%; min-width: 720px; } text { fill: var(--ink); font-family: ui-sans-serif, system-ui, sans-serif; }
+  .node { fill: var(--card); stroke: var(--muted); } .name { font-size: 16px; font-weight: 600; } .sub { fill: var(--muted); font-size: 12px; } .arrow { stroke: var(--muted); stroke-width: 2; fill: none; }
+  @media print { .diagram-container { overflow: visible; } svg { min-width: 0; } }
+</style>
+<div class="diagram-container" tabindex="0" role="region" aria-label="Warning priority diagram; scroll horizontally on narrow screens" data-pagefind-ignore>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 300" role="img" aria-labelledby="warning-priority-title warning-priority-desc">
+  <title id="warning-priority-title">Which color wins?</title>
+  <desc id="warning-priority-desc">The base and bands are drawn first, the enabled low warning replaces matching nodes, and the enabled high warning replaces matching nodes last, winning if both warnings trigger.</desc>
+  <defs><marker id="priority-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0 L8 4 L0 8" fill="var(--muted)"/></marker></defs>
+  <text x="24" y="40" font-size="24" font-weight="600">Which color wins?</text>
+  <text x="24" y="64" class="sub">Overlay order at cube lattice nodes · later matching overlays win</text>
+  <g class="arrow" marker-end="url(#priority-arrow)"><path d="M224 148 H256"/><path d="M460 148 H492"/></g>
+  <rect class="node" x="24" y="100" width="200" height="96" rx="6"/>
+  <text x="40" y="128" class="sub">01 · FOUNDATION</text><text x="40" y="152" class="name">Base + bands / Fill</text><text x="40" y="176" class="sub">Remain if no warning triggers</text>
+  <rect class="node" x="264" y="100" width="196" height="96" rx="6"/>
+  <text x="280" y="128" class="sub">02 · LOW WARNING</text><text x="280" y="152" class="name">Replace if low</text><text x="280" y="176" class="sub">Enabled + any channel low</text>
+  <rect x="500" y="100" width="196" height="96" rx="6" fill="var(--ink)"/>
+  <text x="516" y="128" class="sub" style="fill:var(--paper)">03 · HIGH WARNING</text><text x="516" y="152" class="name" style="fill:var(--paper)">Replace if high</text><text x="516" y="176" class="sub" style="fill:var(--paper)">Enabled + any channel high</text>
+  <path d="M24 232 H696" stroke="var(--rule)"/>
+  <text x="24" y="256" class="sub">Arrows show application order. Filled step has final priority when triggered.</text>
+  <text x="24" y="280" class="sub">Tests include half-grid tolerance; host interpolation can blend boundaries.</text>
+</svg>
+</div>
+</html>
