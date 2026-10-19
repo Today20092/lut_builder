@@ -57,6 +57,7 @@ jobs:
           export PLAYWRIGHT_MODULE="$RUNNER_TEMP/browser-check/node_modules/playwright/index.mjs"
           for browser in chromium firefox webkit; do
             BROWSER="$browser" node tests/browser-only.mjs
+            BROWSER="$browser" node tests/manual-browser.mjs
           done
       - uses: actions/upload-pages-artifact@v5
         with:

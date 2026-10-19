@@ -329,11 +329,13 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
             )
             self._send(200, body, "text/html; charset=utf-8")
             return
-        if not request_path.startswith("/assets/"):
+        if not request_path.startswith(("/assets/", "/docs/")):
             self.send_error(404)
             return
 
         asset = (STATIC_ROOT / request_path.lstrip("/")).resolve()
+        if request_path.startswith("/docs/") and request_path.endswith("/"):
+            asset = asset / "index.html"
         if not asset.is_relative_to(STATIC_ROOT.resolve()) or not asset.is_file():
             self.send_error(404)
             return

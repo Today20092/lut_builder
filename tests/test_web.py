@@ -83,6 +83,18 @@ def test_local_bootstrap_and_default_lut_generation():
         assert "Monochrome" in assets
         assert "Full range" in assets
 
+        for path, expected in (
+            ("docs/", "Understand your exposure colors"),
+            ("docs/signal-limits/", "How are these limits calculated?"),
+            ("docs/pagefind/pagefind.js", "pagefind"),
+        ):
+            with _request(url + path) as response:
+                assert expected in response.read().decode()
+        for path in ("docs/missing/", "docs/%2e%2e/%2e%2e/web.py"):
+            with pytest.raises(HTTPError) as error:
+                _request(url + path)
+            assert error.value.code == 404
+
         for request in (
             Request(url + "generate", data=b"{}", method="POST"),
             Request(

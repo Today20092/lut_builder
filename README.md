@@ -10,7 +10,7 @@ Make custom false-color LUTs to monitor camera exposure. LUT Builder is free and
 
 **[Open LUT Builder on GitHub Pages](https://today20092.github.io/lut_builder/)**
 
-[Make your first LUT](#make-your-first-lut) · [Use your phone](#use-your-phone) · [User guide](docs/guide.md) · [Feedback and support](#feedback-and-support)
+[Browser manual](https://today20092.github.io/lut_builder/docs/) · [Make your first LUT](#make-your-first-lut) · [Use your phone](#use-your-phone) · [CLI and development guide](docs/guide.md) · [Feedback and support](#feedback-and-support)
 
 ## Make your first LUT
 
