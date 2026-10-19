@@ -154,7 +154,7 @@ class VideoSession:
                     if process.poll() is None and os.name == "nt":
                         # Chocolatey executables can be launchers. Kill the decoder
                         # descendants too, before closing/deleting their output files.
-                        subprocess.run(
+                        terminated = subprocess.run(
                             [
                                 str(
                                     Path(os.environ["SystemRoot"])
@@ -171,8 +171,34 @@ class VideoSession:
                             creationflags=subprocess.CREATE_NO_WINDOW,
                             timeout=5,
                         )
+                        if terminated.returncode:
+                            raise OSError("Process-tree termination failed")
                 except (OSError, subprocess.TimeoutExpired):
-                    pass  # Still reap the launched process if tree termination fails.
+                    # A decoder can outlive its launcher and keep output files locked.
+                    try:
+                        subprocess.run(
+                            [
+                                str(
+                                    Path(os.environ["SystemRoot"])
+                                    / "System32/WindowsPowerShell/v1.0/powershell.exe"
+                                ),
+                                "-NoProfile",
+                                "-NonInteractive",
+                                "-Command",
+                                "function Stop-Tree([int]$parentId) { "
+                                "Get-CimInstance Win32_Process -Filter "
+                                '"ParentProcessId=$parentId" | ForEach-Object '
+                                "{ Stop-Tree $_.ProcessId }; "
+                                "Stop-Process -Id $parentId -Force -ErrorAction SilentlyContinue "
+                                f"}}; Stop-Tree {process.pid}",
+                            ],
+                            stdout=subprocess.DEVNULL,
+                            stderr=subprocess.DEVNULL,
+                            creationflags=subprocess.CREATE_NO_WINDOW,
+                            timeout=5,
+                        )
+                    except (OSError, subprocess.TimeoutExpired):
+                        pass  # Reap the launched process even if both tree tools fail.
                 finally:
                     if process.poll() is None:
                         process.kill()
