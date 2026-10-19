@@ -279,6 +279,7 @@ details.border[open] > summary { margin-bottom: 0; }
 .workspace-panel > details, .workspace-panel > section, .workspace-preset-panel { margin: 1.25rem; }
 .workspace-panel > details { border-radius: .5rem; }
 .workspace-preset-panel { display: grid; gap: 1rem; }
+.workspace-import-settings { margin: 1.25rem; padding-top: 1.25rem; border-top: 1px solid var(--border); }
 .workspace-panel .band-table { min-width: 0; table-layout: fixed; }
 .workspace-panel .band-table th:first-child { width: 38%; }
 .workspace-panel .band-table th:last-child { width: 3rem; }
@@ -316,6 +317,10 @@ details.border[open] > summary { margin-bottom: 0; }
   .workspace-graph > div { gap: .25rem; }
   .workspace-graph > div > output { display: none; }
   .workspace-stage-hint { display: none; }
+  .workspace[data-imported="true"] .workspace-graph { display: none; }
+  .workspace-stage [aria-label="Imported look comparison"] { gap: .375rem; padding-block: .5rem; }
+  .workspace-stage [aria-label="Imported look comparison"] h3 { font-size: .75rem; }
+  .workspace-stage [aria-label="Imported look comparison"] summary { display: flex; align-items: center; min-height: 2.75rem; }
   .workspace-stage:has(.workspace-photo[open]) { position: static; }
   .workspace-band-picker { flex-wrap: nowrap; overflow-x: auto; padding: .125rem; }
   .workspace-band-picker button { flex-shrink: 0; min-height: 2.75rem; }

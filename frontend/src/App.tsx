@@ -40,6 +40,8 @@ import { browserInterpretations, browserProfiles, browserTargets } from "@/lutEn
 import { defaultFilenameTemplate, outputFilename } from "./outputFilename"
 import { deleteSetupPreset, readSetupPresets, saveSetupPreset, readWorkspaceSession, writeWorkspaceSession, workspaceSessionBackup, type SetupPreset } from "@/setupPresets"
 import { WorkspaceShell, WorkspacePanel } from "./WorkspaceShell"
+import { ImportedLookSettings } from "./ImportedLookSettings"
+import { ImportedLookPreview } from "./ImportedLookPreview"
 import { createWorkspaceRuntime, type Preview } from "./workspaceRuntime"
 import { createSetupReplacement, createSetupWorkspace, reduceSetupWorkspace } from "./setupReplacement"
 import {
@@ -850,7 +852,7 @@ export function App() {
   const movementIncrement = mode === "ire" ? 1 : stopIncrement
   const selectBand = (index: number) => {
     dispatch({ type: "select", selection: index })
-    setRemovingBandIndex(null)
+    if (index !== selectedBand) setRemovingBandIndex(null)
   }
 
   useEffect(() => {
@@ -993,6 +995,7 @@ export function App() {
         <div className="workspace-band-picker" aria-label="Select exposure band">
           {setup.bands.map((band, index) => <Button key={bandId(band)} type="button" variant={selectedBand === index ? "secondary" : "ghost"} aria-pressed={selectedBand === index} aria-label={`Select band ${index + 1}`} disabled={isGenerating || isLoadingSetup || !sessionReady} onClick={() => { selectBand(index); openBands() }}><span className="workspace-swatch" style={{ backgroundColor: band.color }} aria-hidden="true" />{index + 1}</Button>)}
         </div>
+        <ImportedLookPreview setup={setup} />
         <p className="workspace-stage-hint">Select a band to edit its color and exposure range.</p>
         <details id="photo-result" className="workspace-photo"><summary>Photo illustration · optional</summary><ReferencePreview setup={palettePreview?.valid ? palettePreview.setup : setup} draft={Boolean(palettePreview?.valid)} /><a href="#exposure-bands" className="inline-flex min-h-11 items-center text-sm underline" onClick={openBands}>Back to band editing</a></details>
       </>}
@@ -1032,13 +1035,13 @@ export function App() {
           <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <label className="grid gap-1 text-sm font-medium">
               Camera recording
-              <select className={fieldClass} value={setup.profile} onChange={(e) => patchSetup({ profile: e.target.value })}>
+              <select className={fieldClass} value={setup.profile} disabled={Boolean(setup.imported_lut)} onChange={(e) => patchSetup({ profile: e.target.value })}>
                 {catalog.profiles.map((profile) => <option key={profile} value={profile}>{profile} · {browserInterpretations[profile]?.gamut ?? "Profile gamut"}</option>)}
               </select>
             </label>
             <label className="grid gap-1 text-sm font-medium">
               Target display
-              <select className={fieldClass} value={setup.target} onChange={(e) => patchSetup({ target: e.target.value })}>
+              <select className={fieldClass} value={setup.target} disabled={Boolean(setup.imported_lut)} onChange={(e) => patchSetup({ target: e.target.value })}>
                 {catalog.targets.map((target) => <option key={target}>{target}</option>)}
               </select>
             </label>
@@ -1052,14 +1055,14 @@ export function App() {
               </select>
             </label>
             <label className="flex items-center gap-2 text-sm font-medium">
-              <input type="checkbox" checked={setup.monochrome} disabled={setup.fill_mode} onChange={(e) => patchSetup({ monochrome: e.target.checked })} />
+                  <input type="checkbox" checked={setup.monochrome} disabled={setup.fill_mode || Boolean(setup.imported_lut)} onChange={(e) => patchSetup({ monochrome: e.target.checked })} />
               Monochrome base
             </label>
             <fieldset className="grid gap-3 sm:col-span-2">
               <legend className="mb-2 text-sm font-medium">LUT output range</legend>
               <div className="grid gap-2 sm:grid-cols-2">
                 {([false, true] as const).map((legal) => <label key={String(legal)} className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 has-focus-visible:ring-2 has-focus-visible:ring-ring ${setup.legal_range === legal ? "border-foreground bg-muted" : ""}`}>
-                  <input aria-label={legal ? "Video / Legal" : "Full / Data"} className="mt-1" type="radio" name="output-range" checked={setup.legal_range === legal} onChange={() => patchSetup({ legal_range: legal })} />
+                  <input aria-label={legal ? "Video / Legal" : "Full / Data"} className="mt-1" type="radio" name="output-range" disabled={Boolean(setup.imported_lut)} checked={setup.legal_range === legal} onChange={() => patchSetup({ legal_range: legal })} />
                   <span className="grid gap-1"><span className="text-sm font-medium">{legal ? "Video / Legal" : "Full / Data"}</span><span className="text-xs text-muted-foreground">{legal ? "Packs output into 64–940 (10-bit). Use only when your LUT destination requires it." : "Uses the full 0–1 output range. Tool default; keep unless your LUT destination requires video levels."}</span></span>
                 </label>)}
               </div>
@@ -1087,6 +1090,10 @@ export function App() {
             </details>
           </CardContent>
         </Card>
+        <div className="workspace-import-settings">
+          {setup.imported_lut && <p className="mb-3 text-xs text-muted-foreground">Input, display encoding, output range and color base belong to the confirmed look. Replace the imported file and confirm its interpretation to change them, or remove the look to use standard settings.</p>}
+          <ImportedLookSettings setup={setup} onChange={patchSetup} />
+        </div>
 
         </WorkspacePanel>
         <WorkspacePanel value="presets">
