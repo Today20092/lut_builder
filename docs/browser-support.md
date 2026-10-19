@@ -95,9 +95,9 @@ profiles and both output gamuts, plus the existing diagnostic-mode fixture setup
 within 0.000001 per channel. Independent checked-in fixture assertions cover
 boundaries, overlaps, warning priority, range, neutral/colored samples and ordering.
 
-Remaining release evidence: physical phone/tablet touch and usable downloads,
-representative low-memory devices, worker/peak-memory measurements, and deployed
-acceptance of this new commit. Emulation does not establish these. JavaScript and
+Physical phone/tablet and representative low-memory-device evidence remains
+deferred by the maintainer on October 18, 2026; it is not a blocker for this release.
+Emulation does not establish those results. JavaScript and
 Web Workers are required; startup failures provide an actionable browser/local
 workspace message. Export setup JSON for backup, especially in private browsing.
 
@@ -126,8 +126,51 @@ real VFR video selection/verification/cancellation. This checks that the browser
 delivery changes preserve the existing local workflow.
 
 Independent code review against starting commit `6273229` found no remaining
-standards or implementation/spec findings after fixes. The release-evidence gaps
-listed above remain open; issue #9 is not represented as fully complete.
+standards or implementation/spec findings after fixes.
+
+## Deployed acceptance, October 18, 2026
+
+Commit `05c9241` was pushed to `main` and [deployed successfully](https://github.com/Today20092/lut_builder/actions/runs/39192592255).
+The Python suite/parity gate and three-engine browser gate both passed on Linux.
+The live page served the expected `/lut_builder/assets/index-CV9kK91q.js` bundle.
+The complete browser acceptance script then passed against the public URL in all
+three engines and all three viewport sizes listed above. Desktop and narrow live
+screenshots were inspected; controls remained visible without page overflow.
+
+| Live engine | Startup to editor | 17-cube download | 33-cube download | 65-cube download |
+| --- | --- | --- | --- | --- |
+| Chromium 156.0.8078.4 | 223–393 ms | 167–243 ms | 430–437 ms | 810–841 ms |
+| Firefox 153.0 | 262–748 ms | 151–185 ms | 403–436 ms | 736–772 ms |
+| WebKit 26.5 | 249–332 ms | 280–411 ms | 437–731 ms | 804–1314 ms |
+
+These are single-run ranges across the three emulated viewport sizes on the same
+desktop and connection, including automation overhead. They are not phone timings.
+
+The optional [Windows memory check](../frontend/tests/browser-memory.mjs) sampled
+CDP-reported Chromium processes, including renderers containing worker execution,
+during a live 65-cube generation. Summed working sets were 484,491,264 bytes before
+generation and at most 598,327,296 bytes across three samples. This includes browser
+overhead, can double-count shared memory, and can miss brief peaks. It is a desktop
+observation, not unique allocated RAM, a precise peak, or a minimum device requirement.
+Run it from the repository root with the same `PLAYWRIGHT_MODULE`, `CHROME_PATH`
+and optional `LUT_BUILDER_URL` settings as the browser check.
+
+### Deferred physical-device checks
+
+- On an actual iPhone/iPad with Safari and Android phone/tablet with Chrome, use
+  touch to drag band centers and width handles, edit numbers with the on-screen
+  keyboard, and repeat in portrait/landscape without losing access to controls.
+- Use native file pickers to import/export setup JSON and native download/share
+  flows to save 17/33/65 `.cube` files. Reopen or transfer the saved files and verify
+  their names, contents and row counts, rather than just observing a download UI.
+- Save a named preset, reload/restart the browser, and check normal versus private
+  browsing/storage restrictions. Confirm JSON backup/restore remains usable.
+- On representative lower-memory hardware, measure startup and generation time,
+  memory pressure, UI responsiveness and cancellation for 65-cube generation;
+  check background/resume and OS tab eviction without claiming automatic recovery
+  of unsaved edits.
+
+No physical-device result or universal mobile-browser support is claimed.
 
 ## Release
 
@@ -135,5 +178,6 @@ The [Pages workflow](../.github/workflows/deploy-pages.yml) builds at the
 `/lut_builder/` repository subpath. Deployment requires both the browser build and
 three-engine acceptance job and the reusable Python checks/parity job to succeed.
 Failed checks block deployment. The bundled local-workspace assets are built with
-the default `/` base; CI rebuilds with the Pages base. The live URL above refers to
-the earlier release until this commit is pushed and its deployment succeeds.
+the default `/` base; CI rebuilds with the Pages base. The live URL now includes the
+restored editor, validation/cancellation changes and the deployment gates described
+here. Physical-device checks are deferred as listed above.

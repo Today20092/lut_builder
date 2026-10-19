@@ -37,7 +37,7 @@ try {
     await page.getByLabel("Band 1 stops", { exact: true }).waitFor()
     const startupMs = performance.now() - started
     await page.getByRole("combobox", { name: /^Camera/ }).selectOption("Panasonic V-Log")
-    await page.getByLabel("Output filename", { exact: true }).fill("Browser acceptance.cube")
+    await page.getByLabel("Output filename template", { exact: true }).fill("Browser acceptance.cube")
     await page.getByLabel("Band 1 stops", { exact: true }).fill("1.25")
     await page.getByLabel("Band 1 stops", { exact: true }).press("Enter")
     await page.getByLabel("Band 1 total width", { exact: true }).fill("0.8")
