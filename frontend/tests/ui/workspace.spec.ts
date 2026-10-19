@@ -312,7 +312,7 @@ test('selected band, panels, session restore and keyboard remain usable @checks'
   }
   await expect(page.getByText(/^Session saved on this device/)).toBeVisible()
   await page.reload()
-  await expect(page.getByText('Last session restored on this device.', { exact: true })).toBeVisible()
+  await expect(page.getByText('Last session restored. Reselect any camera media to verify; media files are not stored.', { exact: true })).toBeVisible()
   await page.getByRole('button', { name: 'Select band 2', exact: true }).click()
   await expect(position).toHaveValue('0.75')
   await panel(page, 'Export')
@@ -320,6 +320,26 @@ test('selected band, panels, session restore and keyboard remain usable @checks'
   await page.getByRole('button', { name: 'Generate LUT', exact: true }).click()
   expect((await download).suggestedFilename()).toMatch(/\.cube$/)
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+})
+
+test('damaged named library offers accessible backup and deliberate recovery @checks', async ({ page }) => {
+  const raw = JSON.stringify({ version: 2, presets: [{ name: 'Missing imported look', setup: { version: 3 } }] })
+  await page.evaluate(value => localStorage.setItem('lut-builder.named-setups.v1', value), raw)
+  await page.reload()
+  await panel(page, 'Setups')
+  await expect(page.getByRole('button', { name: 'Save current setup', exact: true })).toBeDisabled()
+  const backup = page.getByRole('button', { name: 'Download saved library backup', exact: true })
+  await expect(backup).toBeVisible()
+  await expect(backup).toBeEnabled()
+  await accessible(page)
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+  const downloading = page.waitForEvent('download')
+  await backup.click()
+  expect((await downloading).suggestedFilename()).toBe('lut-builder-saved-library-backup.json')
+  expect(await page.evaluate(() => localStorage.getItem('lut-builder.named-setups.v1'))).toBe(raw)
+  await page.getByRole('button', { name: 'Replace saved library with an empty library', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Save current setup', exact: true })).toBeEnabled()
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('lut-builder.named-setups.v1')!).presets)).toEqual([])
 })
 
 test('corrupt sessions remain recoverable until explicit replacement @checks', async ({ page }) => {

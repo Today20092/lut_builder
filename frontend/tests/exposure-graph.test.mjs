@@ -1008,6 +1008,64 @@ test("setup changes are recoverable, deletion is deliberate, and feedback stays 
   }
 })
 
+test("focusing stage band handles preserves the selected configuration panel", async () => {
+  const container = document.createElement("div")
+  document.body.append(container)
+  const root = createRoot(container)
+  try {
+    await act(() => root.render(React.createElement(App)))
+    const configure = [...container.querySelectorAll('[role="tab"]')].find(item => item.textContent.includes("Configure"))
+    await act(() => configure.click())
+    assert.equal(configure.getAttribute("aria-selected"), "true")
+    const handle = container.querySelector('[data-band-center="0"]')
+    await act(() => handle.focus())
+    assert.equal(configure.getAttribute("aria-selected"), "true", "Tab focus must not activate band editing")
+    await act(() => handle.click())
+    assert.equal(configure.getAttribute("aria-selected"), "false", "explicit band activation still opens editing")
+  } finally {
+    await act(() => root.unmount())
+    container.remove()
+  }
+})
+
+test("damaged named library blocks writes until explicit recovery and preserves raw backup", async () => {
+  const key = "lut-builder.named-setups.v1"
+  const previous = window.localStorage.getItem(key)
+  const originalCreate = URL.createObjectURL
+  const originalRevoke = URL.revokeObjectURL
+  const originalClick = window.HTMLAnchorElement.prototype.click
+  let backup
+  URL.createObjectURL = blob => { backup = blob; return "blob:library-backup" }
+  URL.revokeObjectURL = () => {}
+  window.HTMLAnchorElement.prototype.click = () => {}
+  const valid = { ...setup, version: 1, profile: "Sony S-Log3", target: "Rec.709", cube_size: 17, monochrome: true, legal_range: false, output: "valid.cube", low_signal_warning: false, high_signal_warning: false, low_signal_hex: "#000000", high_signal_hex: "#ffffff" }
+  const raw = JSON.stringify([{ name: "Valid work", setup: valid }, { name: "Damaged look", setup: { version: 3 } }])
+  window.localStorage.setItem(key, raw)
+  const container = document.createElement("div")
+  document.body.append(container)
+  const root = createRoot(container)
+  const button = text => [...container.querySelectorAll("button")].find(item => item.textContent === text)
+  try {
+    await act(() => root.render(React.createElement(App)))
+    assert.equal(button("Save current setup").disabled, true)
+    assert.ok(button("Download saved library backup"))
+    await act(() => button("Download saved library backup").click())
+    assert.equal(await backup.text(), raw)
+    assert.equal(window.localStorage.getItem(key), raw)
+    await act(() => button("Replace saved library with an empty library").click())
+    assert.equal(button("Save current setup").disabled, false)
+    assert.deepEqual(JSON.parse(window.localStorage.getItem(key)).presets, [])
+  } finally {
+    await act(() => root.unmount())
+    container.remove()
+    if (previous === null) window.localStorage.removeItem(key)
+    else window.localStorage.setItem(key, previous)
+    URL.createObjectURL = originalCreate
+    URL.revokeObjectURL = originalRevoke
+    window.HTMLAnchorElement.prototype.click = originalClick
+  }
+})
+
 test("browser-only app generates and downloads through a local worker without backend calls", async () => {
   const originalToken = window.LUT_BUILDER_TOKEN
   const originalSetup = window.LUT_BUILDER_SETUP

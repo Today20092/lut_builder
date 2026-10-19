@@ -32,13 +32,41 @@ test("named presets retain embedded identity, fail visibly on missing assets and
   const damaged=JSON.parse(saved)
   delete damaged.presets[0].setup.imported_lut
   saved=JSON.stringify(damaged)
-  await assert.rejects(Effect.runPromise(readSetupPresets(()=>storage)),/missing or damaged imported look/)
+  await assert.rejects(Effect.runPromise(readSetupPresets(()=>storage)),/damaged/)
   await assert.rejects(Effect.runPromise(saveSetupPreset(()=>({setItem(){throw new Error("quota")}}),[],"Travel look",setup)),/Export setup JSON/)
 })
 
 export async function compositionSetup(text=identity) {
   return {profile:"Panasonic V-Log",target:"Rec.709",cube_size:33,bands:[{stop:0,width:0.8,color:"#808080"}],band_mode:"stops",ire_basis:"camera",fill_mode:false,low_signal_warning:false,low_signal_hex:"",high_signal_warning:false,high_signal_hex:"",monochrome:false,legal_range:false,output:"composed.cube",imported_lut:{version:1,name:"look.cube",cube:text,source_profile:"Panasonic V-Log",output_gamut:"Rec.709",output_transfer:"gamma2.2",output_range:"full",sha256:await cubeSha256(text)}}
 }
+
+test("cancelling named library validation stops before hashing the next imported asset", async () => {
+  const setup = await compositionSetup()
+  const second = await compositionSetup(identity + "\n# second imported asset")
+  await cubeSha256("invalidate cached digest before controlled verification")
+  const raw = JSON.stringify({ version: 2, presets: [setup, second].map((value, i) => ({ name: String(i), setup: JSON.parse(exportSetup(value)) })) })
+  const originalDigest = crypto.subtle.digest
+  let release
+  let started
+  let calls = 0
+  const hashing = new Promise(resolve => { started = resolve })
+  const held = new Promise(resolve => { release = resolve })
+  crypto.subtle.digest = async (...args) => { calls++; started(); await held; return originalDigest.apply(crypto.subtle, args) }
+  const controller = new AbortController()
+  try {
+    const reading = Effect.runPromiseExit(readSetupPresets(() => ({ getItem: () => raw })), { signal: controller.signal })
+    await hashing
+    controller.abort()
+    const exit = await reading
+    assert.equal(exit._tag, "Failure")
+    release()
+    await new Promise(resolve => setTimeout(resolve, 20))
+    assert.equal(calls, 1, "interruption must stop collection traversal")
+  } finally {
+    release()
+    crypto.subtle.digest = originalDigest
+  }
+})
 
 test("Panasonic V-Log composition preserves base and outputs correctly encoded display colors", async () => {
   const setup = await compositionSetup()
