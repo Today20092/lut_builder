@@ -6,11 +6,6 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch:
-    inputs:
-      update_ui_baselines:
-        description: Generate Linux UI screenshot candidates for review
-        type: boolean
-        default: false
 
 permissions:
   contents: read
@@ -25,8 +20,6 @@ jobs:
 
   ui:
     uses: ./.github/workflows/ui-quality.yml
-    with:
-      update_snapshots: ${{ inputs.update_ui_baselines == true }}
 
   build:
     runs-on: ubuntu-latest
@@ -74,7 +67,7 @@ jobs:
           path: src/lut_builder/static
 
   deploy:
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && !inputs.update_ui_baselines
+    if: github.event_name != 'pull_request'
     needs: [build, python, ui]
     runs-on: ubuntu-latest
     permissions:

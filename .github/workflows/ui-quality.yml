@@ -2,10 +2,6 @@ name: UI quality
 
 on:
   workflow_call:
-    inputs:
-      update_snapshots:
-        type: boolean
-        default: false
   workflow_dispatch:
 
 permissions:
@@ -28,13 +24,7 @@ jobs:
           version: 10.28.2
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck:ui
-      - run: pnpm test:ui ${{ inputs.update_snapshots && '--update-snapshots=changed' || '' }}
-      - name: Upload Linux screenshot candidates
-        if: inputs.update_snapshots
-        uses: actions/upload-artifact@v6
-        with:
-          name: ui-screenshot-candidates
-          path: frontend/tests/ui/screenshots/
+      - run: pnpm test:ui
       - name: Upload UI report, screenshot differences and traces
         if: always()
         uses: actions/upload-artifact@v6
