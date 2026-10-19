@@ -60,7 +60,7 @@ Click a band or warning swatch. Use the saturation/value area and hue control, n
 
 | Control | Meaning |
 | --- | --- |
-| Choose a starting palette | Select Exposure zones or Reference emphasis to create a draft. |
+| Choose a starting palette | Standard false color applies fixed exposure thresholds immediately and supports undo. Exposure zones and Reference emphasis create blended gradient drafts. |
 | Shape your gradient | Edit the gradient dots and blend controls. |
 | What does the reference mean? / legend | Explains the reference and the low-to-high exposure colors. Green is a chosen reference, not universally correct exposure. |
 | Gradient dots | Change the anchor colors and their positions. Add, select, move, or remove editable dots using the shown controls. The exposure reference remains fixed in position. |
@@ -75,7 +75,6 @@ Click a band or warning swatch. Use the saturation/value area and hue control, n
 | Reset adjustments | Restores chosen lightness and 100% strength. |
 | Use palette | Applies the valid draft to the bands, replacing individual color overrides. |
 | Cancel preview | Discards the audition and keeps applied colors. A download during an audition uses applied colors. |
-| Apply false color by exposure | Uses the standard exposure-color mapping instead of the draft gradient; it can be undone. |
 | Save and reuse palettes | Opens the browser-local palette library; see [saving](../save-and-apply/#palettes-and-setups-are-different). |
 
 Starting exposure palettes anchor the reference at zero stops or the selected profile's neutral camera-log IRE value. Legacy target-IRE setups retain the neutral target reference. Their end colors extend beyond the palette scale. Changing cameras updates the reference and palette scale; existing band numbers remain user edits until a preset is applied. Older saved custom gradients can instead span the current band range; their center is not necessarily the exposure reference. In Fill, colors cover whole zones.

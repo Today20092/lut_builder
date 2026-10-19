@@ -4,7 +4,7 @@ import { exposureReferenceValue, type Setup } from "./editor"
 import type { PalettePreview } from "./PaletteEditor"
 import { isTypingTarget } from "./keyboard"
 
-function BandStrip({ setup, minimum, maximum, expanded = false }: { setup: Setup; minimum: number; maximum: number; expanded?: boolean }) {
+export function BandStrip({ setup, minimum, maximum, expanded = false }: { setup: Setup; minimum: number; maximum: number; expanded?: boolean }) {
   const position = (value: number) => Math.max(0, Math.min(1000, (value - minimum) / (maximum - minimum) * 1000))
   return <svg viewBox="0 0 1000 60" preserveAspectRatio="none" role="img" aria-label="Exposure band coverage" className={`${expanded ? "h-40" : "h-10"} w-full rounded border bg-muted`}>
     {setup.bands.map((band, index) => {
@@ -23,6 +23,10 @@ export function ExposurePreview({ setup, preview, minimum, maximum, unit }: {
   const trigger = useRef<HTMLButtonElement>(null)
   const displayed = preview?.setup ?? setup
   const label = preview ? preview.valid ? `Previewing ${preview.label}` : "Invalid draft · showing current bands" : "Current exposure bands"
+  const warnings = <span className="grid grid-cols-2" role="status">
+    {setup.low_signal_warning && <span role="img" aria-label="Low signal enabled" title="Low signal enabled" className="col-start-1 row-start-1 size-3 rounded-full border" style={{ backgroundColor: setup.low_signal_hex }} />}
+    {setup.high_signal_warning && <span role="img" aria-label="High signal enabled" title="High signal enabled" className="col-start-2 row-start-1 size-3 justify-self-end rounded-full border" style={{ backgroundColor: setup.high_signal_hex }} />}
+  </span>
   function decide(action: () => void) {
     if (dialog.current?.open) dialog.current.close()
     action()
@@ -37,17 +41,20 @@ export function ExposurePreview({ setup, preview, minimum, maximum, unit }: {
       if (event.key.toLowerCase() === "f" && !dialog.current?.open) { event.preventDefault(); trigger.current?.click() }
       if (event.key === "Escape" && preview && !dialog.current?.open) { event.preventDefault(); decide(preview.cancel) }
     }}>
-    <button ref={trigger} type="button" aria-label="Expand exposure preview" aria-haspopup="dialog" className="grid gap-1 rounded text-left" onClick={() => dialog.current?.showModal()}>
+    <button ref={trigger} type="button" aria-haspopup="dialog" className="grid gap-1 rounded text-left" onClick={() => dialog.current?.showModal()}>
+      <span className="sr-only">Expand exposure preview</span>
       <span className="flex flex-wrap justify-between gap-x-3 text-xs"><span className="font-semibold" role="status">{label}</span><span className="text-muted-foreground">Tap to expand</span></span>
       <BandStrip setup={displayed} minimum={minimum} maximum={maximum} />
       <span className="flex justify-between text-[11px] text-muted-foreground"><span>{minimum} {unit}</span><span>{unit === "stops" ? "0 = reference" : `${exposureReferenceValue(setup).toFixed(1)} = neutral reference`}</span><span>{maximum} {unit}</span></span>
     </button>
+    {(setup.low_signal_warning || setup.high_signal_warning) && warnings}
     {preview && <p className="text-xs text-muted-foreground">{preview.valid ? "Draft only · current bands and downloads are unchanged." : "Correct the invalid color before using this palette."}</p>}
     {actions}
     <dialog ref={dialog} aria-labelledby="exposure-preview-title" className="fixed inset-0 m-0 h-dvh max-h-dvh w-screen max-w-none overflow-auto border bg-card p-4 text-card-foreground backdrop:bg-black/70 sm:m-auto sm:h-auto sm:max-h-[90dvh] sm:w-[min(48rem,calc(100%-2rem))] sm:rounded-xl" onClose={() => trigger.current?.focus()}>
       <div className="sticky top-0 z-10 mb-4 flex flex-wrap items-center justify-between gap-3 bg-card pb-2"><h2 id="exposure-preview-title" className="font-semibold">Exposure band preview</h2><Button type="button" variant="outline" onClick={() => dialog.current?.close()}>Close preview</Button></div>
       <p className="mb-3 text-sm font-medium">{label}</p>
       <BandStrip setup={displayed} minimum={minimum} maximum={maximum} expanded />
+      {(setup.low_signal_warning || setup.high_signal_warning) && <div className="mt-2">{warnings}</div>}
       <p className="mt-2 text-xs text-muted-foreground">{minimum} to {maximum} {unit}{unit === "stops" ? " · Reference: 0 stops" : ` · Neutral reference: ${exposureReferenceValue(setup).toFixed(1)} IRE`}. This shows band positions and widths, not a camera-image verification.</p>
       <ul className="my-4 grid gap-2 text-sm">{displayed.bands.map((band, index) => <li key={index} className="flex flex-wrap items-center gap-2"><span aria-hidden="true" className="size-5 rounded border" style={{ backgroundColor: band.color }} /><span>Band {index + 1}</span><span className="font-mono">{band.color}</span><span className="text-xs text-muted-foreground">{displayed.fill_mode ? index === displayed.bands.length - 1 ? "Fills the rest" : `Until ${band.stop} ${unit}` : `${band.stop} ${unit} · width ${Number((band.width * 2).toFixed(6))}`}</span></li>)}</ul>
       {preview && <p className="mb-3 text-xs text-muted-foreground">Closing this view keeps your draft. Use palette commits it; Cancel keeps the current band colors.</p>}

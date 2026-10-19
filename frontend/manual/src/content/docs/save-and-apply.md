@@ -28,7 +28,7 @@ JSON does not back up your entire saved-palette library, uploaded media, or an u
 | Exported JSON | Complete applied LUT settings | A file you save and can transfer |
 | Exported cube | Sampled transformation for a compatible host | A file; not an editable setup |
 
-Under **Save and reuse palettes**, select **Reuse saved palette** to load a draft. **Palette name** names it; **Save new palette** creates a library entry, **Replace saved palette** overwrites the selected entry with the draft, **Rename saved palette** changes its name, and **Delete saved palette** removes it. Saving a draft does not apply it to bands. Names must be valid and distinct; the library is limited to 100 palettes.
+Under **Save and reuse palettes**, choose a saved palette to load its draft. **Palette name** names it; **Save new palette** creates a library entry, **Replace saved palette** overwrites the selected entry with the draft, **Rename saved palette** changes its name, and **Delete saved palette** removes it. Saving a draft does not apply it to bands. Names must be valid and distinct; the library is limited to 100 palettes.
 
 In the browser app, enter a **Preset name** and choose **Save current setup**. Select a **Saved setup**, then **Load setup** to use it, or **Delete setup** to remove it. Pay attention to any replacement or load confirmation shown. Named setups and named palettes are independent.
 

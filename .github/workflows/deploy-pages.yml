@@ -18,6 +18,9 @@ jobs:
   python:
     uses: ./.github/workflows/python.yml
 
+  ui:
+    uses: ./.github/workflows/ui-quality.yml
+
   build:
     runs-on: ubuntu-latest
     defaults:
@@ -65,7 +68,7 @@ jobs:
 
   deploy:
     if: github.event_name != 'pull_request'
-    needs: [build, python]
+    needs: [build, python, ui]
     runs-on: ubuntu-latest
     permissions:
       pages: write
