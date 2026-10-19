@@ -1,5 +1,6 @@
 import { useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
+import { BandNumberInput } from "./BandNumberInput"
 import { hexToOklch, isHexColor, maxSrgbChroma, oklchToHex, sampleOklabRamp, type GradientBlend, type HuePath, type OklchAnchor } from "./editor"
 
 const fieldClass = "h-9 w-full min-w-0 rounded-md border border-input bg-transparent px-3 text-sm"
@@ -9,9 +10,9 @@ function OklchPicker({ color, onChange }: { color: string; onChange: (color: str
   const [edited, setEdited] = useState<{ hex: string; channels: OklchAnchor } | null>(null)
   const channels = edited?.hex === color ? edited.channels : hexToOklch(isHexColor(color) ? color : "#2563eb")
   const controls = [
-    { key: "l", label: "Lightness", max: 1, step: 0.001, display: `${Math.round(channels.l * 100)}%` },
-    { key: "c", label: "Chroma", max: 0.4, step: 0.001, display: channels.c.toFixed(3) },
-    { key: "h", label: "Hue", max: 360, step: 1, display: `${Math.round(channels.h)}°` },
+    { key: "l", label: "Lightness", max: 1, step: 0.001 },
+    { key: "c", label: "Chroma", max: 0.4, step: 0.001 },
+    { key: "h", label: "Hue", max: 360, step: 1 },
   ] as const
   function change(key: 'l' | 'c' | 'h', value: number) {
     const next = { ...channels, [key]: value }
@@ -20,18 +21,20 @@ function OklchPicker({ color, onChange }: { color: string; onChange: (color: str
     onChange(hex)
   }
   return <div className="grid gap-4">
-    {controls.map(({ key, label, max, step, display }) => <div key={key} className="grid gap-2 text-sm">
-      <span className="flex justify-between gap-3"><span>{label}</span><span className="font-mono text-xs text-muted-foreground">{display}</span></span>
+    {controls.map(({ key, label, max, step }) => <div key={key} className="grid gap-1 text-sm">
+      <label className="flex items-center justify-between gap-3"><span>{label}</span><span className="flex items-center gap-1 font-mono">
+        <BandNumberInput aria-label={`Color ${label.toLowerCase()} value`} className={`${fieldClass} max-w-24 text-right`} value={Number((channels[key] * (key === 'l' ? 100 : 1)).toFixed(key === 'c' ? 3 : 1))} min={0} max={key === 'l' ? 100 : max} step={key === 'l' ? 0.1 : step} onChange={(value) => change(key, value / (key === 'l' ? 100 : 1))} />
+        {key === 'l' ? '%' : key === 'h' ? '°' : ''}
+      </span></label>
+      <div className="flex items-center gap-3">
+      <Button type="button" variant="outline" size="icon" className="size-11 shrink-0" aria-label={`Decrease ${label.toLowerCase()}`} disabled={channels[key] <= 0} onClick={() => change(key, Math.max(0, channels[key] - step))}>−</Button>
       <input type="range" aria-label={`Color ${label.toLowerCase()}`} min={0} max={max} step={step} value={channels[key]}
-        className="oklch-slider pointer-adjustment"
-        style={{ background: `linear-gradient(to right, ${Array.from({ length: 25 }, (_, index) => oklchToHex({ ...channels, [key]: index / 24 * max })).join(",")})` }}
+        className="oklch-slider"
+        style={{ backgroundImage: `linear-gradient(to right, ${Array.from({ length: 25 }, (_, index) => oklchToHex({ ...channels, [key]: index / 24 * max })).join(",")})` }}
         onChange={(event) => {
           change(key, Number(event.target.value))
         }} />
-      <div className="touch-adjustment flex items-center gap-3">
-        <Button type="button" variant="outline" aria-label={`Decrease ${label.toLowerCase()}`} disabled={channels[key] <= 0} onClick={() => change(key, Math.max(0, channels[key] - (key === 'h' ? 5 : 0.01)))}>−</Button>
-        <span className="flex-1 text-center">{display}</span>
-        <Button type="button" variant="outline" aria-label={`Increase ${label.toLowerCase()}`} disabled={channels[key] >= max} onClick={() => change(key, Math.min(max, channels[key] + (key === 'h' ? 5 : 0.01)))}>+</Button>
+        <Button type="button" variant="outline" size="icon" className="size-11 shrink-0" aria-label={`Increase ${label.toLowerCase()}`} disabled={channels[key] >= max} onClick={() => change(key, Math.min(max, channels[key] + step))}>+</Button>
       </div>
     </div>)}
     <p className="text-xs text-muted-foreground">{channels.c > maxSrgbChroma(channels) + 0.002
@@ -154,8 +157,12 @@ export function GradientPicker({ colors, positions, blend, huePath, displayColor
         <p className="text-xs text-muted-foreground">Tap to select. Use buttons to adjust; swipe vertically to scroll.</p>
       </div>
       <div className="flex flex-wrap items-center justify-between gap-2">
-          <Button type="button" variant="ghost" size="sm" aria-label="Remove selected color" disabled={colors.length <= 2 || selected === referenceIndex} onClick={remove}>Remove selected color</Button>
-          <h4 className="text-sm font-medium">Color {selected + 1} <span className="font-normal text-muted-foreground">· {positionLabel(positions[selected])}{selected === referenceIndex ? " · reference" : exposureAnchored ? "" : " of ramp"}</span></h4>
+        <div className="flex items-center gap-3">
+          <span aria-hidden="true" className="size-12 shrink-0 rounded-md border" style={{ backgroundColor: isHexColor(colors[selected]) ? colors[selected] : undefined }} />
+          <div><h4 className="text-sm font-medium">Color {selected + 1} <span className="font-normal text-muted-foreground">· {positionLabel(positions[selected])}{selected === referenceIndex ? " · reference" : exposureAnchored ? "" : " of ramp"}</span></h4>
+          <p className="font-mono text-xs text-muted-foreground">{isHexColor(colors[selected]) ? colors[selected].toUpperCase() : "Enter a valid hex color"}</p></div>
+        </div>
+        <Button type="button" variant="ghost" size="sm" aria-label="Remove selected color" disabled={colors.length <= 2 || selected === referenceIndex} onClick={remove}>Remove selected color</Button>
       </div>
       <OklchPicker key={selected} color={colors[selected]} onChange={(color) => onChange(colors.map((item, index) => index === selected ? color : item), positions)} />
     </div>

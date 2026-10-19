@@ -67,7 +67,7 @@ for (const [engine, width, touch] of [['chromium', 320, true], ['chromium', 390,
     const stop = page.getByRole('slider', { name: 'Color stop 2', exact: true })
     const position = await stop.getAttribute('aria-valuenow')
     if (touch) {
-      assert.equal(await page.getByRole('slider', { name: 'Color lightness', exact: true }).isVisible(), false)
+      assert.equal(await page.getByRole('slider', { name: 'Color lightness', exact: true }).isVisible(), true)
       await page.getByLabel('Selected color', { exact: true }).selectOption('1')
       await button('Move right').click()
       assert.notEqual(await stop.getAttribute('aria-valuenow'), position)

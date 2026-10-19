@@ -995,7 +995,12 @@ export function App() {
   const [preview, setPreview] = useState<Preview | null>(null)
   const [validationError, setValidationError] = useState("")
   const [presetRead] = useState(() => Effect.runSync(Effect.result(readSetupPresets(() => window.localStorage))))
-  const [status, setStatus] = useState(() => Result.isFailure(presetRead) ? presetRead.failure.message : "")
+  const [status, setStatus] = useState("")
+  const [loadStatus, setLoadStatus] = useState(() => Result.isFailure(presetRead) ? presetRead.failure.message : "")
+  const [saveStatus, setSaveStatus] = useState("")
+  const [bandStatus, setBandStatus] = useState("")
+  const [previousSetup, setPreviousSetup] = useState<Setup | null>(null)
+  const [deletingPreset, setDeletingPreset] = useState(false)
   const [isGenerating, setIsGenerating] = useState(false)
   const [isLoadingSetup, setIsLoadingSetup] = useState(false)
   const loadRequest = useRef(0)
@@ -1003,6 +1008,7 @@ export function App() {
   const [setupPresets, setSetupPresets] = useState<SetupPreset[]>(() => Result.isSuccess(presetRead) ? presetRead.success : [])
   const [presetName, setPresetName] = useState("")
   const [selectedPreset, setSelectedPreset] = useState("")
+  const replacingPreset = setupPresets.some((preset) => preset.name.toLocaleLowerCase() === presetName.trim().toLocaleLowerCase())
   const [stopIncrement, setStopIncrement] = useState<1 | 0.5 | 0.25>(0.25)
   const [graphRange, setGraphRange] = useState(7)
   const [fillPreset, setFillPreset] = useState<FillPreset>("standard")
@@ -1060,14 +1066,16 @@ export function App() {
     if (!undo || isGenerating || isLoadingSetup) return
     dispatch({ type: "undo" })
     setRemovingBandIndex(null)
+    setBandStatus("Last band edit restored.")
   }
 
   function addBand() {
     const band = createBand(setup.bands, mode === "ire" ? "ire" : "stops", catalog.palette)
     if (band) {
       dispatch({ type: "add", band })
+      setBandStatus("")
     }
-    else setStatus("No non-overlapping band position is available.")
+    else setBandStatus("No non-overlapping band position is available.")
   }
 
   async function generate() {
@@ -1145,11 +1153,13 @@ export function App() {
         return result.setup
       })
       if (request !== loadRequest.current) return
+      setPreviousSetup(setup)
       dispatch({ type: "import", setup: imported })
       setPalettePreview(null)
-      setStatus(`Imported ${file.name}.`)
+      setBandStatus("")
+      setLoadStatus(`Imported ${file.name}. You can restore the setup you were editing.`)
     } catch (error) {
-      if (request === loadRequest.current) setStatus(error instanceof Error ? error.message : "Import failed")
+      if (request === loadRequest.current) setLoadStatus(error instanceof Error ? error.message : "Import failed")
     } finally {
       if (request === loadRequest.current) setIsLoadingSetup(false)
     }
@@ -1163,15 +1173,15 @@ export function App() {
     link.download = outputFilename(setup).replace(/\.cube$/i, ".json")
     link.click()
     URL.revokeObjectURL(link.href)
-    setStatus("Version-1 configuration exported.")
+    setSaveStatus("Version-1 configuration exported.")
   }
 
   function saveCurrentPreset() {
     void Effect.runPromise(saveSetupPreset(() => window.localStorage, setupPresets, presetName, setup)).then((next) => {
       setSetupPresets(next)
       setPresetName("")
-      setStatus("Named LUT setup saved in this browser.")
-    }).catch((error: unknown) => setStatus(error instanceof Error ? error.message : "Could not save this preset."))
+      setSaveStatus("Named LUT setup saved in this browser.")
+    }).catch((error: unknown) => setSaveStatus(error instanceof Error ? error.message : "Could not save this preset."))
   }
 
   async function loadPreset() {
@@ -1183,11 +1193,13 @@ export function App() {
       const validated = await Effect.runPromise(decodeSetup(preset.setup))
       const next = browserOnly ? validated : (await postJson("/preview", validated)).setup
       if (request !== loadRequest.current) return
+      setPreviousSetup(setup)
       dispatch({ type: "import", setup: next })
       setPalettePreview(null)
-      setStatus(`Loaded ${preset.name}.`)
+      setBandStatus("")
+      setLoadStatus(`Loaded ${preset.name}. You can restore the setup you were editing.`)
     } catch (error) {
-      if (request === loadRequest.current) setStatus(error instanceof Error ? error.message : "Could not load this preset.")
+      if (request === loadRequest.current) setLoadStatus(error instanceof Error ? error.message : "Could not load this preset.")
     } finally {
       if (request === loadRequest.current) setIsLoadingSetup(false)
     }
@@ -1197,22 +1209,22 @@ export function App() {
     void Effect.runPromise(deleteSetupPreset(() => window.localStorage, setupPresets, selectedPreset)).then((next) => {
       setSetupPresets(next)
       setSelectedPreset("")
-      setStatus("Named LUT setup deleted from this browser.")
-    }).catch((error: unknown) => setStatus(error instanceof Error ? error.message : "Could not update browser storage. Export your setup as JSON to keep a copy."))
+      setDeletingPreset(false)
+      setLoadStatus("Named LUT setup deleted from this browser.")
+    }).catch((error: unknown) => setLoadStatus(error instanceof Error ? error.message : "Could not update browser storage. Export your setup as JSON to keep a copy."))
   }
 
   return (
     <main className="mx-auto flex min-h-svh w-full max-w-[100rem] flex-col gap-6 p-4 py-6 sm:p-8">
       <header className="flex flex-wrap items-start justify-between gap-4 border-b pb-6">
         <div className="grid gap-1">
-        <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">Exposure workbench</p>
         <h1 className="font-heading text-3xl font-semibold tracking-tight">LUT Builder</h1>
         <p className="text-muted-foreground">{browserOnly ? "Browser-based diagnostic scene-exposure LUT editor" : "Local diagnostic scene-exposure LUT editor"}</p>
         </div>
         <a className="inline-flex min-h-11 items-center text-sm underline" href={`${import.meta.env.BASE_URL}docs/`} target="_blank" rel="noreferrer">Help / Manual <span className="sr-only">(opens in a new tab)</span></a>
         <a className="inline-flex min-h-11 items-center text-sm underline" href="https://github.com/Today20092/lut_builder/issues/new/choose" target="_blank" rel="noreferrer">Report an issue · GitHub</a>
         <nav aria-label="Workbench sections" className="flex w-full items-center justify-between gap-1 text-sm font-medium sm:w-auto sm:gap-4">
-          <span className="hidden sm:inline-flex"><KeyboardHelp canUndo={Boolean(undo)} onUndo={undoEdit} /></span>
+            <span className="hidden sm:inline-flex"><KeyboardHelp canUndo={Boolean(undo)} onUndo={undoEdit} /></span>
           <a className="inline-flex min-h-11 items-center px-1 underline-offset-4 hover:underline" href="#configuration">01 Configure</a>
           <a className="inline-flex min-h-11 items-center px-1 underline-offset-4 hover:underline" href="#exposure-bands">02 Edit bands</a>
           <a className="inline-flex min-h-11 items-center px-1 underline-offset-4 hover:underline" href="#export">03 Download</a>
@@ -1224,17 +1236,28 @@ export function App() {
           <summary className="cursor-pointer font-medium">Load setup · optional</summary>
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
             <label className="grid gap-1 text-sm font-medium">Saved setup in this browser
-              <select className={fieldClass} value={selectedPreset} onChange={(event) => setSelectedPreset(event.target.value)}><option value="">Choose a setup</option>{setupPresets.map((preset) => <option key={preset.name} value={preset.name}>{preset.name}</option>)}</select>
+                <select className={fieldClass} value={selectedPreset} onChange={(event) => { setSelectedPreset(event.target.value); setDeletingPreset(false) }}><option value="">Choose a setup</option>{setupPresets.map((preset) => <option key={preset.name} value={preset.name}>{preset.name}</option>)}</select>
             </label>
             <div className="flex flex-wrap items-end gap-2">
               <Button type="button" variant="outline" disabled={!selectedPreset} onClick={() => void loadPreset()}>Load setup</Button>
-              <Button type="button" variant="ghost" disabled={!selectedPreset} onClick={removePreset}>Delete setup</Button>
+                <Button type="button" variant={deletingPreset ? "destructive" : "ghost"} disabled={!selectedPreset} onClick={() => deletingPreset ? removePreset() : setDeletingPreset(true)}>{deletingPreset ? "Confirm delete setup" : "Delete setup"}</Button>
+                {deletingPreset && <Button type="button" variant="outline" onClick={() => setDeletingPreset(false)}>Keep setup</Button>}
               <Button type="button" variant="outline" onClick={() => importInput.current?.click()}>Import setup file</Button>
               <input ref={importInput} className="sr-only" tabIndex={-1} aria-label="Import setup JSON file" type="file" accept="application/json,.json" onChange={(event) => { const file = event.target.files?.[0]; if (file) void importFile(file); event.target.value = "" }} />
             </div>
-            <p role="status" className="text-sm sm:col-span-2">{isLoadingSetup ? "Loading setup…" : status}</p>
+              {deletingPreset && <p className="text-sm sm:col-span-2">Delete “{selectedPreset}” from this browser? This cannot be undone. Your current editing setup will stay open.</p>}
           </div>
         </details>
+          <div className={loadStatus || isLoadingSetup || previousSetup ? undefined : "hidden"} aria-label="Setup loading feedback">
+            <p role="status" className="text-sm">{isLoadingSetup ? "Loading setup…" : loadStatus}</p>
+            {previousSetup && <Button type="button" variant="outline" className="mt-2" onClick={() => {
+              dispatch({ type: "import", setup: previousSetup })
+              setPreviousSetup(null)
+              setPalettePreview(null)
+              setBandStatus("")
+              setLoadStatus("Previous setup restored.")
+            }}>Restore previous setup</Button>}
+          </div>
         <Card id="configuration" className="scroll-mt-6">
           <CardHeader>
             <CardTitle><h2>Configuration</h2></CardTitle>
@@ -1402,7 +1425,7 @@ export function App() {
                   onRemove={(index) => {
                     editSetup((current) => removeBand(current, index))
                     setRemovingBandIndex(null)
-                    setStatus(`Removed band ${index + 1}. Undo last band edit restores it.`)
+                    setBandStatus(`Removed band ${index + 1}. Undo last band edit restores it.`)
                   }}
                   onEditColor={(index) => { selectBand(index); colorTriggers.current.get(bandId(setup.bands[index]))?.click() }}
                   onEditStart={() => dispatch({ type: "begin" })}
@@ -1412,19 +1435,19 @@ export function App() {
                     : updateBand(current, index, { stop }), index)}
                   onWidthChange={(index, width) => editSetup((current) => updateBand(current, index, { width }), index)}
                 />
-                <div className="relative min-w-0 rounded-lg border">
-                  <table aria-label="Band colors and positions" className="w-full table-fixed text-sm [&_td]:p-1 [&_th]:p-1 sm:[&_td]:p-2 sm:[&_th]:p-2">
-                    <colgroup><col className="w-[42%] sm:w-[34%]" /><col className="w-[24%]" /><col /><col className="w-9 sm:w-28" /></colgroup>
-                    <thead className="bg-muted/50 text-left text-[10px] text-muted-foreground sm:text-xs"><tr><th>Color</th><th>{setup.fill_mode ? "Boundary" : <>Position <span className="block sm:inline">({mode === "ire" ? "IRE" : "stops"})</span></>}</th><th>{setup.fill_mode ? "Coverage" : <>Width <span className="block sm:inline">({mode === "ire" ? "IRE" : "stops"})</span></>}</th><th><span className="sr-only">Actions</span></th></tr></thead>
+                <div className="relative overflow-x-auto rounded-lg border">
+                  <table className="band-table w-full table-fixed min-w-[42rem] text-sm" role="table" aria-label="Band colors and positions">
+                    <thead className="bg-muted/50 text-left text-xs text-muted-foreground"><tr><th className="w-20 px-3 py-2">Band</th><th className="w-44 px-3 py-2">Color</th><th className="px-3 py-2">{setup.fill_mode ? "Boundary to next color" : mode === "ire" ? "Position (IRE)" : "Position (stops)"}</th><th className="px-3 py-2">{setup.fill_mode ? "Coverage" : `Total width (${mode === "ire" ? "IRE" : "stops"})`}</th><th className="w-32 px-3 py-2"><span className="sr-only">Actions</span></th></tr></thead>
                     <tbody>{setup.bands.map((band, index) => (
                       <tr className={`border-t ${selectedBand === index ? "bg-accent/60" : ""}`} key={bandId(band)} onFocus={() => selectBand(index)} onClick={() => selectBand(index)}>
-                        <th scope="row" className="p-2 font-normal"><ColorPicker hideLabel triggerRef={(element) => { if (element) colorTriggers.current.set(bandId(band), element); else colorTriggers.current.delete(bandId(band)) }} label={`Band ${index + 1} color`} value={band.color} onChange={(color) => editSetup((current) => updateBand(current, index, { color }), index)} /></th>
-                        <td className="p-2">{setup.fill_mode && index === setup.bands.length - 1
+                        <th className="p-3 text-left font-medium" scope="row">{setup.fill_mode ? "Color" : "Band"} {index + 1}{selectedBand === index && <span className="block text-xs">Selected</span>}</th>
+                        <td className="p-2"><span className="band-field-label" aria-hidden="true">Color</span><ColorPicker hideLabel triggerRef={(element) => { if (element) colorTriggers.current.set(bandId(band), element); else colorTriggers.current.delete(bandId(band)) }} label={`Band ${index + 1} color`} value={band.color} onChange={(color) => editSetup((current) => updateBand(current, index, { color }), index)} /></td>
+                        <td className="p-2"><span className="band-field-label" aria-hidden="true">{setup.fill_mode ? "Next boundary" : `Position (${mode === "ire" ? "IRE" : "stops"})`}</span>{setup.fill_mode && index === setup.bands.length - 1
                           ? <span className="text-muted-foreground">—</span>
-                          : <BandNumberInput aria-label={setup.fill_mode ? `Boundary after color ${index + 1}` : `Band ${index + 1} ${mode === "ire" ? "IRE" : "stops"}`} className={`${fieldClass} !px-1 !text-xs sm:!px-3 sm:!text-sm`} step={movementIncrement} min={mode === "ire" ? 0 : undefined} max={mode === "ire" ? 100 : undefined} value={band.stop} onChange={(stop) => editSetup((current) => setup.fill_mode ? updateFillBoundary(current, index, stop, movementIncrement) : updateBand(current, index, { stop }), index)} />}</td>
-                        <td className="p-2">{setup.fill_mode
-                          ? <span className="block break-words text-[10px] text-muted-foreground sm:text-xs">{index === setup.bands.length - 1 ? "Rest" : "To boundary"}</span>
-                          : <BandNumberInput aria-label={`Band ${index + 1} total width`} className={`${fieldClass} !px-1 !text-xs sm:!px-3 sm:!text-sm`} min={0} step={0.2} value={band.width * 2} onChange={(width) => editSetup((current) => updateBand(current, index, { width: width / 2 }), index)} />}</td>
+                          : <BandNumberInput aria-label={setup.fill_mode ? `Boundary after color ${index + 1}` : `Band ${index + 1} ${mode === "ire" ? "IRE" : "stops"}`} className={fieldClass} step={movementIncrement} min={mode === "ire" ? 0 : undefined} max={mode === "ire" ? 100 : undefined} value={band.stop} onChange={(stop) => editSetup((current) => setup.fill_mode ? updateFillBoundary(current, index, stop, movementIncrement) : updateBand(current, index, { stop }), index)} />}</td>
+                        <td className="p-2"><span className="band-field-label" aria-hidden="true">{setup.fill_mode ? "Coverage" : `Total width (${mode === "ire" ? "IRE" : "stops"})`}</span>{setup.fill_mode
+                          ? <span className="text-muted-foreground">{index === setup.bands.length - 1 ? "Fills the rest" : "Until boundary"}</span>
+                          : <BandNumberInput aria-label={`Band ${index + 1} total width`} className={fieldClass} min={0} step={0.2} value={band.width * 2} onChange={(width) => editSetup((current) => updateBand(current, index, { width: width / 2 }), index)} />}</td>
                         <td className="p-2"><Button
                           aria-label={removingBandIndex === index ? `Confirm remove band ${index + 1}` : `Remove band ${index + 1}`}
                           type="button"
@@ -1443,6 +1466,8 @@ export function App() {
                   </table>
                   {setup.bands.length === 0 && <p className="p-4 text-sm text-muted-foreground">No bands yet. Choose Add band to start, or apply a preset above.</p>}
                 </div>
+                <p role="status" className="empty:hidden text-sm">{bandStatus}</p>
+                <a className="inline-flex min-h-11 items-center text-sm underline underline-offset-4" href="#photo-result">View photo result</a>
                 {preview?.warnings.map((warning) => <p className="text-sm text-amber-700 dark:text-amber-300" key={warning}>{warning}</p>)}
               </>
             ) : <p className="text-sm text-muted-foreground">{browserOnly ? "The browser build creates LUTs locally; exposure preview is not included in this release." : "Preparing preview…"}</p>}
@@ -1453,7 +1478,7 @@ export function App() {
 
         <Card>
             <CardHeader>
-              <CardTitle>Recorded-signal limit warnings</CardTitle>
+              <CardTitle><h2>Recorded-signal limit warnings</h2></CardTitle>
               <CardDescription className="max-w-3xl">
                 Mark this profile&apos;s recorded RGB code limits. These warnings cannot establish physical sensor clipping.
                 {" "}<a className="underline" href={`${import.meta.env.BASE_URL}docs/signal-limits/#how-are-these-limits-calculated`} target="_blank" rel="noreferrer">How are these limits calculated? <span className="sr-only">(opens in a new tab)</span></a>
@@ -1482,20 +1507,24 @@ export function App() {
         </Card>
 
         </div>
-        <ReferencePreview setup={palettePreview?.valid ? palettePreview.setup : setup} draft={Boolean(palettePreview?.valid)} />
-        <details className="min-w-0 rounded-lg border p-4"><summary className="cursor-pointer font-medium">Use original camera media · image or video</summary><div className="mt-4"><p className="text-xs text-muted-foreground">Camera verification requires known source settings. <a className="underline" href={`${import.meta.env.BASE_URL}docs/verification/`} target="_blank" rel="noreferrer">Preview and source interpretation help (new tab)</a></p><WorkbenchPreview preview={preview} setup={{ ...setup, output: outputFilename(setup) }} catalog={catalog} browserOnly={browserOnly} /></div></details>
+        <div id="photo-result" className="grid min-w-0 scroll-mt-6 gap-2">
+          <a className="inline-flex min-h-11 items-center text-sm underline underline-offset-4" href="#exposure-bands">Back to band editing</a>
+          <ReferencePreview setup={palettePreview?.valid ? palettePreview.setup : setup} draft={Boolean(palettePreview?.valid)} />
+        </div>
+        <details className="min-w-0 rounded-lg border p-4"><summary className="cursor-pointer font-medium">Use original camera media · image or video</summary><div className="mt-4"><p className="mb-3 text-xs text-muted-foreground">Camera verification requires known source settings. <a className="underline" href={`${import.meta.env.BASE_URL}docs/verification/`} target="_blank" rel="noreferrer">Preview and source interpretation help (new tab)</a></p><WorkbenchPreview preview={preview} setup={{ ...setup, output: outputFilename(setup) }} catalog={catalog} browserOnly={browserOnly} /></div></details>
         <Card>
           <CardHeader>
-            <CardTitle>Save setup · optional</CardTitle>
+            <CardTitle><h2>Save setup · optional</h2></CardTitle>
             <CardDescription>Keep your settings for next time.</CardDescription>
           </CardHeader>
           <CardContent className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,14rem),1fr))] items-end gap-3">
             <label className="grid gap-1 text-sm font-medium">Preset name
               <input className={fieldClass} value={presetName} onChange={(event) => setPresetName(event.target.value)} maxLength={80} />
             </label>
-            <Button type="button" variant="outline" onClick={saveCurrentPreset}>Save current setup</Button>
+            <Button type="button" variant="outline" onClick={saveCurrentPreset}>{replacingPreset ? "Replace saved setup" : "Save current setup"}</Button>
             <Button type="button" variant="outline" onClick={downloadConfig}>Export setup file</Button>
-            <p role="status" className="text-sm sm:col-span-2">{status}</p>
+            {replacingPreset && <p className="text-sm sm:col-span-2">A setup named “{presetName.trim()}” is already saved. Replacing it overwrites that saved copy.</p>}
+            <p role="status" className="text-sm sm:col-span-2">{saveStatus}</p>
           </CardContent>
         </Card>
         <aside className="grid min-w-0 gap-6" aria-label="LUT output">
