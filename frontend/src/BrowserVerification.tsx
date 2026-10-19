@@ -6,7 +6,7 @@ import { CheckedImage } from "./CameraVerification"
 import { browserInterpretations } from "./lutEngine"
 import { browserVerification } from "./browserVerificationClient"
 import type { Interpretation } from "./verificationMath"
-import { browserVerifiedResult } from "./verifiedResult"
+import { browserVerifiedResult, type VerifiedResult } from "./verifiedResult"
 import type { VideoInfo } from "./browserMedia"
 import type { BrowserResult } from "./browserVerificationWorker"
 import type { Setup } from "./editor"
@@ -15,19 +15,14 @@ import { isTypingTarget } from "./keyboard"
 const field = "h-9 min-w-0 w-full rounded-md border border-input bg-transparent px-3 text-sm focus-visible:ring-2 focus-visible:ring-ring"
 const emptyInterpretation: Interpretation = { transfer: "", gamut: "", matrix: "", signalRange: "", chroma: "", confirmed: false }
 
-function BrowserCheckedImage({ result, setup }: { result: BrowserResult; setup: Setup }) {
-  const [image] = useState(() => {
-    const canvas = document.createElement("canvas")
-    canvas.width = result.width; canvas.height = result.height
-    const context = canvas.getContext("2d", { colorSpace: "srgb" })
-    if (!context) return ""
-    // Canvas receives only the final SDR view, never camera samples.
-    context.putImageData(new ImageData(new Uint8ClampedArray(result.rgba), result.width, result.height), 0, 0)
-    return canvas.toDataURL("image/png")
-  })
-  const [verified] = useState(() => browserVerifiedResult(result, setup, image))
-  useEffect(() => () => { void Effect.runPromise(verified.release()).catch(() => {}) }, [verified])
-  return image ? <CheckedImage result={verified} /> : <p role="status">Preparing the SDR display image…</p>
+function checkedBrowserResult(result: BrowserResult, setup: Setup): VerifiedResult {
+  const canvas = document.createElement("canvas")
+  canvas.width = result.width; canvas.height = result.height
+  const context = canvas.getContext("2d", { colorSpace: "srgb" })
+  if (!context) throw new Error("Could not prepare the SDR display image. Verify again.")
+  // Canvas receives only the final SDR view, never camera samples.
+  context.putImageData(new ImageData(new Uint8ClampedArray(result.rgba), result.width, result.height), 0, 0)
+  return browserVerifiedResult(result, setup, canvas.toDataURL("image/png"))
 }
 
 export function BrowserVerification({ setup }: { setup: Setup }) {
@@ -39,7 +34,7 @@ export function BrowserVerification({ setup }: { setup: Setup }) {
   const [interpretation, setInterpretation] = useState(emptyInterpretation)
   const [depth, setDepth] = useState("")
   const [rangeConfirmed, setRangeConfirmed] = useState(false)
-  const [result, setResult] = useState<{ key: string; value: BrowserResult } | null>(null)
+  const [result, setResult] = useState<{ key: string; value: VerifiedResult } | null>(null)
   const [status, setStatus] = useState("")
   const [busy, setBusy] = useState(false)
   const [inputKey, setInputKey] = useState("")
@@ -50,6 +45,10 @@ export function BrowserVerification({ setup }: { setup: Setup }) {
   if (inputKey !== key) { setInputKey(key); setBusy(false); setStatus("") }
   useEffect(() => () => { pending.current?.abort(); pending.current = null }, [])
   useEffect(() => () => { pending.current?.abort(); pending.current = null }, [key])
+  useEffect(() => {
+    const completed = current
+    return () => { if (completed) void Effect.runPromise(completed.release()).catch(() => {}) }
+  }, [current])
 
   function clear() {
     pending.current?.abort(); pending.current = null
@@ -70,7 +69,7 @@ export function BrowserVerification({ setup }: { setup: Setup }) {
       const value = await Effect.runPromise(browserVerification({ file, probe, seconds: Number(seconds), ...(probe ? {} : { setup, interpretation, video: kind === "Video" ? video ?? undefined : undefined, ordinal: Number(ordinal) }) }, (text) => { if (!controller.signal.aborted) setStatus(text) }), { signal: controller.signal })
       if (pending.current !== controller || controller.signal.aborted) return
       if ("frames" in value) { setVideo(value); setStatus("Video inspected. Select a frame and confirm its interpretation.") }
-      else { setResult({ key, value }); setStatus("Verified against the exact serialized cube. Download the checked cube below to retain these bytes.") }
+      else { setResult({ key, value: checkedBrowserResult(value, setup) }); setStatus("Verified against the exact serialized cube. Download the checked cube below to retain these bytes.") }
     } catch (cause) {
       if (pending.current === controller && !controller.signal.aborted) setStatus(`Verification failed: ${cause instanceof Error ? cause.message : String(cause)}`)
     } finally { if (pending.current === controller) { pending.current = null; setBusy(false) } }
@@ -120,7 +119,7 @@ export function BrowserVerification({ setup }: { setup: Setup }) {
       <div className="flex flex-wrap gap-2"><Button disabled={!ready} onClick={() => void run(false)}>Verify {kind === "Video" ? "selected frame" : "still"}</Button>{busy && <Button variant="outline" onClick={() => { clear(); setStatus("Verification cancelled. No result is shown.") }}>Cancel verification</Button>}<Button variant="outline" disabled={!file} onClick={() => choose(null)}>Release source</Button></div>
       <p role="status" aria-live="polite" className="text-sm">{status}</p>
       {current?.provenance.warnings.map((warning) => <p key={warning} className="text-sm text-amber-700 dark:text-amber-300">{warning}</p>)}
-      {current && <BrowserCheckedImage key={current.provenance.cube_sha256 as string} result={current} setup={setup} />}
+      {current && <CheckedImage key={current.provenance.cube_sha256 as string} result={current} />}
     </CardContent>
   </Card>
 }
