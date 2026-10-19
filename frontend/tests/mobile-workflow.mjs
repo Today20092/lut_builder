@@ -20,7 +20,7 @@ for (const [engine, width, touch] of [['chromium', 320, true], ['chromium', 390,
     const button = name => page.getByRole('button', { name, exact: true })
     const preview = page.getByRole('group', { name: 'Persistent exposure preview' })
     const colors = () => preview.locator('svg').first().locator('rect').evaluateAll(rects => rects.map(rect => rect.getAttribute('fill')))
-    const outputColors = () => page.getByRole('list', { name: 'Output band colors and boundaries' }).textContent()
+    const outputColors = () => page.locator('#export [data-preview-band]').evaluateAll(rects => JSON.stringify(rects.map(rect => rect.getAttribute('fill'))))
     const download = async name => {
       const pending = page.waitForEvent('download')
       await button(name).click()
@@ -42,7 +42,7 @@ for (const [engine, width, touch] of [['chromium', 320, true], ['chromium', 390,
     assert.deepEqual(await colors(), committed)
     await range.selectOption('7')
     await page.getByText('Band setup & graph settings', { exact: true }).click()
-    const preset = button('Start with Reference emphasis')
+    const preset = page.getByRole('button', { name: /^Start with Reference emphasis/ })
     for (let cycle = 0; cycle < 3; cycle++) {
       await preset.scrollIntoViewIfNeeded()
       if (touch) await preset.tap()
@@ -95,7 +95,7 @@ for (const [engine, width, touch] of [['chromium', 320, true], ['chromium', 390,
     await preview.getByRole('button', { name: 'Use palette', exact: true }).click()
     const saved = await download('Export setup file')
     await button('Choose a palette').click()
-    await button('Start with Exposure zones').click()
+    await page.getByRole('button', { name: /^Start with Exposure zones/ }).click()
     await page.getByText('Load setup · optional', { exact: true }).click()
     await page.getByLabel('Import setup JSON file').setInputFiles({ name: 'roundtrip.json', mimeType: 'application/json', buffer: Buffer.from(saved) })
     await page.waitForTimeout(250)

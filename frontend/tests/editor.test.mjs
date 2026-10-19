@@ -4,6 +4,7 @@ import test from "node:test"
 import {
   applyColorPreset,
   applyBandPreset,
+  applyExposurePreset,
   applyFillPreset,
   bandId,
   changeMode,
@@ -409,4 +410,30 @@ test("loading a setup clears edit gestures and changes the palette workflow iden
   assert.equal(loaded.selection, 0)
   assert.equal(loaded.revision, original.revision + 1)
   assert.equal(loaded.setup.target, "Rec.2020")
+})
+
+test("complete exposure presets replace geometry and colors while preserving recording and output settings", () => {
+  for (const profile of ["Sony S-Log3", "Panasonic V-Log", "ARRI LogC3"]) {
+    const original = { ...setup, profile, target: "Rec.2020", cube_size: 33, legal_range: true, low_signal_warning: true, ire_basis: "target" }
+    for (const preset of ["three-band", "contrast-checker", "camera-ire"]) {
+      const next = applyExposurePreset(original, palette, preset)
+      for (const key of ["profile", "target", "cube_size", "legal_range", "output", "low_signal_warning", "high_signal_warning", "low_signal_hex", "high_signal_hex"]) assert.equal(next[key], original[key], `${preset}: ${key}`)
+      const state = reduceEditor(createEditorState(original), { type: "edit", edit: current => applyExposurePreset(current, palette, preset) })
+      assert.deepEqual(reduceEditor(state, { type: "undo" }).setup, original)
+      if (preset === "contrast-checker") {
+        assert.equal(next.fill_mode, true)
+        assert.equal(next.band_mode, "stops")
+        assert.deepEqual(next.bands.map(band => band.stop), [-1.5, -0.5, 0.5, 1.5, 2.5])
+        assert.deepEqual(next.bands.map(band => band.color), ["#216638", "#78ff64", "#a6a6a6", "#f2d5e5", "#ff00b7"])
+      } else if (preset === "three-band") {
+        assert.equal(next.fill_mode, false)
+        assert.equal(next.monochrome, true)
+        assert.deepEqual(next.bands.map(band => [band.stop, band.width]), [[-2, 0.3], [0, 0.3], [2, 0.3]])
+      } else {
+        assert.equal(next.band_mode, "ire")
+        assert.equal(next.ire_basis, "camera")
+        assert.deepEqual(next.bands.map(band => band.stop), exposurePaletteScale(next))
+      }
+    }
+  }
 })

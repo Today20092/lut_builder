@@ -10,6 +10,11 @@
     "dev:manual": "astro dev --root manual",
     "lint": "eslint .",
     "test": "node --experimental-strip-types --test tests/*.test.mjs",
+    "test:ui": "playwright test",
+    "test:ui:checks": "playwright test --grep @checks",
+    "test:ui:container": "node scripts/ui-container.mjs",
+    "test:ui:report": "playwright show-report",
+    "typecheck:ui": "tsc -p tsconfig.ui.json",
     "typecheck": "tsc --noEmit",
     "preview": "vite preview"
   },
@@ -30,7 +35,9 @@
   },
   "devDependencies": {
     "@astrojs/starlight": "0.37.6",
+    "@axe-core/playwright": "4.14.0",
     "@eslint/js": "^10",
+    "@playwright/test": "1.61.1",
     "@types/node": "^24",
     "@types/react": "^19",
     "@types/react-dom": "^19",

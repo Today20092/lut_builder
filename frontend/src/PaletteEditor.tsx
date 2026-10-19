@@ -12,7 +12,7 @@ export type PalettePreview = { setup: Setup; label: string; valid: boolean; appl
 const storageKey = "lut-builder.palettes.v1"
 const fieldClass = "h-9 w-full min-w-0 rounded-md border border-input bg-transparent px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
 const startingPalettes = [
-  { name: "Exposure zones", description: "Cool shadows · green reference · warm highlights", colors: ["#5b21b6", "#2563eb", "#38bdf8", "#22c55e", "#facc15", "#f97316", "#dc2626"] },
+  { name: "Exposure zones", description: "Blended gradient · green reference · cool to warm", colors: ["#5b21b6", "#2563eb", "#38bdf8", "#22c55e", "#facc15", "#f97316", "#dc2626"] },
   { name: "Reference emphasis", description: "Green reference stands out against quieter surrounding colors", colors: ["#334e68", "#3b6c8e", "#4c8b93", "#22c55e", "#a3a044", "#a66b35", "#a33a3a"] },
 ]
 
@@ -152,11 +152,21 @@ export function PaletteEditor({ setup, palette, onApply, onPreview }: { setup: S
     {method === "palette" && <>
     <fieldset className="grid grid-cols-1 gap-2 sm:grid-cols-2">
       <legend className="mb-2 text-sm font-medium">Choose a starting palette</legend>
+      <Button type="button" variant="outline" className="h-auto min-w-0 flex-col items-stretch gap-2 whitespace-normal p-3 text-left" disabled={setup.bands.length === 0} onClick={() => {
+        onApply(applyColorPreset(setup, palette, "false-color"))
+        setApplied(null)
+        send({ type: "cancel" })
+      }}>
+        <span aria-hidden="true" className="flex h-5 w-full overflow-hidden rounded-sm">{applyColorPreset(setup, palette, "false-color").bands.map((band, index) => <span key={index} className="flex-1" style={{ backgroundColor: band.color }} />)}</span>
+        <span className="font-medium"><span className="sr-only">Apply </span>Standard false color</span>
+        <span className="text-xs font-normal text-muted-foreground">Fixed exposure thresholds · applies immediately · supports undo</span>
+      </Button>
       {startingPalettes.map((preset) => {
         const presetAnchors = preset.colors.map(hexToOklch)
         const preview = Array.from({ length: 65 }, (_, index) => sampleOklabRamp(presetAnchors, index / 64, "colorful", "shorter"))
         const active = mapping === "exposure" && draft.intensity === 100 && draft.brightness === "custom" && blend === "colorful" && huePath === "shorter" && JSON.stringify(draft.colors) === JSON.stringify(preset.colors) && positions.every((position, index) => position === index / (positions.length - 1))
-        return <Button key={preset.name} type="button" variant="outline" aria-label={`Start with ${preset.name}`} aria-pressed={active} className="h-auto min-w-0 flex-col items-stretch gap-2 whitespace-normal p-3 text-left" onClick={(event) => setDraft({ colors: [...preset.colors], brightness: "custom", intensity: 100, blend: "colorful", huePath: "shorter", mapping: "exposure" }, preset.name, event.currentTarget)}>
+        return <Button key={preset.name} type="button" variant="outline" data-palette={preset.name} aria-pressed={active} className="h-auto min-w-0 flex-col items-stretch gap-2 whitespace-normal p-3 text-left" onClick={(event) => setDraft({ colors: [...preset.colors], brightness: "custom", intensity: 100, blend: "colorful", huePath: "shorter", mapping: "exposure" }, preset.name, event.currentTarget)}>
+          <span className="sr-only">Start with </span>
           <span aria-hidden="true" className="h-5 w-full rounded-sm" style={{ background: `linear-gradient(to right, ${preview.join(",")})` }} />
           <span className="flex items-center justify-between gap-2"><span>{preset.name}</span>{active && <span className="text-xs text-muted-foreground">{audition ? "Previewing" : pending ? "Starting point" : "Applied"}</span>}</span>
           <span className="text-xs font-normal text-muted-foreground">{preset.description}</span>
@@ -216,25 +226,14 @@ export function PaletteEditor({ setup, palette, onApply, onPreview }: { setup: S
       {audition && <Button type="button" variant="outline" onClick={cancelPreview}>Cancel preview</Button>}
     </div>}
     <details className="rounded-md border p-3">
-    <summary className="cursor-pointer text-sm font-medium">Use standard exposure colors instead</summary>
-    <Button type="button" variant="outline" className="mt-3" disabled={setup.bands.length === 0} onClick={() => {
-      onApply(applyColorPreset(setup, palette, "false-color"))
-      setApplied(null)
-      send({ type: "cancel" })
-    }}>Apply false color by exposure</Button>
-    <p className="text-xs text-muted-foreground">False color by exposure uses the original exposure thresholds instead of this draft ramp. It also replaces individual overrides and supports undo.</p>
-    </details>
-    <details className="rounded-md border p-3">
-    <summary className="cursor-pointer text-sm font-medium">Save and reuse palettes · this browser</summary>
-    <fieldset className="mt-3 grid gap-2">
-      <legend className="px-1 text-sm font-medium">Saved palettes · this browser only</legend>
-      <label className="grid gap-1 text-sm">Reuse saved palette
+    <summary className="cursor-pointer text-sm font-medium">Save and reuse palettes</summary>
+    <div className="mt-3 grid gap-2">
+      <p className="text-xs text-muted-foreground">Stored in this browser only.</p>
         <select aria-label="Reuse saved palette" className={fieldClass} value={selected} onChange={(event) => {
           setSelected(event.target.value)
           const saved = library.palettes.find((item) => item.name === event.target.value)
           if (saved) { setDraft({ colors: [...saved.colors], positions: saved.positions ? [...saved.positions] : undefined, brightness: saved.brightness, intensity: saved.intensity, blend: saved.blend ?? "direct", huePath: saved.huePath ?? "shorter", mapping: saved.mapping ?? "band-range" }, saved.name, event.currentTarget); setName(saved.name) }
         }}><option value="">Choose a saved palette</option>{library.palettes.map((item) => <option key={item.name}>{item.name}</option>)}</select>
-      </label>
       <label className="grid gap-1 text-sm">Palette name<input aria-label="Palette name" className={fieldClass} value={name} maxLength={80} onChange={(event) => setName(event.target.value)} /></label>
       {nameError && <p className="text-xs text-muted-foreground">{nameError}</p>}
       <div className="flex flex-wrap gap-2">
@@ -244,7 +243,7 @@ export function PaletteEditor({ setup, palette, onApply, onPreview }: { setup: S
         <Button type="button" variant="ghost" disabled={!selected} onClick={() => save("delete")}>Delete saved palette</Button>
       </div>
       <p className="text-xs text-muted-foreground">Saving stores this draft, not the bands. Export JSON keeps applied band colors with your setup.</p>
-    </fieldset>
+    </div>
     </details>
     <p role="status" className="text-xs text-muted-foreground">{library.message}</p>
   </section>

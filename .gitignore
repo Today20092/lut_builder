@@ -31,6 +31,12 @@ output/configs/*.json
 # Claude Code
 .claude/
 
+# Local development scratch, attachments, and code graph cache
+/.scratch/
+/.codex-remote-attachments/
+/.codebase-memory/
+/frontend/tests/.graph-*/
+
 # Astro content cache
 frontend/manual/.astro/
 frontend/.astro/

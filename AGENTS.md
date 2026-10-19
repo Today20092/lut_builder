@@ -37,6 +37,12 @@ pnpm build
 The build checks TypeScript and regenerates `src/lut_builder/static/`; include the
 rebuilt assets with frontend changes. Edit browser source in `frontend/`.
 
+For UI layout, styling, controls, or screenshot-baseline changes, follow
+[UI quality checks](docs/testing/ui-quality.md). Completion requires passing
+layout/accessibility checks, reviewed screenshots at the configured widths and
+themes, and an explanation for every changed baseline. Pages deployment also
+requires the [UI quality workflow](.github/workflows/ui-quality.yml).
+
 Use Effect 4.0.5 as the standard for maintained TypeScript application code in
 `frontend/src/`. Use `Schema` at untrusted JSON boundaries, `Data.TaggedError` for
 failures shown to users, `Effect.tryPromise` for Promise APIs, and `Effect.callback`

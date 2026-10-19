@@ -15,7 +15,7 @@ import { Data, Effect, Result, Schema } from "effect"
 
 import { Button } from "@/components/ui/button"
 import { PaletteEditor, type PalettePreview } from "./PaletteEditor"
-import { ExposurePreview } from "./ExposurePreview"
+import { BandStrip, ExposurePreview } from "./ExposurePreview"
 import { ReferencePreview } from "./ReferencePreview"
 import { KeyboardHelp } from "./KeyboardHelp"
 import { isTypingTarget } from "./keyboard"
@@ -43,6 +43,7 @@ import { generateInWorker } from "@/lutWorkerClient"
 import {
   applyBandPreset,
   applyFillPreset,
+  applyExposurePreset,
   bandId,
   changeMode,
   contrastTextColor,
@@ -64,6 +65,7 @@ import {
   updateFillBoundary,
   type FillPreset,
   type BandPreset,
+  type ExposurePreset,
   type Mode,
   type PaletteColor,
   type Setup,
@@ -795,7 +797,7 @@ export function ExposureGraph({
           onRemove(selectedBand)
         }
       }}
-      className="relative isolate flex h-28 touch-none overflow-hidden rounded-lg border"
+      className="relative isolate flex h-28 touch-none overflow-hidden rounded-lg border bg-no-repeat bg-clip-padding"
         style={{ backgroundColor: fillBands[0]?.color, backgroundImage: fillBands.length > 1
           ? `linear-gradient(to right, ${fillBands.map((band, index) => `${band.color} ${index === 0 ? 0 : position(fillBands[index - 1].stop)}% ${index === fillBands.length - 1 ? 100 : position(band.stop)}%`).join(",")})`
           : undefined }}
@@ -1013,6 +1015,8 @@ export function App() {
   const [graphRange, setGraphRange] = useState(7)
   const [fillPreset, setFillPreset] = useState<FillPreset>("standard")
   const [bandPreset, setBandPreset] = useState<BandPreset>("standard")
+  const [paletteRevision, setPaletteRevision] = useState(0)
+  const [exposurePreset, setExposurePreset] = useState<ExposurePreset>("contrast-checker")
   const [removingBandIndex, setRemovingBandIndex] = useState<number | null>(null)
   const importInput = useRef<HTMLInputElement>(null)
   const colorTriggers = useRef(new Map<number, HTMLButtonElement>())
@@ -1329,9 +1333,37 @@ export function App() {
           <CardHeader className="grid gap-4">
             <div>
               <CardTitle className="text-lg font-semibold"><h2>Exposure bands</h2></CardTitle>
-              <CardDescription>{setup.fill_mode ? "Drag dividers to resize zones. Double-click a zone to recolor it." : "Drag bands to move them. Edit colors below."}</CardDescription>
-              <p className="text-xs text-muted-foreground">Stops measure scene exposure; new IRE setups measure camera-log levels; Fill colors every zone. <a className="underline" href={`${import.meta.env.BASE_URL}docs/controls/#exposure-bands`} target="_blank" rel="noreferrer">Bands and palette guide (new tab)</a></p>
             </div>
+            <section className="grid gap-2" aria-label="Exposure presets">
+              <div className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-2">
+                <label className="grid min-w-0 gap-1.5 text-sm font-medium">Start with a preset
+                  <select className={fieldClass} value={exposurePreset} onChange={(event) => setExposurePreset(event.target.value as ExposurePreset)}>
+                    <option value="contrast-checker">Contrast Checker · 5 fill zones</option>
+                    <option value="three-band">Three-band Exposure · Stops</option>
+                    <option value="camera-ire">Camera-log IRE · 7 bands</option>
+                  </select>
+                </label>
+                <Button type="button" variant="outline" onClick={() => {
+                  setPalettePreview(null)
+                  setPaletteRevision((value) => value + 1)
+                  setRemovingBandIndex(null)
+                  editSetup((current) => applyExposurePreset(current, catalog.palette, exposurePreset), 0)
+                  setBandStatus("Exposure preset applied. Undo last band edit restores your previous bands.")
+                }}>Use preset</Button>
+              </div>
+              <details className="text-xs text-muted-foreground">
+                <summary className="flex min-h-11 cursor-pointer items-center text-sm font-medium text-foreground">Details</summary>
+                <div className="grid gap-2 pb-2">
+              <p>{exposurePreset === "contrast-checker"
+                ? "Dark green → light green → gray → light pink → bright pink. Boundaries: −1.5, −0.5, +0.5, +1.5 stops from 18% gray. Compare face and scene contrast; colors do not establish a universal safe skin exposure."
+                : exposurePreset === "three-band" ? "Blue at −2, green at 0, orange at +2 stops. Each band is 0.6 stops wide on monochrome."
+                  : `Seven standard false-color bands on monochrome, anchored to ${setup.profile} camera-log levels.`}</p>
+              <p>Presets replace mode, positions, widths, and colors. Camera, output, and warning settings are preserved. Undo restores your bands.</p>
+              <p>{setup.fill_mode ? "Drag dividers to resize zones. Edit colors in the table." : "Drag bands to move them, or edit values in the table."}</p>
+              <p>Stops measure scene exposure; IRE measures camera-log levels; Fill colors every zone. <a className="underline" href={`${import.meta.env.BASE_URL}docs/controls/#exposure-bands`} target="_blank" rel="noreferrer">Bands and palette guide (new tab)</a></p>
+                </div>
+              </details>
+            </section>
             <fieldset className="grid grid-cols-3 gap-2" aria-label="Band mode">
               <legend className="sr-only">Band mode</legend>
               {([
@@ -1435,12 +1467,12 @@ export function App() {
                     : updateBand(current, index, { stop }), index)}
                   onWidthChange={(index, width) => editSetup((current) => updateBand(current, index, { width }), index)}
                 />
-                <div className="relative overflow-x-auto rounded-lg border">
-                  <table className="band-table w-full table-fixed min-w-[42rem] text-sm" role="table" aria-label="Band colors and positions">
-                    <thead className="bg-muted/50 text-left text-xs text-muted-foreground"><tr><th className="w-20 px-3 py-2">Band</th><th className="w-44 px-3 py-2">Color</th><th className="px-3 py-2">{setup.fill_mode ? "Boundary to next color" : mode === "ire" ? "Position (IRE)" : "Position (stops)"}</th><th className="px-3 py-2">{setup.fill_mode ? "Coverage" : `Total width (${mode === "ire" ? "IRE" : "stops"})`}</th><th className="w-32 px-3 py-2"><span className="sr-only">Actions</span></th></tr></thead>
+                <div className="relative overflow-x-auto">
+                  <table className="band-table w-full table-fixed min-w-[29rem] text-sm" role="table" aria-label="Band colors and positions">
+                    <caption className="caption-bottom pt-2 text-left text-xs text-muted-foreground sm:hidden">Scroll sideways for position, width, and remove.</caption>
+                    <thead className="text-left text-xs text-muted-foreground"><tr><th className="w-44 px-3 py-2">Color</th><th className="px-3 py-2">{setup.fill_mode ? "Boundary to next color" : mode === "ire" ? "Position (IRE)" : "Position (stops)"}</th><th className="px-3 py-2">{setup.fill_mode ? "Coverage" : `Total width (${mode === "ire" ? "IRE" : "stops"})`}</th><th className="w-16 px-3 py-2"><span className="sr-only">Actions</span></th></tr></thead>
                     <tbody>{setup.bands.map((band, index) => (
                       <tr className={`border-t ${selectedBand === index ? "bg-accent/60" : ""}`} key={bandId(band)} onFocus={() => selectBand(index)} onClick={() => selectBand(index)}>
-                        <th className="p-3 text-left font-medium" scope="row">{setup.fill_mode ? "Color" : "Band"} {index + 1}{selectedBand === index && <span className="block text-xs">Selected</span>}</th>
                         <td className="p-2"><span className="band-field-label" aria-hidden="true">Color</span><ColorPicker hideLabel triggerRef={(element) => { if (element) colorTriggers.current.set(bandId(band), element); else colorTriggers.current.delete(bandId(band)) }} label={`Band ${index + 1} color`} value={band.color} onChange={(color) => editSetup((current) => updateBand(current, index, { color }), index)} /></td>
                         <td className="p-2"><span className="band-field-label" aria-hidden="true">{setup.fill_mode ? "Next boundary" : `Position (${mode === "ire" ? "IRE" : "stops"})`}</span>{setup.fill_mode && index === setup.bands.length - 1
                           ? <span className="text-muted-foreground">—</span>
@@ -1452,7 +1484,7 @@ export function App() {
                           aria-label={removingBandIndex === index ? `Confirm remove band ${index + 1}` : `Remove band ${index + 1}`}
                           type="button"
                           size="sm"
-                          className="h-9 w-7 !px-0 sm:w-full sm:!px-2"
+                          className="h-11 w-11 !px-0"
                           variant={removingBandIndex === index ? "destructive" : "ghost"}
                           onClick={(event) => {
                             event.stopPropagation()
@@ -1460,7 +1492,7 @@ export function App() {
                             editSetup((current) => removeBand(current, index))
                             setRemovingBandIndex(null)
                           }}
-                        ><span aria-hidden="true" className="text-base sm:hidden">{removingBandIndex === index ? "✓" : "×"}</span><span className="hidden sm:inline">{removingBandIndex === index ? "Confirm remove" : "Remove"}</span></Button></td>
+                        ><span aria-hidden="true" className="text-base">{removingBandIndex === index ? "✓" : "×"}</span></Button></td>
                       </tr>
                     ))}</tbody>
                   </table>
@@ -1472,7 +1504,7 @@ export function App() {
               </>
             ) : <p className="text-sm text-muted-foreground">{browserOnly ? "The browser build creates LUTs locally; exposure preview is not included in this release." : "Preparing preview…"}</p>}
             {validationError && <p className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive" role="alert">{validationError}</p>}
-            <PaletteEditor key={revision} setup={setup} palette={catalog.palette} onApply={applyPalette} onPreview={setPalettePreview} />
+            <PaletteEditor key={`${revision}:${paletteRevision}`} setup={setup} palette={catalog.palette} onApply={applyPalette} onPreview={setPalettePreview} />
           </CardContent>
         </Card>
 
@@ -1537,8 +1569,9 @@ export function App() {
             <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Output · {setup.cube_size}³ .cube</span>
             <output className="break-all font-mono text-sm" aria-label="Output filename preview">{outputFilename(setup)}</output>
             <p className="text-sm">{setup.legal_range ? "Legal/video range" : "Full range"} · {setup.band_mode === "stops" ? "Exposure stops" : "IRE"} · {setup.fill_mode ? "Fill zones" : setup.monochrome ? "Bands on monochrome" : "Bands on color"}</p>
-            <ul aria-label="Output band colors and boundaries" className="grid grid-cols-2 gap-2 sm:grid-cols-4">{setup.bands.map((band, index) => <li key={index} className="grid gap-1 rounded border p-2 text-xs"><span className="h-6 rounded" style={{ backgroundColor: band.color }} /><span>{setup.fill_mode ? `${index === 0 ? '−∞' : setup.bands[index - 1].stop} to ${index === setup.bands.length - 1 ? '+∞' : band.stop}` : `${Number((band.stop - band.width).toFixed(3))} to ${Number((band.stop + band.width).toFixed(3))}`} {setup.band_mode === "stops" ? "stops" : "IRE"}</span><span className="font-mono">{band.color}</span></li>)}</ul>
-            {[[setup.low_signal_warning, "Low recorded signal", setup.low_signal_hex], [setup.high_signal_warning, "High recorded signal", setup.high_signal_hex]].map(([enabled, label, color]) => enabled && <p key={String(label)} className="flex items-center gap-2 text-xs"><span className="size-5 rounded border" style={{ backgroundColor: String(color) }} />{label} · {color}</p>)}
+            <BandStrip setup={setup} minimum={graphMinimum} maximum={graphMaximum} />
+            <ul aria-label="Output band colors and boundaries" className="grid gap-1">{setup.bands.map((band, index) => <li key={index} className="flex items-center gap-2 text-xs"><span aria-hidden="true" className="size-3 shrink-0 rounded-sm" style={{ backgroundColor: band.color }} /><span>{setup.fill_mode ? `${index === 0 ? '−∞' : setup.bands[index - 1].stop} to ${index === setup.bands.length - 1 ? '+∞' : band.stop}` : `${Number((band.stop - band.width).toFixed(3))} to ${Number((band.stop + band.width).toFixed(3))}`} {setup.band_mode === "stops" ? "stops" : "IRE"}</span></li>)}</ul>
+            {[[setup.low_signal_warning, "Low recorded signal", setup.low_signal_hex], [setup.high_signal_warning, "High recorded signal", setup.high_signal_hex]].map(([enabled, label, color]) => enabled && <p key={String(label)} className="flex items-center gap-2 text-xs"><span aria-hidden="true" className="size-3 rounded-full border" style={{ backgroundColor: String(color) }} />{label}</p>)}
             {palettePreview && <p className="text-xs text-muted-foreground" role="status">Your palette preview is not applied. This download uses the current band colors. <a href="#exposure-bands" className="underline">Return to palette preview</a>.</p>}
             {browserOnly && <p className="text-xs text-muted-foreground">Generated on this device. Export JSON to back up your setup; browser storage does not sync and may be cleared.</p>}
           </CardContent>
