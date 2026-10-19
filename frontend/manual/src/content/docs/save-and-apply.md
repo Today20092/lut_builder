@@ -5,6 +5,10 @@ description: Keep editable backups, understand local storage, and use the cube i
 
 ## Generate a cube
 
+:::tip[Keep a pair of files]
+Save the **cube** for the device applying the transformation and **setup JSON** for future edits. A cube cannot be imported as an editable setup.
+:::
+
 The **Generate LUT** panel shows the profile, target, cube size, and resolved output filename. Choose **Generate LUT** to download a `.cube`. While the browser worker is generating, progress appears and **Cancel** can stop the job. Correct any validation error before trying again.
 
 The download uses applied band colors. A palette draft must be accepted with **Use palette** first. A separate **Download checked .cube** action in camera verification retains the exact bytes used for that check; use it when you need that identity.
@@ -34,7 +38,16 @@ In the browser app, enter a **Preset name** and choose **Save current setup**. S
 
 Browser storage is tied to the browser, profile, and site address. The hosted app and `http://127.0.0.1:8765/` have different libraries. Private browsing, blocked storage, clearing site data, or browser cleanup can remove or prevent saves. Export JSON before closing or clearing storage; saving is not cloud synchronization.
 
+> **Saved locally is not backed up.** Export JSON before clearing browser data or moving to another device. It preserves applied settings, not the entire palette library.
+
 ## Apply the cube
+
+| Stage | Must agree with |
+| --- | --- |
+| Signal entering the LUT | Selected camera log **and** gamut |
+| LUT output | Selected display target and Full / Legal handling |
+| Receiving host | Supported cube dimensions and import requirements |
+| Final check | Known camera samples in the actual display path |
 
 1. Check the host's supported cube dimensions, file naming, and LUT import procedure.
 2. Place the LUT where it receives the selected camera log and gamut. Do not feed it a Rec.709 viewing transform when it expects camera log.

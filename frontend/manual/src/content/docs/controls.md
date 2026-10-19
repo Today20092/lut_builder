@@ -19,6 +19,16 @@ description: What each configuration, band, graph, palette, and warning control 
 
 ## Exposure bands
 
+| Choose | Measures / divides | Best starting point |
+| --- | --- | --- |
+| Stops | Scene-linear luminance relative to 18% gray | Compare exposure differences |
+| IRE | Camera-log encoded luma for new setups | Mark encoded-signal intervals |
+| Fill | Continuous zones separated by stop boundaries | Color every exposure zone |
+
+:::note[Imported IRE setups]
+Older setups can retain target-display IRE. Check the **Legacy setup** label before comparing their numbers with a new camera-log IRE setup.
+:::
+
 **Stops** marks scene exposure relative to 18% gray. New **IRE** selections measure camera-log encoded RGB luma before the viewing conversion, on a full-code-range percentage scale. Older imported setups can retain target-display IRE; the editor labels them **Legacy setup**. **Switch to camera-log IRE** replaces their bands with fresh camera-centered presets and can be undone. **Fill** assigns a color to every exposure zone; the browser's Fill mode uses stops.
 
 | Control | How to use it |
@@ -57,6 +67,8 @@ Click a band or warning swatch. Use the saturation/value area and hue control, n
 ## Palettes and gradients
 
 **Recolor all bands** changes colors without moving the bands. Editing a single swatch remains available if you want to keep the other colors.
+
+> **Geometry and color are separate.** A palette changes the labels on your existing bands. Applying an arrangement preset replaces positions and colors.
 
 | Control | Meaning |
 | --- | --- |

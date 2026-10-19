@@ -21,6 +21,7 @@ try {
     documents.set(url, document)
   }
   const assets = new Set()
+  assert.equal([...documents.values()].reduce((count, document) => count + document.querySelectorAll("iframe.manual-diagram[title]").length, 0), 3)
   for (const [url, document] of documents) {
     for (const anchor of document.querySelectorAll("a[href]")) {
       const target = new URL(anchor.getAttribute("href"), url)
@@ -30,7 +31,7 @@ try {
       assert.ok(documents.has(target.href), `Unknown manual page: ${target.href}`)
       if (fragment) assert.ok(documents.get(target.href).getElementById(fragment), `Missing anchor: ${target.href}#${fragment}`)
     }
-    for (const element of document.querySelectorAll("img[src], script[src], link[rel=stylesheet]")) {
+    for (const element of document.querySelectorAll("img[src], script[src], link[rel=stylesheet], iframe[src]")) {
       assets.add(new URL(element.getAttribute("src") || element.getAttribute("href"), url).href)
     }
   }
@@ -78,6 +79,25 @@ try {
     for (const path of pages) {
       await docs.goto(manual + path)
       assert.equal(await docs.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true, `Overflow at ${width}: ${path}`)
+      for (const iframe of await docs.locator("iframe.manual-diagram").all()) await iframe.scrollIntoViewIfNeeded()
+      for (const frame of docs.frames().slice(1)) {
+        const svg = frame.getByRole("img")
+        await svg.waitFor()
+        assert.ok(await svg.getAttribute("aria-labelledby"), frame.url())
+        assert.equal(await frame.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true, `Diagram page overflow: ${frame.url()}`)
+        const scroller = frame.getByRole("region")
+        await scroller.focus()
+        if (width === 390) {
+          await docs.keyboard.press("ArrowRight")
+          await docs.waitForFunction(() => [...document.querySelectorAll("iframe")].every(element => element.contentDocument.querySelector(".diagram-container").scrollLeft > 0))
+        }
+      }
+      if (path === "" && process.env.MANUAL_EVIDENCE) {
+        await docs.screenshot({ path: `${process.env.MANUAL_EVIDENCE}/manual-overview-${width}.png`, fullPage: true })
+        await docs.emulateMedia({ colorScheme: "dark" })
+        await docs.screenshot({ path: `${process.env.MANUAL_EVIDENCE}/manual-overview-dark-${width}.png`, fullPage: true })
+        await docs.emulateMedia({ colorScheme: "light" })
+      }
     }
     await docs.goto(manual + "first-lut/")
     await docs.locator("main img").scrollIntoViewIfNeeded()
@@ -104,7 +124,7 @@ try {
     assert.deepEqual(errors, [])
     await context.close()
   }
-  console.log("Manual acceptance passed: 9 pages, internal links/anchors/assets, search, keyboard entry, mobile navigation, return links, and contextual help.")
+  console.log("Manual acceptance passed: 9 pages, internal links/anchors/assets, diagrams and keyboard scrolling, search, keyboard entry, mobile navigation, return links, and contextual help.")
 } finally {
   await browser.close()
 }

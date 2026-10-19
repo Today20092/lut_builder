@@ -9,11 +9,15 @@ LUT Builder makes a file that replaces selected exposure levels with colors you 
 
 ## What the colors mean
 
+<iframe class="manual-diagram" src="./diagrams/lut-workflow.html" title="From camera recording to a diagnostic LUT" loading="lazy"></iframe>
+
+*The path at a glance: match the recording, edit exposure labels, export the cube, then test it in the receiving device. Scroll within diagrams on a narrow screen.*
+
 A LUT is a lookup table: it maps incoming red, green, and blue values to outgoing colors. A false-color LUT uses that mapping to make exposure differences easier to see. The colors are labels you assign, not a universal standard. Green can mark your reference exposure; purple and red can mark recorded-signal limits. You can change all of them.
 
 Log recording compresses a large range of scene brightness into the recorded signal. Each camera log curve does this differently. That is why selecting the correct **Camera recording** profile matters before interpreting any color.
 
-These LUTs are diagnostic tools, not finished grades. They do not add a pleasing highlight roll-off or establish the point where your sensor clips.
+> **Read colors as labels.** These LUTs are diagnostic tools, not finished grades. They do not add a pleasing highlight roll-off or establish the point where your sensor clips.
 
 ## Find an answer
 

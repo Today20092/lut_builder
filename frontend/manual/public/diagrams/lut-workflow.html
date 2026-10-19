@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>From recording to diagnostic LUT</title>
+<style>
+  :root { color-scheme: light dark; --paper: #f7f7f7; --card: #fff; --ink: #171717; --muted: #666; --rule: #d4d4d4; }
+  @media (prefers-color-scheme: dark) { :root { --paper: #171717; --card: #262626; --ink: #fafafa; --muted: #b3b3b3; --rule: #525252; } }
+  * { box-sizing: border-box; } body { margin: 0; background: var(--paper); color: var(--ink); font-family: ui-sans-serif, system-ui, sans-serif; }
+  .diagram-container { width: 100%; overflow-x: auto; } .diagram-container:focus-visible { outline: 2px solid var(--ink); outline-offset: -3px; }
+  svg { display: block; width: 100%; min-width: 720px; } text { fill: var(--ink); font-family: ui-sans-serif, system-ui, sans-serif; }
+  .node { fill: var(--card); stroke: var(--muted); } .name { font-size: 16px; font-weight: 600; } .sub { fill: var(--muted); font-size: 12px; } .arrow { stroke: var(--muted); stroke-width: 2; fill: none; }
+  @media print { .diagram-container { overflow: visible; } svg { min-width: 0; } }
+</style>
+<div class="diagram-container" tabindex="0" role="region" aria-label="LUT workflow diagram; scroll horizontally on narrow screens" data-pagefind-ignore>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 300" role="img" aria-labelledby="lut-workflow-title lut-workflow-desc">
+  <title id="lut-workflow-title">From recording to diagnostic LUT</title>
+  <desc id="lut-workflow-desc">Match the camera log and gamut, edit exposure labels, export a cube and setup JSON, then test the cube in the receiving host.</desc>
+  <defs><marker id="workflow-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0 L8 4 L0 8" fill="var(--muted)"/></marker></defs>
+  <text x="24" y="40" font-size="24" font-weight="600">From recording to diagnostic LUT</text>
+  <text x="24" y="64" class="sub">Four stages · keep the editable setup beside the cube</text>
+  <g class="arrow" marker-end="url(#workflow-arrow)"><path d="M168 148 H192"/><path d="M344 148 H368"/><path d="M520 148 H544"/></g>
+  <rect class="node" x="24" y="100" width="144" height="96" rx="6"/>
+  <text x="40" y="128" class="sub">01 · INPUT</text><text x="40" y="152" class="name">Match recording</text><text x="40" y="176" class="sub">Camera log + gamut</text>
+  <rect class="node" x="200" y="100" width="144" height="96" rx="6"/>
+  <text x="216" y="128" class="sub">02 · EDIT</text><text x="216" y="152" class="name">Label exposure</text><text x="216" y="176" class="sub">Bands + applied colors</text>
+  <rect x="376" y="100" width="144" height="96" rx="6" fill="var(--ink)"/>
+  <text x="392" y="128" class="sub" style="fill:var(--paper)">03 · FILES</text><text x="392" y="152" class="name" style="fill:var(--paper)">Export both</text><text x="392" y="176" class="sub" style="fill:var(--paper)">.cube + setup JSON</text>
+  <rect class="node" x="552" y="100" width="144" height="96" rx="6"/>
+  <text x="568" y="128" class="sub">04 · CHECK</text><text x="568" y="152" class="name">Test in host</text><text x="568" y="176" class="sub">Known gray + range</text>
+  <path d="M24 232 H696" stroke="var(--rule)"/>
+  <text x="24" y="256" class="sub">Arrows show workflow order. Filled step produces the portable files.</text>
+  <text x="24" y="280" class="sub">The color labels do not certify physical sensor limits.</text>
+</svg>
+</div>
+</html>

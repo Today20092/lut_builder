@@ -1,5 +1,9 @@
 # Browser app support
 
+> **Read support and evidence separately.** Feature support is described below;
+> dated acceptance records state what was actually tested. Emulated phone widths
+> do not establish physical-device behavior.
+
 This matrix describes the static [GitHub Pages app](https://today20092.github.io/lut_builder/) introduced for [issue #9](https://github.com/Today20092/lut_builder/issues/9). It generates LUTs on-device and does not run the Python workspace.
 
 | Feature | Browser build |

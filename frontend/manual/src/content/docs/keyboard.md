@@ -3,6 +3,10 @@ title: Keyboard and touch
 description: Edit without dragging and navigate the manual and builder with a keyboard.
 ---
 
+:::tip[You do not need to drag]
+Use the numeric band fields for precise positions and widths. Tab reaches controls; Enter or Space activates buttons. Escape closes the picker or discards a numeric draft.
+:::
+
 Use Tab and Shift+Tab to move through controls. Buttons activate with Enter or Space. Native selects, radios, and sliders keep their usual arrow-key behavior. Numeric table fields provide an alternative to graph dragging on a keyboard or touch device.
 
 | Focus | Keys | Action |
