@@ -42,6 +42,8 @@ const bundle = await build({
   stdin: {
     contents: `
       export { App, ColorPicker, ExposureGraph, LutImagePreview } from "./src/App.tsx";
+      export { tailwindPalette } from "./src/tailwindPalette.ts";
+      export { outputFilename, defaultFilenameTemplate } from "./src/outputFilename.ts";
       export { displayPreviewOverlayAt, overlayForExposure, previewColorAt, previewOverlayAt } from "./src/demonstration.ts";
       export { default as React, act } from "react";
       export { createRoot } from "react-dom/client";
@@ -55,7 +57,7 @@ stop()
 const bundleDirectory = await mkdtemp(join(process.cwd(), "tests", ".graph-"))
 const bundlePath = join(bundleDirectory, "graph.mjs")
 await writeFile(bundlePath, bundle.outputFiles[0].text)
-const { App, ColorPicker, ExposureGraph, LutImagePreview, displayPreviewOverlayAt, overlayForExposure, previewColorAt, previewOverlayAt, React, act, createRoot } = await import(pathToFileURL(bundlePath).href)
+const { App, ColorPicker, ExposureGraph, LutImagePreview, tailwindPalette, outputFilename, defaultFilenameTemplate, displayPreviewOverlayAt, overlayForExposure, previewColorAt, previewOverlayAt, React, act, createRoot } = await import(pathToFileURL(bundlePath).href)
 await rm(bundleDirectory, { recursive: true })
 
 const preview = {
@@ -362,7 +364,8 @@ test("exposure graph dispatches keyboard and pointer edits without intercepting 
   const handle = container.querySelector("[aria-label='Band 1, 0 stops']")
   const rightEdge = container.querySelector("[aria-label='Resize right edge of band 1']")
   assert.equal(scale.children.length, 15)
-  assert.equal(graph.querySelectorAll("[data-scale-guide]").length, 15)
+  assert.equal(graph.querySelectorAll("[data-scale-guide]").length, 1)
+  assert.equal(handle.textContent, "")
   assert.equal(scale.firstElementChild.textContent.trim(), "-7")
   assert.equal(scale.lastElementChild.textContent.trim(), "+7")
   assert.match(container.textContent, /Exposure · stops from reference/)
@@ -409,6 +412,8 @@ test("fill mode renders draggable separators instead of numbered band markers", 
   assert.equal(container.querySelectorAll("[aria-label^='Boundary between colors']").length, 2)
   assert.equal(container.querySelectorAll("[aria-label^='Band ']").length, 0)
   assert.equal(container.querySelector("[aria-label^='Editable exposure graph']").textContent, "")
+  assert.match(container.querySelector("[aria-label^='Editable exposure graph']").style.backgroundImage, /^linear-gradient/)
+  assert.equal(container.querySelectorAll("[data-preview-color]").length, 0)
   await act(() => root.unmount())
   container.remove()
 })
@@ -416,11 +421,10 @@ test("fill mode renders draggable separators instead of numbered band markers", 
 test("band color and resize handles share the exact edge positions", async () => {
   const { container, root } = await mountGraph()
   const color = container.querySelector("[data-band-width='0']")
-  const sampledColor = container.querySelector("[data-preview-color='0']")
   const leftHandle = container.querySelector("[aria-label='Resize left edge of band 1']")
   const rightHandle = container.querySelector("[aria-label='Resize right edge of band 1']")
 
-  assert.equal(sampledColor.style.backgroundColor, "")
+  assert.equal(container.querySelector("[aria-label^='Editable exposure graph']").style.backgroundImage, "")
   assert.equal(color.style.left, leftHandle.style.left)
   assert.ok(Math.abs(
     Number.parseFloat(color.style.left) + Number.parseFloat(color.style.width) - Number.parseFloat(rightHandle.style.left),
@@ -478,9 +482,8 @@ test("color picker hides the complete ordered preset grid until requested", asyn
   assert.equal(document.querySelector("input[type='color']"), null)
   assert.equal(document.querySelector("[aria-label='red-50']"), null)
   const pickerPanel = document.querySelector("[aria-label='Test color saturation and brightness']").parentElement
-  const collapsedWidth = pickerPanel.className.match(/w-\S+/)?.[0]
   await act(() => document.querySelector("button[aria-expanded='false']").click())
-  assert.equal(pickerPanel.className.match(/w-\S+/)?.[0], collapsedWidth)
+  assert.equal(pickerPanel.className, "hidden")
   assert.deepEqual([...document.querySelectorAll("[aria-label='Test color picker'] button[title]")].map((item) => item.title), palette.map((color) => color.name))
   assert.equal(document.querySelector("[aria-label='red-500']").getAttribute("aria-pressed"), "true")
   await act(() => root.unmount())
@@ -667,11 +670,16 @@ test("band editing preserves valid generation data, selection, and one-step reco
     await act(() => root.render(React.createElement(App)))
     await act(() => new Promise((resolve) => setTimeout(resolve, 300)))
     assert.equal(field("Band 1 total width").value, "0.6")
+    await type(field("Output filename template"), defaultFilenameTemplate)
+    await act(() => new Promise((resolve) => setTimeout(resolve, 300)))
+    assert.equal(requests.filter(({ path }) => path === "/preview").at(-1).setup.output, defaultFilenameTemplate)
+    assert.match((await generate()).output, /^Sony-S-Log3-Rec-709-[a-f0-9]{8}\.cube$/)
+    assert.equal(field("Output filename template").value, defaultFilenameTemplate)
     await type(field("Band 1 stops"), "-")
     assert.equal((await generate()).bands[0].stop, 0)
     await type(field("Band 1 stops"), "2.25")
     await key(field("Band 1 stops"), "Enter")
-    assert.match(container.querySelector("output").textContent, /Band 2 · center 2.25/)
+    assert.match(container.querySelector("output[aria-live]").textContent, /Band 2 · center 2.25/)
     await type(field("Band 2 total width"), "1.4")
     await key(field("Band 2 total width"), "Enter")
     assert.deepEqual((await generate()).bands[1], { stop: 2.25, width: 0.7, color: "#ffffff" })
@@ -698,7 +706,7 @@ test("band editing preserves valid generation data, selection, and one-step reco
     await click(field("Confirm remove band 2"))
     assert.equal((await generate()).bands.length, 1)
     await click(button("Undo last band edit"))
-    assert.match(container.querySelector("output").textContent, /Band 2 · center 2.5/)
+    assert.match(container.querySelector("output[aria-live]").textContent, /Band 2 · center 2.5/)
     await click(button("Add band"))
     assert.equal((await generate()).bands.length, 3)
     await click(button("Undo last band edit"))
@@ -769,17 +777,35 @@ test("browser-only app generates and downloads through a local worker without ba
   try {
     await act(() => root.render(React.createElement(App)))
     assert.match(container.textContent, /Camera-matched still and video verification are not available/)
-    assert.equal(container.querySelector('a[href="https://github.com/Today20092/lut_builder/issues/39"]').textContent, "Track browser verification support")
     const marker = container.querySelector('button[aria-label="Band 1, 0 stops"]')
     assert.ok(marker, "static app exposes the editable graph without a backend preview")
     assert.ok(container.querySelector('[aria-label="Band 1 total width"]'))
+    const filenameBefore = container.querySelector('[aria-label="Output filename preview"]').textContent
+    const range = container.querySelector('[aria-label="Graph range in stops"]')
+    const setRange = async (value) => {
+      await act(() => {
+        Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set.call(range, value)
+        range.dispatchEvent(new window.Event("input", { bubbles: true }))
+      })
+      await act(() => range.dispatchEvent(new window.KeyboardEvent("keydown", { key: "Enter", bubbles: true })))
+    }
+    for (const value of ["9", "12", "100"]) {
+      await setRange(value)
+      assert.ok(container.querySelector(`[aria-label="Editable exposure graph from -${value} to ${value} stops"]`))
+      assert.ok(container.querySelector('[aria-label="stops scale"]').children.length <= 17)
+    }
+    await setRange("12")
+    await setRange("0")
+    assert.equal(range.value, "12")
+    assert.equal(container.querySelector('[aria-label="Output filename preview"]').textContent, filenameBefore)
     await act(() => marker.dispatchEvent(new window.KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true })))
     const generate = [...container.querySelectorAll("button")].find((button) => button.textContent === "Generate LUT")
     await act(async () => { generate.click(); await new Promise((resolve) => setTimeout(resolve, 0)) })
     assert.equal(messages[0].type, "generate")
     assert.equal(messages[0].setup.profile, "Sony S-Log3")
     assert.equal(messages[0].setup.bands[0].stop, 0.25)
-    assert.deepEqual(downloads, [{ href: "blob:test-lut", filename: "SonySLog3_Rec709.cube" }])
+    assert.equal(downloads[0].href, "blob:test-lut")
+    assert.match(downloads[0].filename, /^Sony-S-Log3-Rec-709-[a-f0-9]{8}\.cube$/)
     assert.equal(terminated, true)
     assert.deepEqual(requests, [])
     assert.match(container.textContent, /LUT downloaded\. Calculations stayed on this device/)
@@ -794,4 +820,24 @@ test("browser-only app generates and downloads through a local worker without ba
     globalThis.URL.revokeObjectURL = originalRevokeObjectURL
     window.HTMLAnchorElement.prototype.click = originalAnchorClick
   }
+})
+
+test("Tailwind presets include every shade and valid neutral colors", () => {
+  assert.ok(tailwindPalette.length >= 242)
+  assert.equal(new Set(tailwindPalette.map((color) => color.name)).size, tailwindPalette.length)
+  assert.ok(tailwindPalette.every((color) => /^#[a-f0-9]{6}$/i.test(color.hex)))
+  for (const family of ["red", "blue", "neutral", "slate"]) {
+    assert.equal(tailwindPalette.filter((color) => color.name.startsWith(family + "-")).length, 11)
+  }
+})
+
+test("filename tokens track settings, preserve fixed names, and survive key reordering", () => {
+  const configured = { ...setup, profile: "Panasonic V-Log", target: "Rec.709", output: defaultFilenameTemplate }
+  const name = outputFilename(configured)
+  assert.match(name, /^Panasonic-V-Log-Rec-709-[a-f0-9]{8}\.cube$/)
+  assert.equal(outputFilename({ ...configured }), name)
+  assert.equal(outputFilename(Object.fromEntries(Object.entries(configured).reverse())), name)
+  assert.notEqual(outputFilename({ ...configured, bands: [{ stop: 2, width: 0.5, color: "#ffffff" }] }), name)
+  assert.match(outputFilename({ ...configured, profile: "Sony S-Log3", target: "Rec.2020" }), /^Sony-S-Log3-Rec-2020-/)
+  assert.equal(outputFilename({ ...configured, output: "custom.cube" }), "custom.cube")
 })

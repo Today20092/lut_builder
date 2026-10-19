@@ -12,6 +12,7 @@ import { Data, Effect, Result, Schema } from "effect"
 
 import { Button } from "@/components/ui/button"
 import { PaletteEditor } from "./PaletteEditor"
+import { tailwindPalette } from "./tailwindPalette"
 import { BandNumberInput } from "./BandNumberInput"
 import { overlayForExposure } from "./demonstration"
 import {
@@ -26,7 +27,8 @@ import { Spinner } from "@/components/ui/spinner"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import referenceImage from "@/assets/lut-preview-reference.jpg"
 import { CameraVerification, type SourceInterpretations } from "@/CameraVerification"
-import { browserProfiles, browserTargets, cubeFilename } from "@/lutEngine"
+import { browserProfiles, browserTargets } from "@/lutEngine"
+import { defaultFilenameTemplate, outputFilename } from "./outputFilename"
 import { deleteSetupPreset, readSetupPresets, saveSetupPreset, type SetupPreset } from "@/setupPresets"
 import { decodeSetup, SetupSchema, SetupValidationError } from "@/setupSchema"
 import { generateInWorker } from "@/lutWorkerClient"
@@ -466,7 +468,7 @@ const browserSetup: Setup = {
   bands: [{ stop: 0, width: 0.3, color: "#22c55e" }], band_mode: "stops",
   fill_mode: false, low_signal_warning: false, low_signal_hex: "#5b21b6",
   high_signal_warning: false, high_signal_hex: "#dc2626", monochrome: true,
-  legal_range: false, output: "SonySLog3_Rec709.cube",
+  legal_range: false, output: defaultFilenameTemplate,
 }
 
 const fieldClass =
@@ -501,14 +503,14 @@ function postJson(path: string, setup: Setup, signal?: AbortSignal): Promise<Pre
 export function ColorPicker({
   label,
   value,
-  palette,
+  palette = tailwindPalette,
   disabled = false,
   hideLabel = false,
   onChange,
 }: {
   label: string
   value: string
-  palette: PaletteColor[]
+  palette?: PaletteColor[]
   disabled?: boolean
   hideLabel?: boolean
   onChange: (value: string) => void
@@ -527,7 +529,6 @@ export function ColorPicker({
     ;(groups[family] ??= []).push(color)
     return groups
   }, {}))
-  const paletteColumnCount = new Set(palette.map((color) => color.name.replace(/-\d+$/, ""))).size
   const hsv = hexToHsv(isHexColor(value) ? value : "#000000")
 
   function pickSaturation(event: PointerEvent<HTMLDivElement>) {
@@ -566,14 +567,19 @@ export function ColorPicker({
           <Popover.Positioner
             align="start"
             className="z-50"
-            collisionAvoidance={{ side: "flip", align: "shift", fallbackAxisSide: "end" }}
+              side="bottom"
+              collisionAvoidance={{ side: "none", align: "shift", fallbackAxisSide: "none" }}
             sideOffset={8}
           >
             <Popover.Popup
               aria-label={`${label} picker`}
-              className={`flex max-h-[var(--available-height)] max-w-[calc(100vw-2rem)] items-start gap-4 overflow-hidden rounded-lg border bg-popover p-3 text-popover-foreground shadow-lg outline-none ${showPresets ? "w-[78rem]" : "w-80"}`}
+                className="grid max-h-[var(--available-height)] w-80 max-w-[calc(100vw-2rem)] gap-4 overflow-y-auto rounded-lg border bg-popover p-3 text-popover-foreground shadow-lg outline-none"
             >
-              <div className="grid w-[calc(20rem-1.5rem-2px)] shrink-0 gap-3">
+                <div className="flex items-center justify-between gap-2">
+                  <Button type="button" size="sm" variant="outline" aria-expanded={showPresets} onClick={() => setShowPresets((shown) => !shown)}>{showPresets ? "Custom color" : "Tailwind presets"}</Button>
+                  <Popover.Close render={<Button size="sm" variant="ghost" />}>Done</Popover.Close>
+                </div>
+                <div className={showPresets ? "hidden" : "grid min-w-0 gap-3"}>
               <div
                 aria-label={`${label} saturation and brightness`}
                 className="relative h-44 w-full cursor-crosshair touch-none select-none overflow-hidden rounded-md border border-white/10"
@@ -606,15 +612,15 @@ export function ColorPicker({
                 placeholder="#rrggbb"
                 onChange={(event) => { const next = event.target.value; if (isHexColor(next)) setHue(hexToHsv(next).hue); onChange(next) }}
               />
-              <Button type="button" size="sm" variant="outline" aria-expanded={showPresets} onClick={() => setShowPresets((shown) => !shown)}>Tailwind presets</Button>
               </div>
-              {showPresets && <div className="grid h-[30rem] min-w-0 flex-1 grid-rows-[auto_1fr] gap-3">
+                {showPresets && <div className="grid min-w-0 gap-3">
                 <input aria-label={`Search ${label} palette`} className={fieldClass} value={search} placeholder="Search red-500 or #ef44" onChange={(event) => setSearch(event.target.value)} />
-                <div className="grid h-full gap-2" style={{ gridTemplateColumns: `repeat(${paletteColumnCount}, minmax(0, 1fr))` }}>
-                  {presetGroups.map(([family, colors]) => <div className="grid min-w-0 grid-rows-[auto_repeat(11,minmax(0,1fr))] gap-2" key={family}>
-                    <span className="truncate text-center text-[10px] text-muted-foreground" title={family}>{family}</span>
+                  <div className="grid gap-3">
+                    {presetGroups.length === 0 && <p className="text-xs text-muted-foreground">No matching colors.</p>}
+                    {presetGroups.map(([family, colors]) => <div className="grid min-w-0 grid-cols-6 gap-1" key={family}>
+                      <span className="col-span-6 text-xs text-muted-foreground">{family}</span>
                     {colors.map((color) => (
-                      <button aria-label={color.name} aria-pressed={color.hex.toLowerCase() === value.toLowerCase()} className={`min-h-0 rounded border border-black/10 outline-none hover:scale-105 focus-visible:ring-2 focus-visible:ring-ring ${color.hex.toLowerCase() === value.toLowerCase() ? "ring-2 ring-white ring-offset-2 ring-offset-black" : ""}`} key={color.name} title={color.name} type="button" style={{ backgroundColor: color.hex }} onClick={() => { setHue(hexToHsv(color.hex).hue); onChange(color.hex) }} />
+                        <button aria-label={color.name} aria-pressed={color.hex.toLowerCase() === value.toLowerCase()} className={`h-8 rounded border border-black/10 text-[10px] outline-none focus-visible:ring-2 focus-visible:ring-ring ${color.hex.toLowerCase() === value.toLowerCase() ? "ring-2 ring-ring ring-offset-1" : ""}`} key={color.name} title={color.name} type="button" style={{ backgroundColor: color.hex, color: contrastTextColor(color.hex) }} onClick={() => { setHue(hexToHsv(color.hex).hue); onChange(color.hex) }}>{color.name.split("-").at(-1)}</button>
                     ))}
                   </div>)}
                 </div>
@@ -639,7 +645,7 @@ export function ExposureGraph({
   onEditEnd,
 }: {
   setup: Setup
-  preview: Pick<Preview, "minimum" | "maximum" | "unit" | "colors">
+  preview: Pick<Preview, "minimum" | "maximum" | "unit">
   increment: number
   selectedBand: number
   onSelect: (index: number) => void
@@ -661,17 +667,19 @@ export function ExposureGraph({
     ? ([preview.minimum, preview.maximum] as const)
     : ([-Infinity, Infinity] as const)
   const interactiveBands = setup.fill_mode ? setup.bands.slice(0, -1) : setup.bands
+  const fillBands = setup.fill_mode ? [...setup.bands].sort((a, b) => a.stop - b.stop) : []
   const belowIndexes = interactiveBands.flatMap((band, index) =>
     band.stop < preview.minimum ? [index] : [],
   )
   const aboveIndexes = interactiveBands.flatMap((band, index) =>
     band.stop > preview.maximum ? [index] : [],
   )
+  const tickStep = Math.max(1, Math.ceil((preview.maximum - preview.minimum) / 14))
   const ticks = setup.band_mode === "stops"
-    ? Array.from(
-        { length: preview.maximum - preview.minimum + 1 },
-        (_, index) => preview.minimum + index,
-      )
+    ? [...new Set([preview.minimum, ...Array.from(
+        { length: Math.floor(preview.maximum / tickStep) - Math.ceil(preview.minimum / tickStep) + 1 },
+        (_, index) => (Math.ceil(preview.minimum / tickStep) + index) * tickStep,
+      ), preview.maximum])]
     : Array.from({ length: 11 }, (_, index) => index * 10)
   const selected = interactiveBands[selectedBand]
   const unitLabel = setup.band_mode === "stops" ? "stops from reference" : preview.unit
@@ -717,19 +725,14 @@ export function ExposureGraph({
     <div
       ref={graph}
       className="relative isolate flex h-28 touch-none overflow-hidden rounded-lg border"
+        style={{ backgroundColor: fillBands[0]?.color, backgroundImage: fillBands.length > 1
+          ? `linear-gradient(to right, ${fillBands.map((band, index) => `${band.color} ${index === 0 ? 0 : position(fillBands[index - 1].stop)}% ${index === fillBands.length - 1 ? 100 : position(band.stop)}%`).join(",")})`
+          : undefined }}
       onPointerUp={onEditEnd}
       onPointerCancel={onEditEnd}
       onLostPointerCapture={onEditEnd}
       aria-label={`Editable exposure graph from ${preview.minimum} to ${preview.maximum} ${preview.unit}`}
     >
-      {preview.colors.map((color, index) => (
-        <span
-          className="flex-1"
-          data-preview-color={index}
-          key={index}
-          style={{ backgroundColor: setup.fill_mode ? color : undefined }}
-        />
-      ))}
       {setup.low_signal_warning && (
         <span
           className="pointer-events-none absolute bottom-1 left-1 z-30 rounded px-1.5 py-0.5 text-[10px] font-semibold shadow"
@@ -748,7 +751,7 @@ export function ExposureGraph({
           High signal
         </span>
       )}
-      {ticks.map((tick) => (
+        {ticks.filter((tick) => tick === 0).map((tick) => (
         <span
           aria-hidden="true"
           className={`pointer-events-none absolute inset-y-0 z-[1] border-l mix-blend-difference ${tick === 0 ? "z-[2] border-l-2 border-white/90" : "border-white/35"}`}
@@ -836,8 +839,8 @@ export function ExposureGraph({
             key={`handle-${bandId(band)}`}
             type="button"
             className={setup.fill_mode
-              ? `absolute inset-y-0 z-10 w-6 -translate-x-1/2 bg-transparent after:absolute after:inset-y-0 after:left-1/2 after:w-1 after:-translate-x-1/2 after:bg-background after:shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${selectedBand === index ? "ring-2 ring-ring" : ""}`
-              : `absolute z-10 rounded-full border-2 border-background px-2 py-1 text-xs font-semibold shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${selectedBand === index ? "ring-2 ring-ring ring-offset-2" : ""}`}
+                ? `absolute inset-y-0 z-10 w-6 -translate-x-1/2 cursor-ew-resize bg-transparent after:absolute after:inset-y-0 after:left-1/2 after:w-0.5 after:-translate-x-1/2 after:bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${selectedBand === index ? "after:w-1" : ""}`
+                : `absolute z-10 size-4 cursor-ew-resize rounded-full border-2 border-background shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${selectedBand === index ? "ring-2 ring-ring ring-offset-2" : ""}`}
             style={{
               left: `${position(band.stop)}%`,
               zIndex: selectedBand === index ? 40 : undefined,
@@ -853,7 +856,7 @@ export function ExposureGraph({
             aria-label={setup.fill_mode
               ? `Boundary between colors ${index + 1} and ${index + 2}, ${band.stop} ${preview.unit}`
               : `Band ${index + 1}, ${band.stop} ${preview.unit}${edge ? ", outside visible range" : ""}`}
-            title={edge ? `${band.stop} ${preview.unit} is outside the visible range` : undefined}
+              title={`${band.stop} ${preview.unit}${edge ? " · outside visible range" : " · drag to move"}`}
             onClick={() => onSelect(index)}
             onFocus={() => onSelect(index)}
             onKeyDown={(event) => handleKeyDown(event, index)}
@@ -864,7 +867,6 @@ export function ExposureGraph({
             }}
             onPointerMove={(event) => handlePointerMove(event, index)}
           >
-            {!setup.fill_mode && <>{below ? "← " : ""}{index + 1}: {band.stop}{above ? " →" : ""}</>}
           </button>
         )
       })}
@@ -915,20 +917,19 @@ export function App() {
   const [presetName, setPresetName] = useState("")
   const [selectedPreset, setSelectedPreset] = useState("")
   const [stopIncrement, setStopIncrement] = useState<1 | 0.5 | 0.25>(0.25)
+  const [graphRange, setGraphRange] = useState(7)
   const [fillPreset, setFillPreset] = useState<FillPreset>("standard")
   const [bandPreset, setBandPreset] = useState<BandPreset>("standard")
   const [removingBandIndex, setRemovingBandIndex] = useState<number | null>(null)
   const importInput = useRef<HTMLInputElement>(null)
   const mode: Mode = setup.fill_mode ? "fill" : setup.band_mode
-  const graphMinimum = setup.band_mode === "ire" ? 0 : -7
-  const graphMaximum = setup.band_mode === "ire" ? 100 : 7
-  const graphPreview = browserOnly ? {
+  const graphMinimum = setup.band_mode === "ire" ? 0 : -graphRange
+  const graphMaximum = setup.band_mode === "ire" ? 100 : graphRange
+  const graphPreview = {
     minimum: graphMinimum,
     maximum: graphMaximum,
     unit: setup.band_mode === "ire" ? "IRE" : "stops",
-    colors: Array.from({ length: 281 }, (_, index) =>
-      overlayForExposure(setup, graphMinimum + index / 280 * (graphMaximum - graphMinimum)) ?? "transparent"),
-  } : preview
+  }
   const movementIncrement = mode === "ire" ? 1 : stopIncrement
   const selectBand = (index: number) => {
     dispatch({ type: "select", selection: index })
@@ -996,7 +997,7 @@ export function App() {
         const url = URL.createObjectURL(new Blob([outcome.success], { type: "text/plain;charset=utf-8" }))
         const link = document.createElement("a")
         link.href = url
-        link.download = cubeFilename(setup.output)
+        link.download = outputFilename(setup)
         link.click()
         window.setTimeout(() => URL.revokeObjectURL(url), 1000)
         setStatus("LUT downloaded. Calculations stayed on this device.")
@@ -1011,7 +1012,7 @@ export function App() {
               "Content-Type": "application/json",
               "X-LUT-Builder-Token": window.LUT_BUILDER_TOKEN,
             },
-            body: JSON.stringify({ version: 1, ...setup }),
+            body: JSON.stringify({ version: 1, ...setup, output: outputFilename(setup) }),
           })
           if (!next.ok) {
             const result = Schema.decodeUnknownSync(ErrorResponseSchema)(await next.json())
@@ -1062,7 +1063,7 @@ export function App() {
     link.href = URL.createObjectURL(
       new Blob([exportSetup(setup)], { type: "application/json" }),
     )
-    link.download = `${setup.output.replace(/\.cube$/i, "") || "lut-setup"}.json`
+    link.download = outputFilename(setup).replace(/\.cube$/i, ".json")
     link.click()
     URL.revokeObjectURL(link.href)
     setStatus("Version-1 configuration exported.")
@@ -1146,10 +1147,14 @@ export function App() {
               <input type="checkbox" checked={setup.legal_range} onChange={(e) => patchSetup({ legal_range: e.target.checked })} />
               <span className="flex items-center gap-1.5">Legal/video range (off = Full range) <InfoTooltip text="Encodes output in video/legal range instead of full data range. Enable only when the monitoring pipeline expects legal-range levels." /></span>
             </label>
-            <label className="grid gap-1 text-sm font-medium">
-              Output filename
-              <input className={fieldClass} value={setup.output} onChange={(e) => patchSetup({ output: e.target.value })} />
-            </label>
+            <div className="grid gap-2 text-sm">
+              <label className="grid gap-1 font-medium">Output filename template
+                <input aria-label="Output filename template" className={fieldClass} value={setup.output} onChange={(e) => patchSetup({ output: e.target.value })} />
+              </label>
+              <p className="text-xs text-muted-foreground">Use %inputgamma%, %targetgamma%, and %id%, or type a fixed name. The ID changes with your setup.</p>
+              <output className="break-all text-xs" aria-label="Output filename preview">{outputFilename(setup)}</output>
+              <Button type="button" size="sm" variant="outline" className="justify-self-start" onClick={() => patchSetup({ output: defaultFilenameTemplate })}>Use automatic filename</Button>
+            </div>
           </CardContent>
         </Card>
 
@@ -1220,6 +1225,10 @@ export function App() {
             {graphPreview ? (
               <>
                 <Button type="button" variant="outline" disabled={!undo} onClick={undoEdit}>Undo last band edit</Button>
+                {setup.band_mode === "stops" && <label className="flex flex-wrap items-center gap-2 text-sm">Graph range · ±
+                  <BandNumberInput aria-label="Graph range in stops" className={`${fieldClass} !w-20`} value={graphRange} min={1} max={100} step={1} onChange={setGraphRange} />
+                  stops <span className="text-xs text-muted-foreground">View only; band positions stay unchanged.</span>
+                </label>}
                 <ExposureGraph
                   setup={setup}
                   preview={graphPreview}
@@ -1239,7 +1248,7 @@ export function App() {
                     <tbody>{setup.bands.map((band, index) => (
                       <tr className={`border-t ${selectedBand === index ? "bg-accent/60" : ""}`} key={bandId(band)} onFocus={() => selectBand(index)} onClick={() => selectBand(index)}>
                         <th className="p-3 text-left font-medium" scope="row">{setup.fill_mode ? "Color" : "Band"} {index + 1}{selectedBand === index && <span className="block text-xs">Selected</span>}</th>
-                        <td className="p-2"><ColorPicker hideLabel label={`Band ${index + 1} color`} value={band.color} palette={catalog.palette} onChange={(color) => editSetup((current) => updateBand(current, index, { color }), index)} /></td>
+                        <td className="p-2"><ColorPicker hideLabel label={`Band ${index + 1} color`} value={band.color} onChange={(color) => editSetup((current) => updateBand(current, index, { color }), index)} /></td>
                         <td className="p-2">{setup.fill_mode && index === setup.bands.length - 1
                           ? <span className="text-muted-foreground">—</span>
                           : <BandNumberInput aria-label={setup.fill_mode ? `Boundary after color ${index + 1}` : `Band ${index + 1} ${mode === "ire" ? "IRE" : "stops"}`} className={fieldClass} step={movementIncrement} min={mode === "ire" ? 0 : undefined} max={mode === "ire" ? 100 : undefined} value={band.stop} onChange={(stop) => editSetup((current) => setup.fill_mode ? updateFillBoundary(current, index, stop, movementIncrement) : updateBand(current, index, { stop }), index)} />}</td>
@@ -1288,14 +1297,14 @@ export function App() {
                   <input type="checkbox" checked={setup.low_signal_warning} onChange={(e) => patchSetup({ low_signal_warning: e.target.checked })} />
                   Low recorded-signal warning
                 </label>
-                <ColorPicker label="Low-limit indicator color" value={setup.low_signal_hex} palette={catalog.palette} disabled={!setup.low_signal_warning} onChange={(low_signal_hex) => patchSetup({ low_signal_hex })} />
+                <ColorPicker label="Low-limit indicator color" value={setup.low_signal_hex} disabled={!setup.low_signal_warning} onChange={(low_signal_hex) => patchSetup({ low_signal_hex })} />
               </div>
               <div className="grid gap-3">
                 <label className="flex items-center gap-2 text-sm font-medium">
                   <input type="checkbox" checked={setup.high_signal_warning} onChange={(e) => patchSetup({ high_signal_warning: e.target.checked })} />
                   High recorded-signal warning
                 </label>
-                <ColorPicker label="High-limit indicator color" value={setup.high_signal_hex} palette={catalog.palette} disabled={!setup.high_signal_warning} onChange={(high_signal_hex) => patchSetup({ high_signal_hex })} />
+                <ColorPicker label="High-limit indicator color" value={setup.high_signal_hex} disabled={!setup.high_signal_warning} onChange={(high_signal_hex) => patchSetup({ high_signal_hex })} />
               </div>
             </CardContent>
         </Card>
@@ -1344,7 +1353,7 @@ export function App() {
         </Card>
 
         </div>
-        <WorkbenchPreview preview={preview} setup={setup} catalog={catalog} browserOnly={browserOnly} />
+        <WorkbenchPreview preview={preview} setup={{ ...setup, output: outputFilename(setup) }} catalog={catalog} browserOnly={browserOnly} />
         </div>
       </section>
     </main>
