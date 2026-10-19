@@ -4,15 +4,16 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>LUT Builder</title>
-    <script type="module" crossorigin src="/assets/index-DXRWesII.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-Mj10n6lW.css">
+    <script type="module" crossorigin src="/assets/index-CgpSmRZN.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-YydYlbEe.css">
   </head>
   <body>
     <div id="root"></div>
     <script>
-      window.LUT_BUILDER_TOKEN = __TOKEN__;
-      window.LUT_BUILDER_SETUP = __SETUP__;
-      window.LUT_BUILDER_CATALOG = __CATALOG__;
-    </script>
+      if (typeof __TOKEN__ !== "undefined") window.LUT_BUILDER_TOKEN = __TOKEN__;
+      if (typeof __SETUP__ !== "undefined") window.LUT_BUILDER_SETUP = __SETUP__;
+      if (typeof __CATALOG__ !== "undefined") window.LUT_BUILDER_CATALOG = __CATALOG__;
+    </script>
+
   </body>
 </html>

@@ -5,6 +5,7 @@ import { defineConfig } from "vite"
 
 // https://vite.dev/config/
 export default defineConfig({
+  base: process.env.LUT_BUILDER_PAGES === "true" ? "/lut_builder/" : "/",
   plugins: [react(), tailwindcss()],
   build: {
     outDir: "../src/lut_builder/static",

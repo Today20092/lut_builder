@@ -21,6 +21,8 @@ We want this to work wherever you are, on a computer, tablet, or phone, across b
 
 This browser-only version is not available yet. Follow [ticket #9](https://github.com/Today20092/lut_builder/issues/9) for the work. The current Workbench runs in a browser but still needs a local Python server, Git, uv, and the setup below.
 
+The static browser build and its current feature limits are documented in the [browser support matrix](docs/browser-support.md). It is not a public entry point until its Pages deployment and browser acceptance checks are complete.
+
 ## Quick start
 
 These instructions are for the current local version. The planned browser-only app will not need these steps.

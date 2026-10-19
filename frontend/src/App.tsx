@@ -25,6 +25,8 @@ import { Spinner } from "@/components/ui/spinner"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import referenceImage from "@/assets/lut-preview-reference.jpg"
 import { CameraVerification, type SourceInterpretations } from "@/CameraVerification"
+import { browserProfiles, browserTargets, cubeFilename, validateBrowserSetup } from "@/lutEngine"
+import { deleteSetupPreset, readSetupPresets, saveSetupPreset, type SetupPreset } from "@/setupPresets"
 import {
   applyBandPreset,
   applyFillPreset,
@@ -369,9 +371,10 @@ export function LutImagePreview({ preview, camera }: { preview: Preview | null; 
   )
 }
 
-function WorkbenchPreview({ preview, setup, catalog }: { preview: Preview | null; setup: Setup; catalog: Catalog }) {
+function WorkbenchPreview({ preview, setup, catalog, browserOnly }: { preview: Preview | null; setup: Setup; catalog: Catalog; browserOnly: boolean }) {
   const [mode, setMode] = useState("Demonstration")
   const [sourceKind, setSourceKind] = useState("Still")
+  if (browserOnly) return <Card className="min-w-0 self-start"><CardHeader><CardTitle>Preview and camera verification</CardTitle></CardHeader><CardContent><p className="text-sm text-muted-foreground">The GitHub Pages editor generates LUTs on this device. Camera-matched still and video verification are not available in this browser build. The demonstration image is illustrative and does not apply the exported LUT. <a className="underline" href="https://github.com/Today20092/lut_builder/issues/39">Track browser verification support</a>.</p></CardContent></Card>
   return <div className="grid min-w-0 self-start gap-3 @min-[64rem]:sticky @min-[64rem]:top-6">
     <fieldset className="flex flex-wrap gap-2">
       <legend className="mb-2 text-sm font-medium">Preview mode</legend>
@@ -388,6 +391,27 @@ declare global {
     LUT_BUILDER_SETUP: Setup
     LUT_BUILDER_CATALOG: Catalog
   }
+}
+
+const browserCatalog: Catalog = {
+  profiles: browserProfiles,
+  source_interpretations: {},
+  targets: browserTargets,
+  palette: [
+    { name: "violet-800", hex: "#5b21b6" }, { name: "blue-600", hex: "#2563eb" },
+    { name: "sky-400", hex: "#38bdf8" }, { name: "teal-400", hex: "#2dd4bf" },
+    { name: "green-500", hex: "#22c55e" }, { name: "lime-400", hex: "#a3e635" },
+    { name: "yellow-400", hex: "#facc15" }, { name: "orange-500", hex: "#f97316" },
+    { name: "red-600", hex: "#dc2626" },
+  ],
+}
+
+const browserSetup: Setup = {
+  profile: "Sony S-Log3", target: "Rec.709", cube_size: 65,
+  bands: [{ stop: 0, width: 0.3, color: "#22c55e" }], band_mode: "stops",
+  fill_mode: false, low_signal_warning: false, low_signal_hex: "#5b21b6",
+  high_signal_warning: false, high_signal_hex: "#dc2626", monochrome: true,
+  legal_range: false, output: "SonySLog3_Rec709.cube",
 }
 
 const fieldClass =
@@ -811,12 +835,20 @@ function InfoTooltip({ text }: { text: string }) {
 }
 
 export function App() {
-  const catalog = window.LUT_BUILDER_CATALOG
-  const [{ setup, selection: selectedBand, undo }, dispatch] = useReducer(reduceEditor, window.LUT_BUILDER_SETUP, createEditorState)
+  const browserOnly = !window.LUT_BUILDER_TOKEN
+  const catalog = window.LUT_BUILDER_CATALOG ?? browserCatalog
+  const [{ setup, selection: selectedBand, undo }, dispatch] = useReducer(reduceEditor, window.LUT_BUILDER_SETUP ?? browserSetup, createEditorState)
   const [preview, setPreview] = useState<Preview | null>(null)
   const [validationError, setValidationError] = useState("")
   const [status, setStatus] = useState("")
   const [isGenerating, setIsGenerating] = useState(false)
+  const workerRef = useRef<{ worker: Worker; id: string } | null>(null)
+  const [setupPresets, setSetupPresets] = useState<SetupPreset[]>(() => {
+    if (!browserOnly) return []
+    try { return readSetupPresets(window.localStorage) } catch { return [] }
+  })
+  const [presetName, setPresetName] = useState("")
+  const [selectedPreset, setSelectedPreset] = useState("")
   const [stopIncrement, setStopIncrement] = useState<1 | 0.5 | 0.25>(0.25)
   const [fillPreset, setFillPreset] = useState<FillPreset>("standard")
   const [bandPreset, setBandPreset] = useState<BandPreset>("standard")
@@ -830,6 +862,7 @@ export function App() {
   }
 
   useEffect(() => {
+    if (browserOnly) return
     const controller = new AbortController()
     const timer = window.setTimeout(async () => {
       try {
@@ -848,7 +881,7 @@ export function App() {
       controller.abort()
       window.clearTimeout(timer)
     }
-  }, [setup])
+  }, [setup, browserOnly])
 
   function patchSetup(changes: Partial<Setup>) {
     dispatch({ type: "patch", changes })
@@ -876,6 +909,43 @@ export function App() {
     setIsGenerating(true)
     setStatus(`Generating ${setup.cube_size}³ LUT…`)
     try {
+      if (browserOnly) {
+        const worker = new Worker(new URL("./lutWorker.ts", import.meta.url), { type: "module" })
+        const id = `${Date.now()}-${Math.random()}`
+        workerRef.current = { worker, id }
+        await new Promise<void>((resolve, reject) => {
+          const finish = () => {
+            worker.terminate()
+            if (workerRef.current?.worker === worker) workerRef.current = null
+          }
+          worker.onmessage = (event: MessageEvent<{ type: string; id: string; progress?: number; bytes?: ArrayBuffer; error?: string }>) => {
+            const result = event.data
+            if (result.id !== id) return
+            if (result.type === "progress") {
+              setStatus(`Generating ${setup.cube_size}³ LUT… ${Math.round((result.progress ?? 0) * 100)}%`)
+            } else if (result.type === "error") {
+              finish()
+              reject(new Error(result.error || "Generation failed"))
+            } else if (result.type === "complete" && result.bytes) {
+              const url = URL.createObjectURL(new Blob([result.bytes], { type: "text/plain;charset=utf-8" }))
+              const link = document.createElement("a")
+              link.href = url
+              link.download = cubeFilename(setup.output)
+              link.click()
+              window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+              finish()
+              setStatus("LUT downloaded. Calculations stayed on this device.")
+              resolve()
+            }
+          }
+          worker.onerror = () => {
+            finish()
+            reject(new Error("Browser LUT generation failed."))
+          }
+          worker.postMessage({ type: "generate", id, setup })
+        })
+        return
+      }
       const response = await fetch("/generate", {
         method: "POST",
         headers: {
@@ -907,6 +977,7 @@ export function App() {
   async function importFile(file: File) {
     try {
       const imported = await importSetup(await file.text(), async (candidate) => {
+        if (browserOnly) return validateBrowserSetup(candidate)
         const result = await postJson<Preview>("/preview", candidate)
         return result.setup
       })
@@ -928,11 +999,44 @@ export function App() {
     setStatus("Version-1 configuration exported.")
   }
 
+  function saveCurrentPreset() {
+    try {
+      setSetupPresets(saveSetupPreset(window.localStorage, setupPresets, presetName, setup))
+      setPresetName("")
+      setStatus("Named LUT setup saved in this browser.")
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Could not save this preset. Browser storage may be unavailable.")
+    }
+  }
+
+  async function loadPreset() {
+    const preset = setupPresets.find((item) => item.name === selectedPreset)
+    if (!preset) return
+    try {
+      const next = browserOnly ? validateBrowserSetup(preset.setup) : (await postJson<Preview>("/preview", preset.setup)).setup
+      dispatch({ type: "import", setup: next })
+      setStatus(`Loaded ${preset.name}.`)
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Could not load this preset.")
+    }
+  }
+
+  function removePreset() {
+    try {
+      setSetupPresets(deleteSetupPreset(window.localStorage, setupPresets, selectedPreset))
+      setSelectedPreset("")
+      setStatus("Named LUT setup deleted from this browser.")
+    } catch {
+      setStatus("Could not update browser storage. Export your setup as JSON to keep a copy.")
+    }
+  }
+
   return (
     <main className="mx-auto flex min-h-svh w-full max-w-[100rem] flex-col gap-6 p-4 py-8 sm:p-8">
       <header>
         <h1 className="font-heading text-4xl font-semibold tracking-tight">LUT Builder</h1>
-        <p className="text-muted-foreground">Local diagnostic scene-exposure LUT editor</p>
+        <p className="text-muted-foreground">{browserOnly ? "Browser-based diagnostic scene-exposure LUT editor" : "Local diagnostic scene-exposure LUT editor"}</p>
+        {browserOnly && <p className="mt-2 max-w-3xl text-sm text-muted-foreground">Generation runs on this device. Saved named setups stay in this browser and may be cleared by private browsing or storage cleanup; export JSON to back up or transfer them. They do not sync across devices.</p>}
       </header>
 
       <section className="@container grid gap-6">
@@ -1095,7 +1199,7 @@ export function App() {
                 </div>
                 {preview.warnings.map((warning) => <p className="text-sm text-amber-700 dark:text-amber-300" key={warning}>{warning}</p>)}
               </>
-            ) : <p className="text-sm text-muted-foreground">Preparing preview…</p>}
+            ) : <p className="text-sm text-muted-foreground">{browserOnly ? "The browser build creates LUTs locally; exposure preview is not included in this release." : "Preparing preview…"}</p>}
             {validationError && <p className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive" role="alert">{validationError}</p>}
             <PaletteEditor setup={setup} palette={catalog.palette} onApply={(next) => editSetup(() => next)} />
           </CardContent>
@@ -1130,6 +1234,29 @@ export function App() {
             </CardContent>
         </Card>
 
+        {browserOnly && <Card>
+          <CardHeader>
+            <CardTitle>Saved LUT setups</CardTitle>
+            <CardDescription>Named setup presets are separate from color palettes and stay in this browser.</CardDescription>
+          </CardHeader>
+          <CardContent className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,14rem),1fr))] items-end gap-3">
+            <label className="grid gap-1 text-sm font-medium">Preset name
+              <input className={fieldClass} value={presetName} onChange={(event) => setPresetName(event.target.value)} maxLength={80} />
+            </label>
+            <Button type="button" variant="outline" onClick={saveCurrentPreset}>Save current setup</Button>
+            <label className="grid gap-1 text-sm font-medium">Saved setup
+              <select className={fieldClass} value={selectedPreset} onChange={(event) => setSelectedPreset(event.target.value)}>
+                <option value="">Choose a setup</option>
+                {setupPresets.map((preset) => <option key={preset.name} value={preset.name}>{preset.name}</option>)}
+              </select>
+            </label>
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" variant="outline" disabled={!selectedPreset} onClick={() => void loadPreset()}>Load setup</Button>
+              <Button type="button" variant="outline" disabled={!selectedPreset} onClick={removePreset}>Delete setup</Button>
+            </div>
+          </CardContent>
+        </Card>}
+
         <Card>
           <CardHeader>
             <CardTitle>Generate LUT</CardTitle>
@@ -1140,6 +1267,7 @@ export function App() {
               {isGenerating && <Spinner data-icon="inline-start" />}
               {isGenerating ? "Generating…" : "Generate LUT"}
             </Button>
+            {browserOnly && isGenerating && <Button type="button" variant="outline" onClick={() => { const active = workerRef.current; if (active) active.worker.postMessage({ type: "cancel", id: active.id }) }}>Cancel</Button>}
             <div className="flex flex-wrap gap-2">
               <Button type="button" variant="outline" onClick={() => importInput.current?.click()}>Import JSON</Button>
               <Button type="button" variant="outline" onClick={downloadConfig}>Export JSON</Button>
@@ -1150,7 +1278,7 @@ export function App() {
         </Card>
 
         </div>
-        <WorkbenchPreview preview={preview} setup={setup} catalog={catalog} />
+        <WorkbenchPreview preview={preview} setup={setup} catalog={catalog} browserOnly={browserOnly} />
         </div>
       </section>
     </main>

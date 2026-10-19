@@ -12,6 +12,7 @@ const dom = new JSDOM("<!doctype html><html><body></body></html>", {
 })
 globalThis.window = dom.window
 globalThis.document = dom.window.document
+window.LUT_BUILDER_TOKEN = "test-token"
 globalThis.Element = dom.window.Element
 globalThis.HTMLElement = dom.window.HTMLElement
 globalThis.Node = dom.window.Node
@@ -731,5 +732,61 @@ test("band editing preserves valid generation data, selection, and one-step reco
     await act(() => root.unmount())
     container.remove()
     globalThis.fetch = originalFetch
+  }
+})
+
+test("browser-only app generates and downloads through a local worker without backend calls", async () => {
+  const originalToken = window.LUT_BUILDER_TOKEN
+  const originalSetup = window.LUT_BUILDER_SETUP
+  const originalWorker = globalThis.Worker
+  const originalFetch = globalThis.fetch
+  const originalCreateObjectURL = globalThis.URL.createObjectURL
+  const originalRevokeObjectURL = globalThis.URL.revokeObjectURL
+  const originalAnchorClick = window.HTMLAnchorElement.prototype.click
+  const requests = []
+  const messages = []
+  const downloads = []
+  let terminated = false
+  delete window.LUT_BUILDER_TOKEN
+  delete window.LUT_BUILDER_SETUP
+  globalThis.fetch = async (...args) => { requests.push(args); throw new Error("unexpected backend call") }
+  globalThis.Worker = class {
+    onmessage = null
+    onerror = null
+    postMessage(message) {
+      messages.push(message)
+      this.onmessage({ data: { type: "progress", id: message.id, progress: 1 } })
+      this.onmessage({ data: { type: "complete", id: message.id, bytes: new Uint8Array([1, 2, 3]).buffer } })
+    }
+    terminate() { terminated = true }
+  }
+  globalThis.URL.createObjectURL = () => "blob:test-lut"
+  globalThis.URL.revokeObjectURL = () => {}
+  window.HTMLAnchorElement.prototype.click = function () { downloads.push({ href: this.href, filename: this.download }) }
+  const container = document.createElement("div")
+  document.body.append(container)
+  const root = createRoot(container)
+  try {
+    await act(() => root.render(React.createElement(App)))
+    assert.match(container.textContent, /Camera-matched still and video verification are not available/)
+    assert.equal(container.querySelector('a[href="https://github.com/Today20092/lut_builder/issues/39"]').textContent, "Track browser verification support")
+    const generate = [...container.querySelectorAll("button")].find((button) => button.textContent === "Generate LUT")
+    await act(async () => { generate.click(); await new Promise((resolve) => setTimeout(resolve, 0)) })
+    assert.equal(messages[0].type, "generate")
+    assert.equal(messages[0].setup.profile, "Sony S-Log3")
+    assert.deepEqual(downloads, [{ href: "blob:test-lut", filename: "SonySLog3_Rec709.cube" }])
+    assert.equal(terminated, true)
+    assert.deepEqual(requests, [])
+    assert.match(container.textContent, /LUT downloaded\. Calculations stayed on this device/)
+  } finally {
+    await act(() => root.unmount())
+    container.remove()
+    if (originalToken !== undefined) window.LUT_BUILDER_TOKEN = originalToken
+    if (originalSetup !== undefined) window.LUT_BUILDER_SETUP = originalSetup
+    globalThis.Worker = originalWorker
+    globalThis.fetch = originalFetch
+    globalThis.URL.createObjectURL = originalCreateObjectURL
+    globalThis.URL.revokeObjectURL = originalRevokeObjectURL
+    window.HTMLAnchorElement.prototype.click = originalAnchorClick
   }
 })
