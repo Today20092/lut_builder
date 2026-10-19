@@ -37,6 +37,7 @@ dom.window.HTMLElement.prototype.releasePointerCapture = function () {
 
 const bundle = await build({
   bundle: true,
+  define: { "import.meta.env.BASE_URL": '"/"' },
   external: ["@base-ui/react/*", "lucide-react", "react", "react/jsx-runtime", "react-dom", "react-dom/client"],
   format: "esm",
   jsx: "automatic",

@@ -6,6 +6,8 @@ Start with the [web editor](https://today20092.github.io/lut_builder/) to make a
 
 ## Browser workflow
 
+For a guided first LUT and searchable control reference, use the [browser manual](https://today20092.github.io/lut_builder/docs/).
+
 Choose your recording's log/gamut pairing, then edit Stops, IRE, or Fill bands. Drag the graph controls or edit the values in the table. Numeric fields commit on Enter or blur; Escape discards an unfinished edit. Undo restores the last band edit.
 
 The starting palettes use cool colors below the reference, green at the reference, and warm colors above it. Select a palette to audition it, edit gradient colors, then choose **Use palette**. A preview remains visible while scrolling. Cancel preserves the applied colors. See [palette behavior](exposure-palettes.md) and [keyboard shortcuts](keyboard-shortcuts.md).
@@ -44,6 +46,9 @@ uv run lut-builder workspace
 uv manages Python 3.12 or newer. The Workbench opens at [127.0.0.1:8765](http://127.0.0.1:8765/). Keep the terminal open; press Enter or Ctrl+C to stop it. If that port is occupied, close the other workspace or application and retry. Use the same address and browser to retain access to browser-stored presets.
 
 After setup on Windows, double-click [workspace.bat](../workspace.bat) for the Workbench or [build.bat](../build.bat) for the CLI. On macOS, run `chmod +x build.command` once, then double-click [build.command](../build.command). The [still](still-verification.md) and [video](testing/video-verification.md) guides list local FFmpeg/FFprobe prerequisites.
+
+For the browser app, start with the [searchable user manual](https://today20092.github.io/lut_builder/docs/).
+It includes a first-LUT walkthrough, control reference, and camera warning-threshold explanations.
 
 ## Commands
 
@@ -268,6 +273,14 @@ uv run lut-builder list
 ```
 
 From `frontend/`, run `pnpm install --frozen-lockfile`, `pnpm lint`, `pnpm test`, and `pnpm build`. The build checks TypeScript and regenerates bundled assets in `src/lut_builder/static/`; include those assets with frontend changes. The Pages workflow builds separately for the repository URL.
+
+The same build also generates the Starlight manual from `frontend/manual/src/content/docs/`
+into `src/lut_builder/static/docs/`, after Vite builds the editor. `pnpm dev:manual`
+starts the documentation development server; `pnpm build:manual` rebuilds only the manual.
+Set `LUT_BUILDER_PAGES=true` for the combined GitHub Pages build at `/lut_builder/`
+and `/lut_builder/docs/`; the default build uses `/` and `/docs/` for the local workspace.
+The existing Pages artifact includes both. See [manual acceptance](testing/manual.md)
+for link, search, mobile, and keyboard checks.
 
 Run `uv run ruff format .` to apply formatting before submitting changes.
 

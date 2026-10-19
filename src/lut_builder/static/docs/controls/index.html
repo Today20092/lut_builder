@@ -1,0 +1,288 @@
+<!DOCTYPE html><html lang="en" dir="ltr" data-theme="dark" data-has-toc data-has-sidebar class="astro-bbylgand"> <head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><title>Controls and colors | LUT Builder manual</title><link rel="canonical" href="https://today20092.github.io/docs/controls/"/><link rel="sitemap" href="/docs/sitemap-index.xml"/><link rel="shortcut icon" href="/docs/favicon.svg" type="image/svg+xml"/><meta name="generator" content="Astro v5.18.2"/><meta name="generator" content="Starlight v0.37.6"/><meta property="og:title" content="Controls and colors"/><meta property="og:type" content="article"/><meta property="og:url" content="https://today20092.github.io/docs/controls/"/><meta property="og:locale" content="en"/><meta property="og:description" content="What each configuration, band, graph, palette, and warning control does."/><meta property="og:site_name" content="LUT Builder manual"/><meta name="twitter:card" content="summary_large_image"/><meta name="description" content="What each configuration, band, graph, palette, and warning control does."/><script>
+	window.StarlightThemeProvider = (() => {
+		const storedTheme =
+			typeof localStorage !== 'undefined' && localStorage.getItem('starlight-theme');
+		const theme =
+			storedTheme ||
+			(window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+		document.documentElement.dataset.theme = theme === 'light' ? 'light' : 'dark';
+		return {
+			updatePickers(theme = storedTheme || 'auto') {
+				document.querySelectorAll('starlight-theme-select').forEach((picker) => {
+					const select = picker.querySelector('select');
+					if (select) select.value = theme;
+					/** @type {HTMLTemplateElement | null} */
+					const tmpl = document.querySelector(`#theme-icons`);
+					const newIcon = tmpl && tmpl.content.querySelector('.' + theme);
+					if (newIcon) {
+						const oldIcon = picker.querySelector('svg.label-icon');
+						if (oldIcon) {
+							oldIcon.replaceChildren(...newIcon.cloneNode(true).childNodes);
+						}
+					}
+				});
+			},
+		};
+	})();
+</script><template id="theme-icons"><svg aria-hidden="true" class="light astro-bml346jr" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M5 12a1 1 0 0 0-1-1H3a1 1 0 0 0 0 2h1a1 1 0 0 0 1-1Zm.64 5-.71.71a1 1 0 0 0 0 1.41 1 1 0 0 0 1.41 0l.71-.71A1 1 0 0 0 5.64 17ZM12 5a1 1 0 0 0 1-1V3a1 1 0 0 0-2 0v1a1 1 0 0 0 1 1Zm5.66 2.34a1 1 0 0 0 .7-.29l.71-.71a1 1 0 1 0-1.41-1.41l-.66.71a1 1 0 0 0 0 1.41 1 1 0 0 0 .66.29Zm-12-.29a1 1 0 0 0 1.41 0 1 1 0 0 0 0-1.41l-.71-.71a1.004 1.004 0 1 0-1.43 1.41l.73.71ZM21 11h-1a1 1 0 0 0 0 2h1a1 1 0 0 0 0-2Zm-2.64 6A1 1 0 0 0 17 18.36l.71.71a1 1 0 0 0 1.41 0 1 1 0 0 0 0-1.41l-.76-.66ZM12 6.5a5.5 5.5 0 1 0 5.5 5.5A5.51 5.51 0 0 0 12 6.5Zm0 9a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7Zm0 3.5a1 1 0 0 0-1 1v1a1 1 0 0 0 2 0v-1a1 1 0 0 0-1-1Z"/></svg><svg aria-hidden="true" class="dark astro-bml346jr" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M21.64 13a1 1 0 0 0-1.05-.14 8.049 8.049 0 0 1-3.37.73 8.15 8.15 0 0 1-8.14-8.1 8.59 8.59 0 0 1 .25-2A1 1 0 0 0 8 2.36a10.14 10.14 0 1 0 14 11.69 1 1 0 0 0-.36-1.05Zm-9.5 6.69A8.14 8.14 0 0 1 7.08 5.22v.27a10.15 10.15 0 0 0 10.14 10.14 9.784 9.784 0 0 0 2.1-.22 8.11 8.11 0 0 1-7.18 4.32v-.04Z"/></svg><svg aria-hidden="true" class="auto astro-bml346jr" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M21 14h-1V7a3 3 0 0 0-3-3H7a3 3 0 0 0-3 3v7H3a1 1 0 0 0-1 1v2a3 3 0 0 0 3 3h14a3 3 0 0 0 3-3v-2a1 1 0 0 0-1-1ZM6 7a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v7H6V7Zm14 10a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-1h16v1Z"/></svg></template><link rel="stylesheet" href="/docs/_astro/print.DNXP8c50.css" media="print"><link rel="stylesheet" href="/docs/_astro/index.Bl3DBRWs.css"><script type="module" src="/docs/_astro/page.B1D-nYk3.js"></script></head> <body class="astro-bbylgand"> <a href="#_top" class="astro-43jvkaqm">Skip to content</a>  <div class="page sl-flex astro-bjeul6ud"> <header class="header astro-bjeul6ud"><div class="header astro-cltycqpe"> <div class="title-wrapper sl-flex astro-cltycqpe"> <a href="/docs/" class="site-title sl-flex astro-jl6xdfdx">  <span class="astro-jl6xdfdx" translate="no"> LUT Builder manual </span> </a>  </div> <div class="sl-flex print:hidden astro-cltycqpe"> <site-search class="astro-cltycqpe astro-thyay75j" data-translations="{&#34;placeholder&#34;:&#34;Search&#34;}"> <button data-open-modal disabled aria-label="Search" aria-keyshortcuts="Control+K" class="astro-thyay75j"> <svg aria-hidden="true" class="astro-thyay75j astro-bml346jr" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M21.71 20.29 18 16.61A9 9 0 1 0 16.61 18l3.68 3.68a.999.999 0 0 0 1.42 0 1 1 0 0 0 0-1.39ZM11 18a7 7 0 1 1 0-14 7 7 0 0 1 0 14Z"/></svg> <span class="sl-hidden md:sl-block astro-thyay75j" aria-hidden="true">Search</span> <kbd class="sl-hidden md:sl-flex astro-thyay75j" style="display: none;"> <kbd class="astro-thyay75j">Ctrl</kbd><kbd class="astro-thyay75j">K</kbd> </kbd> </button> <dialog style="padding:0" aria-label="Search" class="astro-thyay75j"> <div class="dialog-frame sl-flex astro-thyay75j">  <button data-close-modal class="sl-flex md:sl-hidden astro-thyay75j"> Cancel </button> <div class="search-container astro-thyay75j"> <div id="starlight__search" class="astro-thyay75j"></div> </div> </div> </dialog> </site-search>  <script>
+	(() => {
+		const openBtn = document.querySelector('button[data-open-modal]');
+		const shortcut = openBtn?.querySelector('kbd');
+		if (!openBtn || !(shortcut instanceof HTMLElement)) return;
+		const platformKey = shortcut.querySelector('kbd');
+		if (platformKey && /(Mac|iPhone|iPod|iPad)/i.test(navigator.platform)) {
+			platformKey.textContent = '⌘';
+			openBtn.setAttribute('aria-keyshortcuts', 'Meta+K');
+		}
+		shortcut.style.display = '';
+	})();
+</script> <script type="module" src="/docs/_astro/Search.astro_astro_type_script_index_0_lang.BncKxx35.js"></script>   </div> <div class="sl-hidden md:sl-flex print:hidden right-group astro-cltycqpe"> <div class="sl-flex social-icons astro-cltycqpe">  </div> <starlight-theme-select>  <label style="--sl-select-width: 6.25em" class="astro-gut5jaxt"> <span class="sr-only astro-gut5jaxt">Select theme</span> <svg aria-hidden="true" class="icon label-icon astro-gut5jaxt astro-bml346jr" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M21 14h-1V7a3 3 0 0 0-3-3H7a3 3 0 0 0-3 3v7H3a1 1 0 0 0-1 1v2a3 3 0 0 0 3 3h14a3 3 0 0 0 3-3v-2a1 1 0 0 0-1-1ZM6 7a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v7H6V7Zm14 10a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-1h16v1Z"/></svg> <select autocomplete="off" class="astro-gut5jaxt"> <option value="dark" class="astro-gut5jaxt">Dark</option><option value="light" class="astro-gut5jaxt">Light</option><option value="auto" selected class="astro-gut5jaxt">Auto</option> </select> <svg aria-hidden="true" class="icon caret astro-gut5jaxt astro-bml346jr" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M17 9.17a1 1 0 0 0-1.41 0L12 12.71 8.46 9.17a1 1 0 1 0-1.41 1.42l4.24 4.24a1.002 1.002 0 0 0 1.42 0L17 10.59a1.002 1.002 0 0 0 0-1.42Z"/></svg> </label>  </starlight-theme-select>  <script>
+	StarlightThemeProvider.updatePickers();
+</script> <script type="module">const r="starlight-theme",o=e=>e==="auto"||e==="dark"||e==="light"?e:"auto",c=()=>o(typeof localStorage<"u"&&localStorage.getItem(r));function n(e){typeof localStorage<"u"&&localStorage.setItem(r,e==="light"||e==="dark"?e:"")}const l=()=>matchMedia("(prefers-color-scheme: light)").matches?"light":"dark";function t(e){StarlightThemeProvider.updatePickers(e),document.documentElement.dataset.theme=e==="auto"?l():e,n(e)}matchMedia("(prefers-color-scheme: light)").addEventListener("change",()=>{c()==="auto"&&t("auto")});class s extends HTMLElement{constructor(){super(),t(c()),this.querySelector("select")?.addEventListener("change",a=>{a.currentTarget instanceof HTMLSelectElement&&t(o(a.currentTarget.value))})}}customElements.define("starlight-theme-select",s);</script> <script type="module">class s extends HTMLElement{constructor(){super();const e=this.querySelector("select");e&&(e.addEventListener("change",t=>{t.currentTarget instanceof HTMLSelectElement&&(window.location.pathname=t.currentTarget.value)}),window.addEventListener("pageshow",t=>{if(!t.persisted)return;const n=e.querySelector("option[selected]")?.index;n!==e.selectedIndex&&(e.selectedIndex=n??0)}))}}customElements.define("starlight-lang-select",s);</script> </div> </div> </header> <nav class="sidebar print:hidden astro-bjeul6ud" aria-label="Main"> <starlight-menu-button class="print:hidden astro-vh5ot7to"> <button aria-expanded="false" aria-label="Menu" aria-controls="starlight__sidebar" class="sl-flex md:sl-hidden astro-vh5ot7to"> <svg aria-hidden="true" class="open-menu astro-vh5ot7to astro-bml346jr" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M3 8h18a1 1 0 1 0 0-2H3a1 1 0 0 0 0 2Zm18 8H3a1 1 0 0 0 0 2h18a1 1 0 0 0 0-2Zm0-5H3a1 1 0 0 0 0 2h18a1 1 0 0 0 0-2Z"/></svg> <svg aria-hidden="true" class="close-menu astro-vh5ot7to astro-bml346jr" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="m13.41 12 6.3-6.29a1.004 1.004 0 1 0-1.42-1.42L12 10.59l-6.29-6.3a1.004 1.004 0 0 0-1.42 1.42l6.3 6.29-6.3 6.29a1 1 0 0 0 0 1.42.998.998 0 0 0 1.42 0l6.29-6.3 6.29 6.3a.999.999 0 0 0 1.42 0 1 1 0 0 0 0-1.42L13.41 12Z"/></svg> </button> </starlight-menu-button> <script type="module">class s extends HTMLElement{constructor(){super(),this.btn=this.querySelector("button"),this.btn.addEventListener("click",()=>this.toggleExpanded());const t=this.closest("nav");t&&t.addEventListener("keyup",e=>this.closeOnEscape(e))}setExpanded(t){this.setAttribute("aria-expanded",String(t)),document.body.toggleAttribute("data-mobile-menu-expanded",t)}toggleExpanded(){this.setExpanded(this.getAttribute("aria-expanded")!=="true")}closeOnEscape(t){t.code==="Escape"&&(this.setExpanded(!1),this.btn.focus())}}customElements.define("starlight-menu-button",s);</script>   <div id="starlight__sidebar" class="sidebar-pane astro-bjeul6ud"> <div class="sidebar-content sl-flex astro-bjeul6ud"> <a class="return-link astro-ssfzsv2f" href="/">← Return to LUT Builder</a> <sl-sidebar-state-persist data-hash="1l56wl3" class="astro-dtapz6sj"> <script aria-hidden="true">
+		(() => {
+			try {
+				if (!matchMedia('(min-width: 50em)').matches) return;
+				/** @type {HTMLElement | null} */
+				const target = document.querySelector('sl-sidebar-state-persist');
+				const state = JSON.parse(sessionStorage.getItem('sl-sidebar-state') || '0');
+				if (!target || !state || target.dataset.hash !== state.hash) return;
+				window._starlightScrollRestore = state.scroll;
+				customElements.define(
+					'sl-sidebar-restore',
+					class SidebarRestore extends HTMLElement {
+						connectedCallback() {
+							try {
+								const idx = parseInt(this.dataset.index || '');
+								const details = this.closest('details');
+								if (details && typeof state.open[idx] === 'boolean') details.open = state.open[idx];
+							} catch {}
+						}
+					}
+				);
+			} catch {}
+		})();
+	</script>  <ul class="top-level astro-t75injqh"> <li class="astro-t75injqh"> <details open class="astro-t75injqh"> <summary class="astro-t75injqh"> <span class="group-label astro-t75injqh"> <span class="large astro-t75injqh">Start here</span>  </span> <svg aria-hidden="true" class="caret astro-t75injqh astro-bml346jr" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg> </summary> <sl-sidebar-restore data-index="0"></sl-sidebar-restore> <ul class="astro-t75injqh"> <li class="astro-t75injqh"> <a href="/docs/" class="astro-t75injqh"> <span class="astro-t75injqh">About this manual</span>  </a> </li><li class="astro-t75injqh"> <a href="/docs/first-lut/" class="astro-t75injqh"> <span class="astro-t75injqh">Make your first LUT</span>  </a> </li> </ul>  </details> </li><li class="astro-t75injqh"> <details open class="astro-t75injqh"> <summary class="astro-t75injqh"> <span class="group-label astro-t75injqh"> <span class="large astro-t75injqh">Using the builder</span>  </span> <svg aria-hidden="true" class="caret astro-t75injqh astro-bml346jr" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg> </summary> <sl-sidebar-restore data-index="1"></sl-sidebar-restore> <ul class="astro-t75injqh"> <li class="astro-t75injqh"> <a href="/docs/controls/" aria-current="page" class="astro-t75injqh"> <span class="astro-t75injqh">Controls and colors</span>  </a> </li><li class="astro-t75injqh"> <a href="/docs/save-and-apply/" class="astro-t75injqh"> <span class="astro-t75injqh">Save, export, and apply</span>  </a> </li><li class="astro-t75injqh"> <a href="/docs/verification/" class="astro-t75injqh"> <span class="astro-t75injqh">Verify camera media</span>  </a> </li><li class="astro-t75injqh"> <a href="/docs/troubleshooting/" class="astro-t75injqh"> <span class="astro-t75injqh">Troubleshooting</span>  </a> </li><li class="astro-t75injqh"> <a href="/docs/keyboard/" class="astro-t75injqh"> <span class="astro-t75injqh">Keyboard and touch</span>  </a> </li> </ul>  </details> </li><li class="astro-t75injqh"> <details open class="astro-t75injqh"> <summary class="astro-t75injqh"> <span class="group-label astro-t75injqh"> <span class="large astro-t75injqh">Understand the result</span>  </span> <svg aria-hidden="true" class="caret astro-t75injqh astro-bml346jr" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg> </summary> <sl-sidebar-restore data-index="2"></sl-sidebar-restore> <ul class="astro-t75injqh"> <li class="astro-t75injqh"> <a href="/docs/signal-limits/" class="astro-t75injqh"> <span class="astro-t75injqh">Recorded-signal warnings</span>  </a> </li><li class="astro-t75injqh"> <a href="/docs/profiles/" class="astro-t75injqh"> <span class="astro-t75injqh">Camera thresholds and sources</span>  </a> </li> </ul>  </details> </li> </ul>   <script aria-hidden="true">
+		(() => {
+			const scroller = document.getElementById('starlight__sidebar');
+			if (!window._starlightScrollRestore || !scroller) return;
+			scroller.scrollTop = window._starlightScrollRestore;
+			delete window._starlightScrollRestore;
+		})();
+	</script> </sl-sidebar-state-persist>  <div class="md:sl-hidden"> <div class="mobile-preferences sl-flex astro-auqloi5q"> <div class="social-icons astro-auqloi5q">  </div> <starlight-theme-select>  <label style="--sl-select-width: 6.25em" class="astro-gut5jaxt"> <span class="sr-only astro-gut5jaxt">Select theme</span> <svg aria-hidden="true" class="icon label-icon astro-gut5jaxt astro-bml346jr" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M21 14h-1V7a3 3 0 0 0-3-3H7a3 3 0 0 0-3 3v7H3a1 1 0 0 0-1 1v2a3 3 0 0 0 3 3h14a3 3 0 0 0 3-3v-2a1 1 0 0 0-1-1ZM6 7a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v7H6V7Zm14 10a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-1h16v1Z"/></svg> <select autocomplete="off" class="astro-gut5jaxt"> <option value="dark" class="astro-gut5jaxt">Dark</option><option value="light" class="astro-gut5jaxt">Light</option><option value="auto" selected class="astro-gut5jaxt">Auto</option> </select> <svg aria-hidden="true" class="icon caret astro-gut5jaxt astro-bml346jr" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M17 9.17a1 1 0 0 0-1.41 0L12 12.71 8.46 9.17a1 1 0 1 0-1.41 1.42l4.24 4.24a1.002 1.002 0 0 0 1.42 0L17 10.59a1.002 1.002 0 0 0 0-1.42Z"/></svg> </label>  </starlight-theme-select>  <script>
+	StarlightThemeProvider.updatePickers();
+</script>   </div>  </div>  </div> </div> </nav> <div class="main-frame astro-bjeul6ud">  <script type="module">const a=document.getElementById("starlight__sidebar"),n=a?.querySelector("sl-sidebar-state-persist"),o="sl-sidebar-state",i=()=>{let t=[];const e=n?.dataset.hash||"";try{const s=sessionStorage.getItem(o),r=JSON.parse(s||"{}");Array.isArray(r.open)&&r.hash===e&&(t=r.open)}catch{}return{hash:e,open:t,scroll:a?.scrollTop||0}},c=t=>{try{sessionStorage.setItem(o,JSON.stringify(t))}catch{}},d=()=>c(i()),l=(t,e)=>{const s=i();s.open[e]=t,c(s)};n?.addEventListener("click",t=>{if(!(t.target instanceof Element))return;const e=t.target.closest("summary")?.closest("details");if(!e)return;const s=e.querySelector("sl-sidebar-restore"),r=parseInt(s?.dataset.index||"");isNaN(r)||l(!e.open,r)});addEventListener("visibilitychange",()=>{document.visibilityState==="hidden"&&d()});addEventListener("pageHide",d);</script> <div class="lg:sl-flex astro-ju3gfk2c"> <aside class="right-sidebar-container print:hidden astro-ju3gfk2c"> <div class="right-sidebar astro-ju3gfk2c"> <script type="module" src="/docs/_astro/MobileTableOfContents.astro_astro_type_script_index_0_lang.hwBsy0Mo.js"></script><script type="module" src="/docs/_astro/TableOfContents.astro_astro_type_script_index_0_lang.FuRcXuRY.js"></script><div class="lg:sl-hidden astro-zze2ik3d"><mobile-starlight-toc data-min-h="2" data-max-h="3" class="astro-fxumljcu"><nav aria-labelledby="starlight__on-this-page--mobile" class="astro-fxumljcu"><details id="starlight__mobile-toc" class="astro-fxumljcu"><summary id="starlight__on-this-page--mobile" class="sl-flex astro-fxumljcu"><span class="toggle sl-flex astro-fxumljcu">On this page<svg aria-hidden="true" class="caret astro-fxumljcu astro-bml346jr" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg></span><span class="display-current astro-fxumljcu"></span></summary><div class="dropdown astro-fxumljcu"><ul class="isMobile astro-lyen4xg4" style="--depth: 0;"> <li class="astro-lyen4xg4" style="--depth: 0;"> <a href="#_top" class="astro-lyen4xg4" style="--depth: 0;"> <span class="astro-lyen4xg4" style="--depth: 0;">Overview</span> </a>  </li><li class="astro-lyen4xg4" style="--depth: 0;"> <a href="#configuration" class="astro-lyen4xg4" style="--depth: 0;"> <span class="astro-lyen4xg4" style="--depth: 0;">Configuration</span> </a>  </li><li class="astro-lyen4xg4" style="--depth: 0;"> <a href="#exposure-bands" class="astro-lyen4xg4" style="--depth: 0;"> <span class="astro-lyen4xg4" style="--depth: 0;">Exposure bands</span> </a> <ul class="isMobile astro-lyen4xg4" style="--depth: 1;"> <li class="astro-lyen4xg4" style="--depth: 1;"> <a href="#worked-exposure-examples" class="astro-lyen4xg4" style="--depth: 1;"> <span class="astro-lyen4xg4" style="--depth: 1;">Worked exposure examples</span> </a>  </li> </ul>  </li><li class="astro-lyen4xg4" style="--depth: 0;"> <a href="#color-picker" class="astro-lyen4xg4" style="--depth: 0;"> <span class="astro-lyen4xg4" style="--depth: 0;">Color picker</span> </a>  </li><li class="astro-lyen4xg4" style="--depth: 0;"> <a href="#palettes-and-gradients" class="astro-lyen4xg4" style="--depth: 0;"> <span class="astro-lyen4xg4" style="--depth: 0;">Palettes and gradients</span> </a>  </li><li class="astro-lyen4xg4" style="--depth: 0;"> <a href="#recorded-signal-warnings" class="astro-lyen4xg4" style="--depth: 0;"> <span class="astro-lyen4xg4" style="--depth: 0;">Recorded-signal warnings</span> </a>  </li><li class="astro-lyen4xg4" style="--depth: 0;"> <a href="#remaining-panels" class="astro-lyen4xg4" style="--depth: 0;"> <span class="astro-lyen4xg4" style="--depth: 0;">Remaining panels</span> </a>  </li> </ul> </div></details></nav></mobile-starlight-toc></div><div class="right-sidebar-panel sl-hidden lg:sl-block astro-zze2ik3d"><div class="sl-container astro-zze2ik3d"><starlight-toc data-min-h="2" data-max-h="3"><nav aria-labelledby="starlight__on-this-page"><h2 id="starlight__on-this-page">On this page</h2><ul class="astro-lyen4xg4" style="--depth: 0;"> <li class="astro-lyen4xg4" style="--depth: 0;"> <a href="#_top" class="astro-lyen4xg4" style="--depth: 0;"> <span class="astro-lyen4xg4" style="--depth: 0;">Overview</span> </a>  </li><li class="astro-lyen4xg4" style="--depth: 0;"> <a href="#configuration" class="astro-lyen4xg4" style="--depth: 0;"> <span class="astro-lyen4xg4" style="--depth: 0;">Configuration</span> </a>  </li><li class="astro-lyen4xg4" style="--depth: 0;"> <a href="#exposure-bands" class="astro-lyen4xg4" style="--depth: 0;"> <span class="astro-lyen4xg4" style="--depth: 0;">Exposure bands</span> </a> <ul class="astro-lyen4xg4" style="--depth: 1;"> <li class="astro-lyen4xg4" style="--depth: 1;"> <a href="#worked-exposure-examples" class="astro-lyen4xg4" style="--depth: 1;"> <span class="astro-lyen4xg4" style="--depth: 1;">Worked exposure examples</span> </a>  </li> </ul>  </li><li class="astro-lyen4xg4" style="--depth: 0;"> <a href="#color-picker" class="astro-lyen4xg4" style="--depth: 0;"> <span class="astro-lyen4xg4" style="--depth: 0;">Color picker</span> </a>  </li><li class="astro-lyen4xg4" style="--depth: 0;"> <a href="#palettes-and-gradients" class="astro-lyen4xg4" style="--depth: 0;"> <span class="astro-lyen4xg4" style="--depth: 0;">Palettes and gradients</span> </a>  </li><li class="astro-lyen4xg4" style="--depth: 0;"> <a href="#recorded-signal-warnings" class="astro-lyen4xg4" style="--depth: 0;"> <span class="astro-lyen4xg4" style="--depth: 0;">Recorded-signal warnings</span> </a>  </li><li class="astro-lyen4xg4" style="--depth: 0;"> <a href="#remaining-panels" class="astro-lyen4xg4" style="--depth: 0;"> <span class="astro-lyen4xg4" style="--depth: 0;">Remaining panels</span> </a>  </li> </ul> </nav></starlight-toc></div></div> </div> </aside> <div class="main-pane astro-ju3gfk2c">  <main data-pagefind-body class="astro-bbylgand" lang="en" dir="ltr">    <div class="content-panel astro-o3u35f5x"> <div class="sl-container astro-o3u35f5x"> <h1 id="_top" class="astro-zqbuqrrn">Controls and colors</h1>  </div> </div>  <div class="content-panel astro-o3u35f5x"> <div class="sl-container astro-o3u35f5x"> <div class="sl-markdown-content"> <div class="sl-heading-wrapper level-h2"><h2 id="configuration">Configuration</h2><a class="sl-anchor-link" href="#configuration"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentcolor" d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 0 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 1 0-1.42-1.42Zm8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 0 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 1 0 1.42 1.42l3.88-3.89a4.49 4.49 0 0 0 0-6.33ZM8.83 15.17a1 1 0 0 0 1.1.22 1 1 0 0 0 .32-.22l4.92-4.92a1 1 0 0 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42Z"></path></svg></span><span class="sr-only" data-pagefind-ignore="">Section titled “Configuration”</span></a></div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Control</th><th>What it changes</th></tr></thead><tbody><tr><td>Camera recording</td><td>The input log decoder and camera gamut. Match both to the recording/export path. See <a href="../profiles/">profiles</a>.</td></tr><tr><td>Target display</td><td>Rec.709 or SDR Rec.2020 diagnostic output. This is not the source gamut.</td></tr><tr><td>Output settings</td><td>Opens cube size, base-image, range, and filename settings.</td></tr><tr><td>Cube size</td><td>17³, 33³, or 65³ samples. Larger cubes better resolve narrow bands; host interpolation still softens boundaries.</td></tr><tr><td>Monochrome base</td><td>Makes uncovered portions of the base image gray. Disabled in Fill because zones cover the image.</td></tr><tr><td>Output range: Full / Data or Video / Legal</td><td>Full uses 0–1 (10-bit-equivalent codes 0–1023); Legal packs output into 64–940. Does not change input range or warning thresholds. Avoid a second legal-range conversion in the host.</td></tr><tr><td>Which should I use?</td><td>Explains how to match the device applying the LUT, distinguish input conversion from LUT output packing, and test a grayscale ramp.</td></tr><tr><td>Customize output filename</td><td>Opens the filename template. <code dir="auto">%inputgamma%</code>, <code dir="auto">%targetgamma%</code>, and <code dir="auto">%id%</code> expand to profile, target, and a settings-derived ID. A fixed name also works.</td></tr><tr><td>Use automatic filename</td><td>Restores the built-in template. The ID is stable for the same settings; it is not a unique camera or media identifier.</td></tr></tbody></table>
+<div class="sl-heading-wrapper level-h2"><h2 id="exposure-bands">Exposure bands</h2><a class="sl-anchor-link" href="#exposure-bands"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentcolor" d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 0 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 1 0-1.42-1.42Zm8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 0 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 1 0 1.42 1.42l3.88-3.89a4.49 4.49 0 0 0 0-6.33ZM8.83 15.17a1 1 0 0 0 1.1.22 1 1 0 0 0 .32-.22l4.92-4.92a1 1 0 0 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42Z"></path></svg></span><span class="sr-only" data-pagefind-ignore="">Section titled “Exposure bands”</span></a></div>
+<p><strong>Stops</strong> marks scene exposure relative to 18% gray. New <strong>IRE</strong> selections measure camera-log encoded RGB luma before the viewing conversion, on a full-code-range percentage scale. Older imported setups can retain target-display IRE; the editor labels them <strong>Legacy setup</strong>. <strong>Switch to camera-log IRE</strong> replaces their bands with fresh camera-centered presets and can be undone. <strong>Fill</strong> assigns a color to every exposure zone; the browser’s Fill mode uses stops.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Control</th><th>How to use it</th></tr></thead><tbody><tr><td>Exposure diagram</td><td>Shows band geometry and palette colors. It is not a measurement of uploaded footage or a test of the exported cube.</td></tr><tr><td>Current exposure bands</td><td>Sticky summary of applied bands or the active palette draft while you scroll. It does not measure uploaded footage.</td></tr><tr><td>Band center / colored area</td><td>Select a band; drag to move its center. Double-click a band or zone to open its color picker.</td></tr><tr><td>Band edges</td><td>Drag an edge to change width. Numeric fields are the alternative to dragging.</td></tr><tr><td>Fill dividers</td><td>Move a boundary between neighboring colors. At the boundary, the higher zone wins. The final zone fills the rest.</td></tr><tr><td>Add band</td><td>Adds a band or color zone. Fill retains at least two colors.</td></tr><tr><td>Undo last band edit</td><td>Restores the last band edit and selection, including a drag as one edit. Unrelated configuration changes are preserved. No redo or long history.</td></tr><tr><td>Band setup &#x26; graph settings</td><td>Opens arrangement presets, shared width, drag step, and graph range.</td></tr><tr><td>Band preset / Fill preset + Apply preset</td><td>Replaces the arrangement and colors with Standard or Detailed. Choosing a preset alone does not apply it. Undo restores the previous arrangement.</td></tr><tr><td>All band widths / All total widths</td><td>Sets every ordinary band’s <strong>total</strong> width. “Mixed” means the individual widths differ.</td></tr><tr><td>Drag step</td><td>Selects 1, ½, or ¼ stop movement. IRE editing uses its own increment.</td></tr><tr><td>Visible range</td><td>Changes only the Stops diagram viewport, not the LUT. Values outside it remain editable in the table.</td></tr><tr><td>Color</td><td>Opens the individual band’s color picker.</td></tr><tr><td>Position / Boundary to next color</td><td>Sets the band center or Fill boundary.</td></tr><tr><td>Total width</td><td>Full span, not ± width. Width 0.6 means ±0.3. Fill has coverage labels instead.</td></tr><tr><td>Remove / Confirm remove</td><td>Removes the row after confirmation. Graph Delete removes directly; undo can restore it.</td></tr></tbody></table>
+<p>Overlapping ordinary bands are applied from low to high position; the higher-position band wins. Equal positions retain their ordering. Recorded-signal warnings take priority over both bands and Fill zones.</p>
+<div class="sl-heading-wrapper level-h3"><h3 id="worked-exposure-examples">Worked exposure examples</h3><a class="sl-anchor-link" href="#worked-exposure-examples"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentcolor" d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 0 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 1 0-1.42-1.42Zm8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 0 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 1 0 1.42 1.42l3.88-3.89a4.49 4.49 0 0 0 0-6.33ZM8.83 15.17a1 1 0 0 0 1.1.22 1 1 0 0 0 .32-.22l4.92-4.92a1 1 0 0 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42Z"></path></svg></span><span class="sr-only" data-pagefind-ignore="">Section titled “Worked exposure examples”</span></a></div>
+<p>For decoded source-gamut luminance <code dir="auto">Y</code>, stops are <code dir="auto">log2(Y / 0.18)</code>. Thus <code dir="auto">Y = 0.09</code>, <code dir="auto">0.18</code>, and <code dir="auto">0.36</code> represent −1, 0, and +1 stop. The source gamut’s RGB-to-XYZ matrix supplies the luminance weights; this is not an average of the recorded RGB channels.</p>
+<p>In a new camera-log IRE setup, a band at 50 with total width 10 covers encoded input luma from 45 to 55. Neutral 50 corresponds to code 511.5 on the full 10-bit-equivalent input scale. Changing output range does not change this measurement. The source gamut supplies the weights applied to encoded RGB; colored subjects need not rank the same way as scene-linear Stops. This scale does not promise an identical reading on every camera waveform or monitor.</p>
+<p>The neutral 18% reference depends on the camera: approximately 41.1 for Sony, 42.3 for Panasonic, 34.3 for Canon, 39.1 for ARRI, 33.3 for RED, and 38.4 for Blackmagic. These use the existing profile curve defaults. Legacy target-display IRE instead uses target-encoded luma with a neutral reference around 40.9. JSON preserves the chosen interpretation. See the <a href="https://github.com/Today20092/lut_builder/blob/main/docs/camera-log-ire.md">camera-log IRE reference</a>. Neither interpretation supplies a universal skin-tone target.</p>
+<div class="sl-heading-wrapper level-h2"><h2 id="color-picker">Color picker</h2><a class="sl-anchor-link" href="#color-picker"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentcolor" d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 0 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 1 0-1.42-1.42Zm8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 0 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 1 0 1.42 1.42l3.88-3.89a4.49 4.49 0 0 0 0-6.33ZM8.83 15.17a1 1 0 0 0 1.1.22 1 1 0 0 0 .32-.22l4.92-4.92a1 1 0 0 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42Z"></path></svg></span><span class="sr-only" data-pagefind-ignore="">Section titled “Color picker”</span></a></div>
+<p>Click a band or warning swatch. Use the saturation/value area and hue control, numeric color controls where shown, or enter a six-digit <code dir="auto">#RRGGBB</code> value. The bundled named swatches provide another starting point. Invalid colors must be corrected before they can be applied. Escape closes the picker and returns focus. See <a href="../keyboard/">keyboard controls</a> for alternatives to pointing.</p>
+<div class="sl-heading-wrapper level-h2"><h2 id="palettes-and-gradients">Palettes and gradients</h2><a class="sl-anchor-link" href="#palettes-and-gradients"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentcolor" d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 0 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 1 0-1.42-1.42Zm8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 0 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 1 0 1.42 1.42l3.88-3.89a4.49 4.49 0 0 0 0-6.33ZM8.83 15.17a1 1 0 0 0 1.1.22 1 1 0 0 0 .32-.22l4.92-4.92a1 1 0 0 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42Z"></path></svg></span><span class="sr-only" data-pagefind-ignore="">Section titled “Palettes and gradients”</span></a></div>
+<p><strong>Recolor all bands</strong> changes colors without moving the bands. Editing a single swatch remains available if you want to keep the other colors.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Control</th><th>Meaning</th></tr></thead><tbody><tr><td>Choose a starting palette</td><td>Select Exposure zones or Reference emphasis to create a draft.</td></tr><tr><td>Shape your gradient</td><td>Edit the gradient dots and blend controls.</td></tr><tr><td>What does the reference mean? / legend</td><td>Explains the reference and the low-to-high exposure colors. Green is a chosen reference, not universally correct exposure.</td></tr><tr><td>Gradient dots</td><td>Change the anchor colors and their positions. Add, select, move, or remove editable dots using the shown controls. The exposure reference remains fixed in position.</td></tr><tr><td>Blend: Colorful · OKLCH</td><td>Blends around a hue circle; colors are fitted to sRGB.</td></tr><tr><td>Hue path</td><td>Shorter or longer route around the hue circle. Only applies to Colorful.</td></tr><tr><td>Blend: Direct · OKLab</td><td>Blends directly between colors and may pass through gray.</td></tr><tr><td>Advanced: adjust all colors</td><td>Opens whole-palette lightness and strength adjustments.</td></tr><tr><td>Keep chosen lightness</td><td>Retains each dot’s chosen lightness.</td></tr><tr><td>Dark to light</td><td>Assigns increasing lightness across the palette.</td></tr><tr><td>Same lightness</td><td>Uses the dots’ average lightness.</td></tr><tr><td>Overall color strength / Color intensity</td><td>100% keeps chosen chroma, 0% makes gray, 200% requests twice the chroma. sRGB fitting can limit the visible increase.</td></tr><tr><td>Reset adjustments</td><td>Restores chosen lightness and 100% strength.</td></tr><tr><td>Use palette</td><td>Applies the valid draft to the bands, replacing individual color overrides.</td></tr><tr><td>Cancel preview</td><td>Discards the audition and keeps applied colors. A download during an audition uses applied colors.</td></tr><tr><td>Apply false color by exposure</td><td>Uses the standard exposure-color mapping instead of the draft gradient; it can be undone.</td></tr><tr><td>Save and reuse palettes</td><td>Opens the browser-local palette library; see <a href="../save-and-apply/#palettes-and-setups-are-different">saving</a>.</td></tr></tbody></table>
+<p>Starting exposure palettes anchor the reference at zero stops or the selected profile’s neutral camera-log IRE value. Legacy target-IRE setups retain the neutral target reference. Their end colors extend beyond the palette scale. Changing cameras updates the reference and palette scale; existing band numbers remain user edits until a preset is applied. Older saved custom gradients can instead span the current band range; their center is not necessarily the exposure reference. In Fill, colors cover whole zones.</p>
+<div class="sl-heading-wrapper level-h2"><h2 id="recorded-signal-warnings">Recorded-signal warnings</h2><a class="sl-anchor-link" href="#recorded-signal-warnings"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentcolor" d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 0 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 1 0-1.42-1.42Zm8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 0 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 1 0 1.42 1.42l3.88-3.89a4.49 4.49 0 0 0 0-6.33ZM8.83 15.17a1 1 0 0 0 1.1.22 1 1 0 0 0 .32-.22l4.92-4.92a1 1 0 0 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42Z"></path></svg></span><span class="sr-only" data-pagefind-ignore="">Section titled “Recorded-signal warnings”</span></a></div>
+<p>Each checkbox enables one warning; its color picker changes only the indicator color. Neither control edits the numeric profile threshold. Read <a href="../signal-limits/">how the limits are calculated</a> for purple/red interpretation, precedence, and cube-size tolerance.</p>
+<div class="sl-heading-wrapper level-h2"><h2 id="remaining-panels">Remaining panels</h2><a class="sl-anchor-link" href="#remaining-panels"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentcolor" d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 0 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 1 0-1.42-1.42Zm8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 0 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 1 0 1.42 1.42l3.88-3.89a4.49 4.49 0 0 0 0-6.33ZM8.83 15.17a1 1 0 0 0 1.1.22 1 1 0 0 0 .32-.22l4.92-4.92a1 1 0 0 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42Z"></path></svg></span><span class="sr-only" data-pagefind-ignore="">Section titled “Remaining panels”</span></a></div>
+<p>The header’s <strong>01 Configure</strong>, <strong>02 Edit bands</strong>, and <strong>03 Download</strong> jump to those sections. <strong>Help / Manual</strong> opens this manual in a new tab. <strong>Keyboard shortcuts (?)</strong> opens the shortcut dialog.</p>
+<p>For <strong>Saved LUT setups</strong>, <strong>Generate LUT</strong>, JSON import/export, and progress messages, see <a href="../save-and-apply/">Save, export, and apply</a>. For camera media, source interpretation, video frame controls, pixel inspection, and checked-cube downloads, see <a href="../verification/">Verify camera media</a>. For error and warning recovery, see <a href="../troubleshooting/">Troubleshooting</a>.</p> </div> <footer class="sl-flex astro-g2irdmuy"> <div class="meta sl-flex astro-g2irdmuy">   </div> <div class="pagination-links print:hidden astro-2qhl5mhl" dir="ltr"> <a href="/docs/first-lut/" rel="prev" class="astro-2qhl5mhl"> <svg aria-hidden="true" class="astro-2qhl5mhl astro-bml346jr" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.5rem;"><path d="M17 11H9.41l3.3-3.29a1.004 1.004 0 1 0-1.42-1.42l-5 5a1 1 0 0 0-.21.33 1 1 0 0 0 0 .76 1 1 0 0 0 .21.33l5 5a1.002 1.002 0 0 0 1.639-.325 1 1 0 0 0-.219-1.095L9.41 13H17a1 1 0 0 0 0-2Z"/></svg> <span class="astro-2qhl5mhl"> Previous <br class="astro-2qhl5mhl"> <span class="link-title astro-2qhl5mhl">Make your first LUT</span> </span> </a> <a href="/docs/save-and-apply/" rel="next" class="astro-2qhl5mhl"> <svg aria-hidden="true" class="astro-2qhl5mhl astro-bml346jr" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.5rem;"><path d="M17.92 11.62a1.001 1.001 0 0 0-.21-.33l-5-5a1.003 1.003 0 1 0-1.42 1.42l3.3 3.29H7a1 1 0 0 0 0 2h7.59l-3.3 3.29a1.002 1.002 0 0 0 .325 1.639 1 1 0 0 0 1.095-.219l5-5a1 1 0 0 0 .21-.33 1 1 0 0 0 0-.76Z"/></svg> <span class="astro-2qhl5mhl"> Next <br class="astro-2qhl5mhl"> <span class="link-title astro-2qhl5mhl">Save, export, and apply</span> </span> </a> </div>   </footer>  </div> </div>   </main> </div> </div>  </div> </div>  </body></html>

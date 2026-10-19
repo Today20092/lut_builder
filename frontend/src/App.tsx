@@ -1209,6 +1209,7 @@ export function App() {
         <h1 className="font-heading text-3xl font-semibold tracking-tight">LUT Builder</h1>
         <p className="text-muted-foreground">{browserOnly ? "Browser-based diagnostic scene-exposure LUT editor" : "Local diagnostic scene-exposure LUT editor"}</p>
         </div>
+        <a className="inline-flex min-h-11 items-center text-sm underline" href={`${import.meta.env.BASE_URL}docs/`} target="_blank" rel="noreferrer">Help / Manual <span className="sr-only">(opens in a new tab)</span></a>
         <a className="inline-flex min-h-11 items-center text-sm underline" href="https://github.com/Today20092/lut_builder/issues/new/choose" target="_blank" rel="noreferrer">Report an issue · GitHub</a>
         <nav aria-label="Workbench sections" className="flex w-full items-center justify-between gap-1 text-sm font-medium sm:w-auto sm:gap-4">
           <span className="hidden sm:inline-flex"><KeyboardHelp canUndo={Boolean(undo)} onUndo={undoEdit} /></span>
@@ -1237,7 +1238,7 @@ export function App() {
         <Card id="configuration" className="scroll-mt-6">
           <CardHeader>
             <CardTitle><h2>Configuration</h2></CardTitle>
-            <CardDescription>Match your recording and monitor.</CardDescription>
+            <CardDescription>Match your recording and monitor. <a className="underline" href={`${import.meta.env.BASE_URL}docs/controls/#configuration`} target="_blank" rel="noreferrer">Profile, range, and output help (new tab)</a></CardDescription>
           </CardHeader>
           <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <label className="grid gap-1 text-sm font-medium">
@@ -1306,6 +1307,7 @@ export function App() {
             <div>
               <CardTitle className="text-lg font-semibold"><h2>Exposure bands</h2></CardTitle>
               <CardDescription>{setup.fill_mode ? "Drag dividers to resize zones. Double-click a zone to recolor it." : "Drag bands to move them. Edit colors below."}</CardDescription>
+              <p className="text-xs text-muted-foreground">Stops measure scene exposure; new IRE setups measure camera-log levels; Fill colors every zone. <a className="underline" href={`${import.meta.env.BASE_URL}docs/controls/#exposure-bands`} target="_blank" rel="noreferrer">Bands and palette guide (new tab)</a></p>
             </div>
             <fieldset className="grid grid-cols-3 gap-2" aria-label="Band mode">
               <legend className="sr-only">Band mode</legend>
@@ -1454,6 +1456,7 @@ export function App() {
               <CardTitle>Recorded-signal limit warnings</CardTitle>
               <CardDescription className="max-w-3xl">
                 Mark this profile&apos;s recorded RGB code limits. These warnings cannot establish physical sensor clipping.
+                {" "}<a className="underline" href={`${import.meta.env.BASE_URL}docs/signal-limits/#how-are-these-limits-calculated`} target="_blank" rel="noreferrer">How are these limits calculated? <span className="sr-only">(opens in a new tab)</span></a>
               </CardDescription>
               <details className="text-xs text-muted-foreground">
                 <summary className="cursor-pointer text-sm">How to interpret these warnings</summary>
@@ -1480,7 +1483,7 @@ export function App() {
 
         </div>
         <ReferencePreview setup={palettePreview?.valid ? palettePreview.setup : setup} draft={Boolean(palettePreview?.valid)} />
-        <details className="min-w-0 rounded-lg border p-4"><summary className="cursor-pointer font-medium">Use original camera media · image or video</summary><div className="mt-4"><WorkbenchPreview preview={preview} setup={setup} catalog={catalog} browserOnly={browserOnly} /></div></details>
+        <details className="min-w-0 rounded-lg border p-4"><summary className="cursor-pointer font-medium">Use original camera media · image or video</summary><div className="mt-4"><p className="text-xs text-muted-foreground">Camera verification requires known source settings. <a className="underline" href={`${import.meta.env.BASE_URL}docs/verification/`} target="_blank" rel="noreferrer">Preview and source interpretation help (new tab)</a></p><WorkbenchPreview preview={preview} setup={{ ...setup, output: outputFilename(setup) }} catalog={catalog} browserOnly={browserOnly} /></div></details>
         <Card>
           <CardHeader>
             <CardTitle>Save setup · optional</CardTitle>
@@ -1499,7 +1502,7 @@ export function App() {
         <Card id="export" className="scroll-mt-6">
           <CardHeader>
             <CardTitle><h2>Generate LUT</h2></CardTitle>
-            <CardDescription>Build the final {setup.profile} to {setup.target} transformation.</CardDescription>
+            <CardDescription>Build the final {setup.profile} to {setup.target} transformation. <a className="underline" href={`${import.meta.env.BASE_URL}docs/save-and-apply/`} target="_blank" rel="noreferrer">Saving and applying your LUT (new tab)</a></CardDescription>
           </CardHeader>
           <CardContent className="grid gap-2">
             <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Output · {setup.cube_size}³ .cube</span>

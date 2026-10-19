@@ -17,6 +17,7 @@ wheels/
 *.cube
 *.json
 !frontend/*.json
+!src/lut_builder/static/docs/**/*.json
 output/luts/*.cube
 output/configs/*.json
 
@@ -29,3 +30,7 @@ output/configs/*.json
 
 # Claude Code
 .claude/
+
+# Astro content cache
+frontend/manual/.astro/
+frontend/.astro/
