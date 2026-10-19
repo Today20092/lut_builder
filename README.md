@@ -4,28 +4,24 @@ Create custom false-color LUTs to check camera exposure. Choose the exposure ban
 
 <p align="center">
   <a href="#roadmap"><img alt="Status: in development" src="https://img.shields.io/badge/Status-In%20development-C4A7E7?style=for-the-badge&amp;logo=github&amp;labelColor=493267"></a>
-  <a href="#web-interface"><img alt="Interface: local browser" src="https://img.shields.io/badge/Interface-Local%20browser-B5DFE8?style=for-the-badge&amp;labelColor=29626B"></a>
+  <a href="https://today20092.github.io/lut_builder/"><img alt="Interface: browser app" src="https://img.shields.io/badge/Interface-Browser%20app-B5DFE8?style=for-the-badge&amp;labelColor=29626B"></a>
   <a href="pyproject.toml"><img alt="Python: 3.12 or newer" src="https://img.shields.io/badge/Python-3.12%2B-F4C98B?style=for-the-badge&amp;logo=python&amp;labelColor=75512B"></a>
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-F4C98B?style=for-the-badge&amp;labelColor=75512B"></a>
 </p>
 
 [Get started](#quick-start) · [Web interface](#web-interface) · [Roadmap](#roadmap) · [User guide](docs/guide.md) · [Report a problem](https://github.com/Today20092/lut_builder/issues)
 
-## Main goal: open your browser and make a LUT
+## Open your browser and make a LUT
 
-Our highest priority is a browser-only app that anyone can use without downloading an application, installing uv or Python, or entering terminal commands. Once ready, this will be the main recommended way to use LUT Builder. The command line will remain an optional choice.
+**[Open LUT Builder on GitHub Pages](https://today20092.github.io/lut_builder/)** to create and download LUTs in your browser. No installation or terminal commands are needed. The command line and local Workbench remain available as optional tools.
 
-The goal is simple: open a link, choose your camera, adjust the bands and colors, save your presets in the browser, and download the `.cube` files you need. All LUT calculations should run on your device.
+Choose your camera, adjust exposure bands and colors, save named presets in this browser, and download `.cube` files. LUT calculations run on your device. Saved presets do not sync between devices; export setup JSON to back up or transfer your work.
 
-We want this to work wherever you are, on a computer, tablet, or phone, across browsers. Touch controls, small screens, preset storage, and file downloads are part of that goal. We will publish tested browser support and limits before release. Presets saved in one browser will not automatically appear on another device; setup export and import will let you keep a copy and move your work.
-
-This browser-only version is not available yet. Follow [ticket #9](https://github.com/Today20092/lut_builder/issues/9) for the work. The current Workbench runs in a browser but still needs a local Python server, Git, uv, and the setup below.
-
-The static browser build and its current feature limits are documented in the [browser support matrix](docs/browser-support.md). It is not a public entry point until its Pages deployment and browser acceptance checks are complete.
+The current browser release supports LUT creation and download. Exposure preview and camera-matched still/video verification are not included. Phone, touch, and cross-browser testing is still in progress; see the [browser support matrix](docs/browser-support.md).
 
 ## Quick start
 
-These instructions are for the current local version. The planned browser-only app will not need these steps.
+These instructions set up the Python CLI and local Workbench. For browser-only use, open the [live app](https://today20092.github.io/lut_builder/).
 
 You need [Git](https://git-scm.com/) and [uv](https://docs.astral.sh/uv/getting-started/installation/). The setup below is for Windows or macOS. uv manages Python 3.12 or newer and the project dependencies.
 
