@@ -5,22 +5,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import type { Setup } from "@/editor"
 import { isTypingTarget } from "./keyboard"
 import type { VideoFrame } from "./previewMedia"
+import { CheckedStillSchema, localVerifiedResult, type VerifiedResult, type VerifiedPixel } from "./verifiedResult"
 
 export type SourceInterpretations = Record<string, { transfer: string; gamut: string }>
-const CheckedStillSchema = Schema.Struct({
-  request_id: Schema.String,
-  width: Schema.Finite,
-  height: Schema.Finite,
-  image: Schema.String,
-  provenance: Schema.StructWithRest(
-    Schema.Struct({ comparison_unavailable: Schema.String, warnings: Schema.Array(Schema.String) }),
-    [Schema.Record(Schema.String, Schema.Unknown)],
-  ),
-})
-type CheckedStill = typeof CheckedStillSchema.Type
-const RgbSchema = Schema.Tuple([Schema.Finite, Schema.Finite, Schema.Finite])
-const PixelSchema = Schema.Struct({ x: Schema.Finite, y: Schema.Finite, source_rgb: RgbSchema, output_rgb: RgbSchema, display_rgb: RgbSchema })
-type Pixel = typeof PixelSchema.Type
 const ErrorResponseSchema = Schema.Struct({ error: Schema.optional(Schema.String) })
 const field = "h-9 min-w-0 w-full rounded-md border border-input bg-transparent px-3 text-sm focus-visible:ring-2 focus-visible:ring-ring"
 
@@ -88,11 +75,10 @@ function readStill(file: File): Effect.Effect<string, StillReadError> {
   })
 }
 
-export function CheckedImage({ result, localRequest }: { result: CheckedStill; localRequest?: typeof request }) {
-  const send = localRequest ?? request
+export function CheckedImage({ result }: { result: VerifiedResult }) {
   const [x, setX] = useState("0")
   const [y, setY] = useState("0")
-  const [pixel, setPixel] = useState<Pixel | null>(null)
+  const [pixel, setPixel] = useState<VerifiedPixel | null>(null)
   const [error, setError] = useState("")
   const [expanded, setExpanded] = useState(false)
   const dialog = useRef<HTMLDialogElement>(null)
@@ -108,8 +94,7 @@ export function CheckedImage({ result, localRequest }: { result: CheckedStill; l
     sampleController.current = controller
     setError("")
     try {
-      const response = await send("/verify-pixel", { request_id: result.request_id, x: Number(x), y: Number(y) }, controller.signal)
-      const next = Schema.decodeUnknownSync(PixelSchema)(await response.json())
+      const next = await Effect.runPromise(result.inspect(Number(x), Number(y)), { signal: controller.signal })
       if (sequence === sampleRequest.current) setPixel(next)
     } catch (failure) {
       if (!controller.signal.aborted) setError(String(failure))
@@ -119,8 +104,7 @@ export function CheckedImage({ result, localRequest }: { result: CheckedStill; l
   async function download() {
     setError("")
     try {
-      const response = await send("/verify-cube", { request_id: result.request_id })
-      const url = URL.createObjectURL(await response.blob())
+      const url = URL.createObjectURL(await Effect.runPromise(result.cube()))
       const anchor = document.createElement("a")
       anchor.href = url
       anchor.download = "checked.cube"
@@ -186,7 +170,7 @@ export function CameraVerification({ setup, interpretations, video }: { setup: S
   const [bitDepth, setBitDepth] = useState("")
   const [reading, setReading] = useState(false)
   const [fileError, setFileError] = useState("")
-  const [result, setResult] = useState<{ key: string; value: CheckedStill } | null>(null)
+  const [result, setResult] = useState<{ key: string; value: VerifiedResult } | null>(null)
   const [status, setStatus] = useState<{ key: string; text: string }>({ key: "", text: "" })
   const [busyKey, setBusyKey] = useState<string | null>(null)
   const pending = useRef<{ id: string; controller: AbortController } | null>(null)
@@ -214,11 +198,11 @@ export function CameraVerification({ setup, interpretations, video }: { setup: S
   }, [key])
   useEffect(() => () => { fileSequence.current++; readController.current?.abort() }, [])
   useEffect(() => {
-    const completed = current?.request_id
+    const completed = current
     return () => {
-      if (completed) void request("/verify-cancel", { request_id: completed }).catch(() => {})
+      if (completed) void Effect.runPromise(completed.release()).catch(() => {})
     }
-  }, [current?.request_id])
+  }, [current])
 
   function choose(file: File) {
     const id = ++fileSequence.current
@@ -273,7 +257,7 @@ export function CameraVerification({ setup, interpretations, video }: { setup: S
       const next = Schema.decodeUnknownSync(CheckedStillSchema)(await response.json())
       if (pending.current?.id !== id || controller.signal.aborted) return
       if (next.request_id !== id) throw new Error("Verification response does not match this request. Verify again.")
-      setResult({ key, value: next })
+      setResult({ key, value: localVerifiedResult(next, request) })
       setStatus({ key, text: "Verified against the serialized cube. This checks the declared pipeline, not sensor exposure or another application's display." })
     } catch (failure) {
       if (pending.current?.id === id && !controller.signal.aborted) setStatus({ key, text: `Verification failed: ${String(failure)}` })
@@ -286,7 +270,7 @@ export function CameraVerification({ setup, interpretations, video }: { setup: S
     <CardHeader><CardTitle>Camera-matched {video ? "video frame" : "still"} check</CardTitle><CardDescription>Apply the actual exported cube to preserved camera RGB.</CardDescription></CardHeader>
     <CardContent className="grid min-w-0 gap-3">
       {current?.provenance.warnings.map((warning) => <p key={warning} className="text-sm text-amber-700 dark:text-amber-300">{warning}</p>)}
-      {current && <CheckedImage key={current.request_id} result={current} />}
+      {current && <CheckedImage key={result!.key} result={current} />}
       {!video && <>
       <label className="grid gap-2 text-sm font-medium">Choose camera still<input type="file" accept=".png,.pfm" className="max-w-full text-sm" onChange={(e) => { const file = e.target.files?.[0]; if (file) choose(file); e.target.value = "" }} /></label>
       <p className="text-xs text-muted-foreground">Untagged, non-interlaced 16-bit RGB PNG, or float32 RGB PFM. No alpha. Up to 4,194,304 pixels and 48 MiB. PNG requires local FFmpeg. Files stay in this local workspace session.</p>
