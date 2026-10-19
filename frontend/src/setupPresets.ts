@@ -1,11 +1,19 @@
-import { Data, Effect, Exit } from "effect"
-import { exportSetup, importSetup, type Setup } from "./editor.ts"
+import { Data, Effect, Schema } from "effect"
+import { exportSetup, importSetup, parseSetupImport, type Setup } from "./editor.ts"
 import { decodeSetup } from "./setupSchema.ts"
 
 export type SetupPreset = { name: string; setup: Setup }
 
 const storageKey = "lut-builder.named-setups.v1"
 const sessionKey = "lut-builder.workspace-session.v1"
+const PresetEntry = Schema.Struct({
+  name: Schema.String.check(Schema.isPattern(/\S/)),
+  setup: Schema.Unknown,
+})
+const PresetCollection = Schema.Union([
+  Schema.Array(PresetEntry),
+  Schema.Struct({ version: Schema.Literal(2), presets: Schema.Array(PresetEntry) }),
+])
 
 export class SetupStorageError extends Data.TaggedError("SetupStorageError")<{
   readonly message: string
@@ -40,31 +48,40 @@ export function readSetupPresets(storage: () => Pick<Storage, "getItem">): Effec
   return Effect.try({
     try: () => {
       const value: unknown = JSON.parse(storage().getItem(storageKey) ?? "[]")
-      if (Array.isArray(value)) return value
-      if (value && typeof value === "object" && "version" in value && value.version === 2 && "presets" in value && Array.isArray(value.presets)) return value.presets
-      throw new Error("Saved setups use an unsupported format. Export a backup before replacing them.")
+      const decoded = Schema.decodeUnknownSync(PresetCollection)(value)
+      return "presets" in decoded ? decoded.presets : decoded
     },
     catch: (cause) => new SetupStorageError({
-      message: "Could not read saved setups. Browser storage may be unavailable.",
+      message: "Could not read saved setups. Browser storage may be unavailable or damaged. Download a backup before replacing the saved library.",
       cause,
     }),
-  }).pipe(Effect.flatMap(items => Effect.tryPromise({
-    try: async () => {
-      const presets: SetupPreset[] = []
-      for (const item of items) {
-        if (!item || typeof item.name !== "string" || !item.name.trim()) continue
-        const decoded = await Effect.runPromiseExit(item.setup?.version === undefined
-          ? decodeSetup(item.setup)
-          : Effect.tryPromise({try:()=>importSetup(JSON.stringify(item.setup),candidate=>Effect.runPromise(decodeSetup(candidate))),catch:cause=>cause}))
-        if (Exit.isSuccess(decoded)) presets.push({ name: item.name, setup: decoded.value })
-        else if (item.setup?.imported_lut !== undefined || item.setup?.version === 3) throw new Error(`Saved setup “${item.name}” has a missing or damaged imported look. Reattach the original .cube or import a portable backup.`)
-      }
-      return presets
-    },
-    catch: cause => new SetupStorageError({message: cause instanceof Error ? cause.message : "Could not validate saved setups.",cause}),
-  })), Effect.catchTag("SetupStorageError", (error) =>
-    error.cause instanceof SyntaxError ? Effect.succeed([]) : Effect.fail(error),
-  ))
+  }).pipe(
+    Effect.flatMap(items => Effect.forEach(items, item =>
+      Effect.try({
+        try: () => {
+          const candidate = item.setup
+          return candidate && typeof candidate === "object" && "version" in candidate
+            ? parseSetupImport(JSON.stringify(candidate)) : candidate
+        },
+        catch: cause => cause,
+      }).pipe(
+        Effect.flatMap(decodeSetup),
+        Effect.map(setup => ({ name: item.name, setup })),
+        Effect.mapError(cause => new SetupStorageError({
+          message: `Saved setup “${item.name}” is damaged. Reattach its original .cube or import a portable backup. Download the saved library before replacing it.`,
+          cause,
+        })),
+      ),
+    )),
+  )
+}
+
+export function setupPresetsBackup(storage: () => Pick<Storage, "getItem">): Effect.Effect<string | null, SetupStorageError> {
+  return Effect.try({ try: () => storage().getItem(storageKey), catch: cause => new SetupStorageError({ message: "Could not read the saved library backup.", cause }) })
+}
+
+function serializePresets(presets: SetupPreset[]) {
+  return JSON.stringify({ version: 2, presets: presets.map(preset => ({ name: preset.name, setup: JSON.parse(exportSetup(preset.setup)) })) })
 }
 
 export function saveSetupPreset(storage: () => Pick<Storage, "setItem">, presets: SetupPreset[], name: string, setup: Setup): Effect.Effect<SetupPreset[], SetupStorageError> {
@@ -73,7 +90,7 @@ export function saveSetupPreset(storage: () => Pick<Storage, "setItem">, presets
   const next = [...presets.filter((preset) => preset.name.toLocaleLowerCase() !== normalized.toLocaleLowerCase()), { name: normalized, setup }]
   return Effect.try({
     try: () => {
-      storage().setItem(storageKey, JSON.stringify({version:2,presets:next.map(preset=>({name:preset.name,setup:JSON.parse(exportSetup(preset.setup))}))}))
+      storage().setItem(storageKey, serializePresets(next))
       return next
     },
     catch: (cause) => new SetupStorageError({ message: "Could not save this preset. Browser storage may be unavailable. Export setup JSON to keep a portable backup.", cause }),
@@ -84,7 +101,7 @@ export function deleteSetupPreset(storage: () => Pick<Storage, "setItem">, prese
   const next = presets.filter((preset) => preset.name.toLocaleLowerCase() !== name.toLocaleLowerCase())
   return Effect.try({
     try: () => {
-      storage().setItem(storageKey, JSON.stringify({version:2,presets:next.map(preset=>({name:preset.name,setup:JSON.parse(exportSetup(preset.setup))}))}))
+      storage().setItem(storageKey, serializePresets(next))
       return next
     },
     catch: (cause) => new SetupStorageError({ message: "Could not update browser storage. Export your setup as JSON to keep a copy.", cause }),

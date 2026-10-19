@@ -598,6 +598,11 @@ export async function importSetup(
   text: string,
   validate: (candidate: Setup) => Promise<Setup>,
 ) {
+  const validated = await validate(parseSetupImport(text))
+  return { ...validated, bands: orderBands(validated.bands) }
+}
+
+export function parseSetupImport(text: string): Setup {
   let candidate: unknown
   try {
     candidate = JSON.parse(text)
@@ -612,6 +617,5 @@ export async function importSetup(
   const setup = Object.fromEntries(
     Object.entries(candidate).filter(([key]) => key !== "version"),
   ) as Setup
-  const validated = await validate(setup)
-  return { ...validated, bands: orderBands(validated.bands) }
+  return setup
 }

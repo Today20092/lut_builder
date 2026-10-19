@@ -9,6 +9,11 @@ import { CheckedStillSchema, localVerifiedResult, type VerifiedResult, type Veri
 import { setupIdentity } from "./importedLut"
 
 export type SourceInterpretations = Record<string, { transfer: string; gamut: string }>
+
+export function SdrViewDescription({ setup }: { setup: Setup }) {
+  const look = setup.imported_lut
+  return <span>SDR view: {look ? `${look.output_gamut}, ${look.output_transfer}, ${look.output_range} output range` : "ideal-black BT.1886"}, target primaries converted to sRGB, display gamut clipped. Legal output is expanded once for display. Stored overlay colors and LUT output remain unchanged.</span>
+}
 const ErrorResponseSchema = Schema.Struct({ error: Schema.optional(Schema.String) })
 const field = "h-9 min-w-0 w-full rounded-md border border-input bg-transparent px-3 text-sm focus-visible:ring-2 focus-visible:ring-ring"
 
@@ -307,7 +312,7 @@ export function CameraVerification({ setup, interpretations, video }: { setup: S
       <label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} />{video ? "I confirm the recording transfer/gamut, matrix, transport range, chroma location and component depth. This is camera-encoded media with no viewing transform." : "I confirm unchanged camera-encoded RGB, this transfer/gamut and range, with no viewing transform or additional range scaling."}</label>
       {mismatch && <p role="alert" className="text-sm text-destructive">Source interpretation does not match {setup.profile}. Correct the source interpretation or LUT camera profile.</p>}
       {!supported && <p role="alert" className="text-sm text-destructive">Unsupported SDR view. Choose Rec.709 or SDR Rec.2020. HDR/log viewing is unavailable.</p>}
-      <p className="text-xs text-muted-foreground">SDR view: ideal-black BT.1886, target primaries converted to sRGB, display gamut clipped. Legal output is expanded once for display. Stored overlay colors and LUT output remain unchanged.</p>
+      <p className="text-xs text-muted-foreground"><SdrViewDescription setup={setup} /></p>
       <div className="flex flex-wrap gap-2"><Button disabled={busy || reading || !(source || video) || !transfer || !gamut || (video ? !matrix || !signalRange || !chroma || !bitDepth : !range) || !confirmed || mismatch || !supported} onClick={() => void verify()}>Verify {video ? "selected frame" : "still"}</Button>{busy && <Button variant="outline" onClick={cancel}>Cancel verification</Button>}</div>
       <p className="text-sm" role="status" aria-live="polite">{status.key === key ? status.text : status.key || busyKey ? "Source, interpretation or settings changed. Verify again; the previous result is no longer current." : "Confirm the source interpretation to verify."}</p>
     </CardContent>

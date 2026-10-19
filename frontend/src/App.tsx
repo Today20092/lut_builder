@@ -38,7 +38,7 @@ import { CameraVerification, type SourceInterpretations } from "@/CameraVerifica
 import { BrowserVerification } from "./BrowserVerification"
 import { browserInterpretations, browserProfiles, browserTargets } from "@/lutEngine"
 import { defaultFilenameTemplate, outputFilename } from "./outputFilename"
-import { deleteSetupPreset, readSetupPresets, saveSetupPreset, readWorkspaceSession, writeWorkspaceSession, workspaceSessionBackup, type SetupPreset } from "@/setupPresets"
+import { deleteSetupPreset, readSetupPresets, saveSetupPreset, readWorkspaceSession, writeWorkspaceSession, workspaceSessionBackup, setupPresetsBackup, type SetupPreset } from "@/setupPresets"
 import { WorkspaceShell, WorkspacePanel } from "./WorkspaceShell"
 import { ImportedLookSettings } from "./ImportedLookSettings"
 import { ImportedLookPreview } from "./ImportedLookPreview"
@@ -454,6 +454,7 @@ export function ExposureGraph({
   increment,
   selectedBand,
   onSelect,
+  onFocusSelect = onSelect,
   onChange,
   onWidthChange,
   onEditStart,
@@ -466,6 +467,7 @@ export function ExposureGraph({
   increment: number
   selectedBand: number
   onSelect: (index: number) => void
+  onFocusSelect?: (index: number) => void
   onChange: (index: number, stop: number) => void
   onWidthChange: (index: number, width: number) => void
   onEditStart?: () => void
@@ -589,7 +591,7 @@ export function ExposureGraph({
         const right = index === fillBands.length - 1 ? 100 : position(band.stop)
         return <button key={`fill-color-${bandId(band)}`} type="button" aria-label={`Edit fill color ${index + 1}`} title="Double-click to edit color; Enter or Space also opens the picker"
           data-band-center={index === setup.bands.length - 1 ? index : undefined}
-          onFocus={() => onSelect(index)}
+          onFocus={() => onFocusSelect(index)}
           className="absolute inset-y-0 bg-transparent focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-4 focus-visible:outline-foreground"
           style={{ left: `${left}%`, width: `${right - left}%` }}
           onClick={(event) => { onSelect(index); if (event.detail === 0) onEditColor?.(index) }}
@@ -682,7 +684,7 @@ export function ExposureGraph({
                   role="slider"
                   style={{ left: `${position(band.stop + side * band.width)}%`, zIndex: selectedBand === index ? 30 : undefined }}
                   type="button"
-                  onFocus={() => onSelect(index)}
+                  onFocus={() => onFocusSelect(index)}
                   onKeyDown={(event) => {
                     if (event.altKey || event.ctrlKey || event.metaKey || event.nativeEvent.isComposing) return
                     const direction = event.key === "ArrowRight" || event.key === "ArrowUp" ? 1 : event.key === "ArrowLeft" || event.key === "ArrowDown" ? -1 : 0
@@ -723,7 +725,7 @@ export function ExposureGraph({
                 : `Band ${index + 1}, ${band.stop} ${preview.unit}${edge ? ", outside visible range" : ""}`}
                 title={`${band.stop} ${preview.unit}${edge ? " · outside visible range" : " · drag to move"}`}
               onClick={() => onSelect(index)}
-              onFocus={() => onSelect(index)}
+              onFocus={() => onFocusSelect(index)}
               onKeyDown={(event) => handleKeyDown(event, index)}
               onPointerDown={(event) => {
                 onEditStart?.()
@@ -791,6 +793,7 @@ export function App() {
   const [isGenerating, setIsGenerating] = useState(false)
   const workerRef = useRef<AbortController | null>(null)
   const [setupPresets, setSetupPresets] = useState<SetupPreset[]>([])
+  const [presetsBlocked, setPresetsBlocked] = useState(true)
   const [sessionReady, setSessionReady] = useState(false)
   const [sessionBlocked, setSessionBlocked] = useState(false)
   const [sessionStatus, setSessionStatus] = useState("")
@@ -802,7 +805,7 @@ export function App() {
       session: Effect.result(readWorkspaceSession(() => window.localStorage)),
     }), { signal: controller.signal }).then(({ presets, session }) => {
       if (controller.signal.aborted) return
-      if (Result.isSuccess(presets)) setSetupPresets(presets.success)
+      if (Result.isSuccess(presets)) { setSetupPresets(presets.success); setPresetsBlocked(false) }
       else dispatch({ type: "load-status", value: presets.failure.message })
       if (Result.isFailure(session)) {
         setSessionBlocked(true)
@@ -944,6 +947,7 @@ export function App() {
   }
 
   function saveCurrentPreset() {
+    if (presetsBlocked) return
     void Effect.runPromise(saveSetupPreset(() => window.localStorage, setupPresets, presetName, setup)).then((next) => {
       setSetupPresets(next)
       setPresetName("")
@@ -958,6 +962,7 @@ export function App() {
   }
 
   function removePreset() {
+    if (presetsBlocked) return
     void Effect.runPromise(deleteSetupPreset(() => window.localStorage, setupPresets, selectedPreset)).then((next) => {
       setSetupPresets(next)
       setSelectedPreset("")
@@ -978,6 +983,27 @@ export function App() {
     }).catch((error: unknown) => setSessionStatus(error instanceof Error ? error.message : "Could not read the saved session."))
   }
 
+  function downloadPresetsBackup() {
+    void Effect.runPromise(setupPresetsBackup(() => window.localStorage)).then(raw => {
+      if (raw === null) return setLoadStatus("No saved library backup is available.")
+      const url = URL.createObjectURL(new Blob([raw], { type: "application/json" }))
+      const link = document.createElement("a")
+      link.href = url
+      link.download = "lut-builder-saved-library-backup.json"
+      link.click()
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+    }).catch((error: unknown) => setLoadStatus(error instanceof Error ? error.message : "Could not download the saved library."))
+  }
+
+  function replaceDamagedLibrary() {
+    void Effect.runPromise(deleteSetupPreset(() => window.localStorage, [], "")).then(() => {
+      setSetupPresets([])
+      setSelectedPreset("")
+      setPresetsBlocked(false)
+      setLoadStatus("Saved library replaced. Import individual setups from your backup to recover them.")
+    }).catch((error: unknown) => setLoadStatus(error instanceof Error ? error.message : "Could not replace the saved library."))
+  }
+
   return (
     <WorkspaceShell setup={setup} busy={isGenerating || isLoadingSetup || !sessionReady}
       shortcuts={<KeyboardHelp canUndo={Boolean(undo)} onUndo={undoEdit} />}
@@ -986,6 +1012,7 @@ export function App() {
         <fieldset disabled={isGenerating || isLoadingSetup || !sessionReady} className="workspace-graph">
           <ExposureGraph setup={setup} preview={graphPreview} increment={movementIncrement} selectedBand={selectedBand}
             onSelect={(index) => { selectBand(index); openBands() }}
+            onFocusSelect={selectBand}
             onRemove={(index) => { editSetup((current) => removeBand(current, index)); setRemovingBandIndex(null); setBandStatus(`Removed band ${index + 1}. Undo last band edit restores it.`) }}
             onEditColor={(index) => { selectBand(index); openBands(); requestAnimationFrame(() => colorTriggers.current.get(bandId(setup.bands[index]))?.click()) }}
             onEditStart={() => dispatch({ type: "begin" })} onEditEnd={() => dispatch({ type: "end" })}
@@ -1309,7 +1336,12 @@ export function App() {
             <label className="grid gap-1 text-sm font-medium">Preset name
               <input className={fieldClass} value={presetName} onChange={(event) => setPresetName(event.target.value)} maxLength={80} />
             </label>
-            <Button type="button" variant="outline" onClick={saveCurrentPreset}>{replacingPreset ? "Replace saved setup" : "Save current setup"}</Button>
+            <Button type="button" variant="outline" disabled={presetsBlocked} onClick={saveCurrentPreset}>{replacingPreset ? "Replace saved setup" : "Save current setup"}</Button>
+            {presetsBlocked && sessionReady && <div className="grid gap-2 sm:col-span-2">
+              <p className="text-sm">Saved setups could not be read. Saving is blocked to protect your existing work. Download the raw library backup before replacing it; replacement deletes every saved entry. Your current session is kept separately.</p>
+              <Button type="button" variant="outline" onClick={downloadPresetsBackup}>Download saved library backup</Button>
+              <Button type="button" variant="outline" className="border-destructive/40 text-foreground" onClick={replaceDamagedLibrary}>Replace saved library with an empty library</Button>
+            </div>}
             <Button type="button" variant="outline" onClick={downloadConfig}>Export setup file</Button>
             {replacingPreset && <p className="text-sm sm:col-span-2">A setup named “{presetName.trim()}” is already saved. Replacing it overwrites that saved copy.</p>}
             <p role="status" className="text-sm sm:col-span-2">{saveStatus}</p>

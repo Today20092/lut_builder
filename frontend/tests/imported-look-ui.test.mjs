@@ -12,17 +12,30 @@ for(const key of ["window","document","Element","HTMLElement","Node"])globalThis
 Object.defineProperty(globalThis,"navigator",{value:dom.window.navigator})
 globalThis.IS_REACT_ACT_ENVIRONMENT=true
 after(()=>dom.window.close())
-const bundle=await build({bundle:true,external:["react","react/jsx-runtime","react-dom","react-dom/client"],format:"esm",jsx:"automatic",platform:"node",stdin:{contents:`export {ImportedLookSettings} from "./src/ImportedLookSettings.tsx";export {ImportedLookPreview} from "./src/ImportedLookPreview.tsx";export {CheckedImage} from "./src/CameraVerification.tsx";export {default as React,act} from "react";export {createRoot} from "react-dom/client";`,resolveDir:process.cwd(),sourcefile:"imported-ui.ts"},write:false})
+const bundle=await build({bundle:true,external:["react","react/jsx-runtime","react-dom","react-dom/client"],format:"esm",jsx:"automatic",platform:"node",stdin:{contents:`export {ImportedLookSettings} from "./src/ImportedLookSettings.tsx";export {ImportedLookPreview} from "./src/ImportedLookPreview.tsx";export {CheckedImage,SdrViewDescription} from "./src/CameraVerification.tsx";export {default as React,act} from "react";export {createRoot} from "react-dom/client";`,resolveDir:process.cwd(),sourcefile:"imported-ui.ts"},write:false})
 stop()
 const directory=await mkdtemp(join(process.cwd(),"tests",".look-")),path=join(directory,"test.mjs")
 await writeFile(path,bundle.outputFiles[0].text)
-const {ImportedLookSettings,ImportedLookPreview,CheckedImage,React,act,createRoot}=await import(pathToFileURL(path).href)
+const {ImportedLookSettings,ImportedLookPreview,CheckedImage,SdrViewDescription,React,act,createRoot}=await import(pathToFileURL(path).href)
 await rm(directory,{recursive:true})
 const identity="LUT_3D_SIZE 2\n"+[0,1].flatMap(b=>[0,1].flatMap(g=>[0,1].map(r=>`${r} ${g} ${b}`))).join("\n")
 const initial={profile:"Panasonic V-Log",target:"Rec.709",cube_size:17,bands:[{stop:0,width:.5,color:"#00ff00"}],band_mode:"stops",fill_mode:false,low_signal_warning:false,low_signal_hex:"",high_signal_warning:false,high_signal_hex:"",monochrome:true,legal_range:false,output:"camera.cube"}
 function harness(Component,props){const container=document.createElement("div");document.body.append(container);const root=createRoot(container);return{container,root,render:()=>act(()=>root.render(React.createElement(Component,props))),button:text=>[...container.querySelectorAll("button")].find(b=>b.textContent===text)}}
 async function fileInput(container,file){const input=container.querySelector("input[type=file]");Object.defineProperty(input,"files",{configurable:true,value:[file]});await act(async()=>{input.dispatchEvent(new window.Event("change",{bubbles:true}));await new Promise(r=>setTimeout(r,20))})}
 const file=(name,text)=>({name,size:new TextEncoder().encode(text).length,arrayBuffer:async()=>new TextEncoder().encode(text).buffer})
+
+test("SDR help describes the declared imported output instead of the ordinary viewing transfer", async () => {
+  const props = { setup: initial }
+  const view = harness(SdrViewDescription, props)
+  try {
+    await view.render()
+    assert.match(view.container.textContent, /ideal-black BT\.1886/)
+    props.setup = { ...initial, imported_lut: { output_gamut: "Rec.2020", output_transfer: "gamma2.2", output_range: "legal" } }
+    await view.render()
+    assert.match(view.container.textContent, /Rec\.2020, gamma2\.2, legal output range/)
+    assert.doesNotMatch(view.container.textContent, /BT\.1886/)
+  } finally { await act(() => view.root.unmount()); view.container.remove() }
+})
 
 test("import requires explicit interpretation, preserves current look on failure/cancellation and removes deliberately",async()=>{
   const state={setup:{...initial},onChange(changes){state.setup={...state.setup,...changes};view.root.render(React.createElement(ImportedLookSettings,state))}}

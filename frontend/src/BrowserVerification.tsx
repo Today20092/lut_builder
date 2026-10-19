@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react"
 import { Effect } from "effect"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { CheckedImage } from "./CameraVerification"
+import { CheckedImage, SdrViewDescription } from "./CameraVerification"
 import { browserInterpretations } from "./lutEngine"
 import { browserVerification } from "./browserVerificationClient"
 import type { Interpretation } from "./verificationMath"
@@ -122,7 +122,7 @@ export function BrowserVerification({ setup }: { setup: Setup }) {
       {kind === "Still" && <label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={rangeConfirmed} onChange={(event) => { setRangeConfirmed(event.target.checked); change("confirmed", false) }} />Normalized camera RGB code values; any transport conversion was resolved before export. PNG / 65535; PFM unchanged.</label>}
       <label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={interpretation.confirmed} onChange={(event) => change("confirmed", event.target.checked)} />I confirm the source transfer/gamut{kind === "Video" ? ", matrix, transport range, chroma location and component depth" : " and RGB range"} from my recording/export workflow. No viewing transform or grading is baked in.</label>
       {interpretation.transfer && interpretation.gamut && mismatch && <p role="alert" className="text-sm text-destructive">Source interpretation must match the selected LUT camera profile ({setup.profile}).</p>}
-      <p className="text-xs text-muted-foreground">The file cannot prove its log profile. The result checks the declared pipeline, not sensor exposure. SDR view: ideal-black BT.1886, target primaries to sRGB, display gamut clipped. Legal output expands once for display. Source excursions are preserved until the cube boundary.</p>
+      <p className="text-xs text-muted-foreground">The file cannot prove its log profile. The result checks the declared pipeline, not sensor exposure. <SdrViewDescription setup={setup} /> Source excursions are preserved until the cube boundary.</p>
       <div className="flex flex-wrap gap-2"><Button disabled={!ready} onClick={() => void run(false)}>Verify {kind === "Video" ? "selected frame" : "still"}</Button>{busy && <Button variant="outline" onClick={() => { clear(); setStatus("Verification cancelled. No result is shown.") }}>Cancel verification</Button>}<Button variant="outline" disabled={!file} onClick={() => choose(null)}>Release source</Button></div>
       <p role="status" aria-live="polite" className="text-sm">{status}</p>
       {current?.provenance.warnings.map((warning) => <p key={warning} className="text-sm text-amber-700 dark:text-amber-300">{warning}</p>)}
