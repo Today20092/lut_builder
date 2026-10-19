@@ -1,3 +1,5 @@
+import { cameraGray } from "./cameraReference.ts"
+
 export type Band = { stop: number; width: number; color: string }
 export type Mode = "stops" | "ire" | "fill"
 
@@ -7,6 +9,7 @@ export type Setup = {
   cube_size: number
   bands: Band[]
   band_mode: "stops" | "ire"
+  ire_basis?: "camera" | "target"
   fill_mode: boolean
   low_signal_warning: boolean
   low_signal_hex: string
@@ -60,6 +63,7 @@ export function reduceEditor(state: EditorState, action: EditorAction): EditorSt
       const { setup, after, selection } = state.undo
       const changes: Partial<Setup> = { bands: setup.bands }
       if (setup.band_mode !== after.band_mode) changes.band_mode = setup.band_mode
+      if (setup.ire_basis !== after.ire_basis) changes.ire_basis = setup.ire_basis
       if (setup.fill_mode !== after.fill_mode) changes.fill_mode = setup.fill_mode
       if (setup.monochrome !== after.monochrome) changes.monochrome = setup.monochrome
       return { ...state, setup: { ...state.setup, ...changes }, selection, undo: null }
@@ -88,12 +92,16 @@ export type GradientBlend = "colorful" | "direct"
 export type HuePath = "shorter" | "longer"
 export type PaletteMapping = "band-range" | "exposure"
 
-export function exposureReferenceValue(setup: Pick<Setup, "band_mode">) {
-  // IRE is target-encoded brightness before legal-range packing, matching lutEngine.ts.
+export function exposureReferenceValue(setup: Pick<Setup, "band_mode"> & Partial<Pick<Setup, "profile" | "ire_basis">>) {
+  if (setup.band_mode === "ire" && setup.ire_basis === "camera") return cameraGray[setup.profile as keyof typeof cameraGray]
   return setup.band_mode === "stops" ? 0 : (1.099 * 0.18 ** 0.45 - 0.099) * 100
 }
 
-export function exposurePaletteScale(setup: Pick<Setup, "band_mode">) {
+export function exposurePaletteScale(setup: Pick<Setup, "band_mode"> & Partial<Pick<Setup, "profile" | "ire_basis">>) {
+  if (setup.band_mode === "ire" && setup.ire_basis === "camera") {
+    const reference = exposureReferenceValue(setup)
+    return [reference / 4, reference / 2, reference * 3 / 4, reference, reference + (100 - reference) / 4, reference + (100 - reference) / 2, reference + (100 - reference) * 0.8].map((value, index) => index === 3 ? value : Number(value.toFixed(1)))
+  }
   return setup.band_mode === "stops" ? [-3, -2, -1, 0, 1, 2, 3] : [10, 25, 35, exposureReferenceValue(setup), 55, 65, 80]
 }
 export type FillPreset = "standard" | "detailed"
@@ -111,6 +119,12 @@ const FALSE_COLOR_NAMES = [
 
 const STOP_COLOR_LIMITS = [-3, -2, -1, -0.3, 0.3, 1, 2, 3]
 const IRE_COLOR_LIMITS = [10, 25, 35, 38, 46, 55, 65, 80]
+function ireColorLimits(setup: Setup) {
+  if (setup.ire_basis !== "camera") return IRE_COLOR_LIMITS
+  const scale = exposurePaletteScale(setup)
+  const reference = exposureReferenceValue(setup)
+  return [scale[0], scale[1], scale[2], reference - 2, reference + 2, scale[4], scale[5], scale[6]]
+}
 const STANDARD_FILL_COLOR_NAMES = ["blue-600", "sky-400", "lime-400", "yellow-400", "red-600"]
 
 const toLinear = (value: number) => value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4
@@ -352,7 +366,7 @@ export function applyColorPreset(
   mapping: PaletteMapping = "band-range",
 ) {
   const colors = new Map(palette.map(({ name, hex }) => [name, hex]))
-  const limits = setup.band_mode === "ire" ? IRE_COLOR_LIMITS : STOP_COLOR_LIMITS
+  const limits = setup.band_mode === "ire" ? ireColorLimits(setup) : STOP_COLOR_LIMITS
   const gradient = activeRampAnchors(rampAnchors, lightnessProfile, setup.low_signal_warning, setup.high_signal_warning, reserveEndpoints)
   const minimum = Math.min(...setup.bands.map(({ stop }) => stop))
   const range = Math.max(1, Math.max(...setup.bands.map(({ stop }) => stop)) - minimum)
@@ -404,9 +418,13 @@ export function applyFillPreset(setup: Setup, palette: PaletteColor[], preset: F
 
 export function applyBandPreset(setup: Setup, palette: PaletteColor[], preset: BandPreset) {
   const detailed = preset === "detailed"
-  const centers = setup.band_mode === "ire"
+  let centers = setup.band_mode === "ire"
     ? detailed ? [10, 25, 35, 38, 46, 55, 65, 80, 95] : [10, 25, 40, 50, 60, 75, 90]
     : detailed ? [-4, -3, -2, -1, 0, 1, 2, 3, 4, 5] : [-3, -2, -1, 0, 1, 2, 3]
+  if (setup.band_mode === "ire" && setup.ire_basis === "camera") {
+    centers = exposurePaletteScale(setup)
+    if (detailed) centers = [...centers.slice(0, 3), centers[3] - 4, centers[3], centers[3] + 4, ...centers.slice(4)]
+  }
   return applyColorPreset({
     ...setup,
     fill_mode: false,
@@ -490,12 +508,13 @@ export function changeMode(setup: Setup, mode: Mode, palette?: PaletteColor[]): 
   const changed: Setup = {
     ...setup,
     band_mode: mode === "ire" ? "ire" : "stops",
+    ...(mode === "ire" ? { ire_basis: "camera" as const } : {}),
     fill_mode: mode === "fill",
     monochrome: mode === "fill" ? false : setup.monochrome,
   }
   if (!palette) return changed
   if (mode === "fill") return applyFillPreset(changed, palette, "standard")
-  return setup.band_mode === changed.band_mode && !setup.fill_mode
+  return setup.band_mode === changed.band_mode && setup.ire_basis === changed.ire_basis && !setup.fill_mode
     ? changed
     : applyBandPreset(changed, palette, "standard")
 }

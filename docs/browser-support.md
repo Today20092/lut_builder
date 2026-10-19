@@ -5,7 +5,7 @@ This matrix describes the static [GitHub Pages app](https://today20092.github.io
 | Feature | Browser build |
 | --- | --- |
 | Camera profiles and output gamuts | Six supported profiles; Rec.709 and Rec.2020 |
-| Exposure editor | Stops and IRE bands, Fill zones, overlap priority, palette and setup controls |
+| Exposure editor | Stops and camera-log IRE bands, Fill zones, overlap priority, OKLCH gradient palettes, sticky palette audition with apply/cancel, setup controls, and keyboard shortcuts |
 | LUT generation | On-device worker; 17, 33, and 65 point `.cube` downloads |
 | Setup JSON | Import and export remain available |
 | Named setup presets | Saved in this browser only; storage may be cleared and does not sync between devices. Export JSON for backup or transfer. |
@@ -18,7 +18,30 @@ Still and video verification apply the exact serialized cube used for download, 
 
 Still uploads are limited to 48 MiB plus header. Video is limited to 512 MiB, five minutes, progressive square-pixel sources, and 4,194,304 decoded pixels; HDR, rotation, RAW, JPEG, and unsupported pixel layouts are rejected. The 32 MiB WebAssembly decoder is fetched from this site only when verification starts. Source media and LUTs stay in the browser and are not sent to a processing service. The demonstration image is illustrative and never used as a verification fallback.
 
+## Exposure editor update, October 19, 2026
+
+New IRE selections use camera-log encoded luma and the selected profile's neutral
+gray reference. Existing saved setups retain target-based IRE unless explicitly
+switched. Output Full/Legal packing is a separate setting. See [camera-log IRE](camera-log-ire.md)
+and the [range guide](output-range-guide.md) for conventions and limits.
+
+The mobile layout includes visual mode choices, a persistent exposure preview,
+responsive band rows, and a scrollable gradient editor. Selecting a palette
+auditions it; Use palette commits its colors, and Cancel keeps the current bands.
+The [palette guide](exposure-palettes.md) and [keyboard reference](keyboard-shortcuts.md)
+describe editing behavior. Earlier dated acceptance below records the version
+tested at that time; it does not establish physical phone support for this update.
+
 ## Camera verification acceptance, October 18, 2026
+
+The consolidated October 19 release also passes 64 frontend tests, 158 Python
+tests, and the complete browser/Python LUT-node comparison. Static-site
+acceptance passes Chromium, Firefox, and WebKit at desktop, 390-pixel phone,
+and 820-pixel tablet widths. Chromium's connected Workbench and keyboard checks
+pass, including PFM and variable-frame-rate video verification, checked-cube
+identity, setup persistence, import/export, narrow layouts, and enlarged text.
+These are desktop browser and emulated viewport checks, not physical phone or
+camera/monitor certification.
 
 The production browser build inspected and verified a selected frame from a local
 10-bit HEVC 4:2:0, 2048×1080 Lumix proxy. The selected frame's native YUV bytes

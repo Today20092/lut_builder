@@ -2,7 +2,48 @@
 
 [Back to the README](../README.md)
 
-Use this guide for command options, exposure settings, saved setups, and development.
+Start with the [web editor](https://today20092.github.io/lut_builder/) to make a LUT without installing anything. Use this guide for exposure settings, phone transfer, optional local tools, and development.
+
+## Browser workflow
+
+Choose your recording's log/gamut pairing, then edit Stops, IRE, or Fill bands. Drag the graph controls or edit the values in the table. Numeric fields commit on Enter or blur; Escape discards an unfinished edit. Undo restores the last band edit.
+
+The starting palettes use cool colors below the reference, green at the reference, and warm colors above it. Select a palette to audition it, edit gradient colors, then choose **Use palette**. A preview remains visible while scrolling. Cancel preserves the applied colors. See [palette behavior](exposure-palettes.md) and [keyboard shortcuts](keyboard-shortcuts.md).
+
+Generate and download the `.cube`, then export JSON to back up your applied settings. Browser presets and named palettes do not sync. Clearing storage or changing browsers can remove access to them.
+
+Browser still/video verification applies the serialized LUT on-device. It requires confirmed source interpretation and has format, size, and duration limits. Check the [browser support matrix](browser-support.md) before importing media. The exposure graph describes settings; it is not a camera verification result.
+
+## Transfer from your phone
+
+Bookmark the [web editor](https://today20092.github.io/lut_builder/). In Safari on iPhone, use the [bookmark controls](https://support.apple.com/guide/iphone/bookmark-a-website-iph42ab2f3a7/ios). In Chrome on Android, use the [bookmark menu](https://support.google.com/chrome/answer/188842?hl=en&co=GENIE.Platform%3DAndroid). Your browser may also offer Add to Home Screen. A shortcut does not guarantee offline use.
+
+1. Generate the LUT with a cube size your destination accepts, and save it in Files or Downloads. A JSON setup is a backup for LUT Builder, not a LUT file for the camera.
+2. Import the `.cube` through your camera app's supported LUT workflow, or copy it to a card using the camera's instructions.
+3. Use it for monitoring. Check whether the camera's chosen LUT mode also records the effect; avoid baking false colors into footage unintentionally.
+
+[LUMIX Lab](https://av.jpn.support.panasonic.com/support/global/cs/soft/lumix_lab/en/cts/d0.html) accepts 33-grid `.cube` files. Choose **33³** in LUT Builder, add the file to the app's Device LUT library, then use Transfer to Camera with a compatible connected model. Panasonic documents transfer in its [LUMIX Lab guide](https://av.jpn.support.panasonic.com/support/global/cs/soft/lumix_lab/en/cts/b1.html).
+
+[Sony Creators' App](https://helpguide.sony.net/di-app/ca/v1/en/contents/CA_camera_screen.html) offers LUT Management and import from the smartphone on supported cameras. Check Sony's linked compatibility list and your firmware; app connectivity alone does not establish custom-LUT support. Some workflows use Creators' Cloud instead. This is not a claim that every Sony camera, including the a7 III, can import a custom LUT.
+
+App support and recording-profile support are separate. Match the camera's actual input log/gamut to the LUT and verify the monitoring path before a shoot. Phone download/share and physical camera transfer testing remain incomplete.
+
+## Optional local setup
+
+The web editor is the primary workflow. Install the Python tools if you want the local Workbench, CLI regeneration, or local media verification.
+
+Install [Git](https://git-scm.com/) and [uv](https://docs.astral.sh/uv/getting-started/installation/), then run:
+
+```sh
+git clone https://github.com/Today20092/lut_builder.git
+cd lut_builder
+uv sync --locked
+uv run lut-builder workspace
+```
+
+uv manages Python 3.12 or newer. The Workbench opens at [127.0.0.1:8765](http://127.0.0.1:8765/). Keep the terminal open; press Enter or Ctrl+C to stop it. If that port is occupied, close the other workspace or application and retry. Use the same address and browser to retain access to browser-stored presets.
+
+After setup on Windows, double-click [workspace.bat](../workspace.bat) for the Workbench or [build.bat](../build.bat) for the CLI. On macOS, run `chmod +x build.command` once, then double-click [build.command](../build.command). The [still](still-verification.md) and [video](testing/video-verification.md) guides list local FFmpeg/FFprobe prerequisites.
 
 ## Commands
 
@@ -18,7 +59,7 @@ Use this guide for command options, exposure settings, saved setups, and develop
 
 Run `uv run lut-builder --help` or add `--help` after a command for the current options.
 
-## Interactive Workflow
+## Interactive CLI workflow
 
 You can enter `b` at supported prompts to return to the previous step.
 
@@ -35,7 +76,7 @@ You can enter `b` at supported prompts to return to the previous step.
 
 Cube size 65 gives sharp transitions the most lattice resolution. Sizes 17 and 33 are faster and smaller, but host interpolation can soften narrow false-color boundaries.
 
-## Exposure Modes
+## Exposure modes
 
 ### Stops
 
@@ -49,18 +90,15 @@ CIE Y uses the selected camera gamut's RGB-to-XYZ matrix instead of applying fix
 
 ### IRE
 
-IRE bands use target-encoded luma on a 0–100 scale.
+New web-editor IRE selections measure camera-log encoded RGB luma before the viewing conversion. The reference depends on the selected profile's log curve. Values use a full-code-range percentage, with codes 0 to 1023 corresponding to 0 to 100. This does not promise the same reading on every camera waveform or monitor range setting.
 
-| Output range | 0 IRE | 100 IRE |
-| --- | ---: | ---: |
-| Full/data | Code 0 | Code 1023 |
-| Legal/video | Code 64 | Code 940 |
+Older setups without `ire_basis`, and the existing CLI default, retain target-encoded IRE. The editor labels these legacy setups and offers an undoable switch to camera IRE with fresh band presets. Exported JSON preserves the interpretation. See [camera-log IRE and exposure](camera-log-ire.md) for references, colored-pixel behavior, and compatibility.
 
-Match the camera, monitor, and host range settings to the LUT. A legal-range LUT can be scaled twice if the host also performs a legal/full conversion.
+LUT output range is independent of the IRE measurement. Full writes 0–1; Legal packs output into 64/1023–940/1023. Choose Legal only when the device applying the LUT requires it and does not repeat that packing. See the [output-range guide](output-range-guide.md).
 
 ### Fill
 
-Fill mode assigns every input to the nearest configured stop color. It creates full-coverage false color with no unpainted base image.
+Fill mode creates full-coverage false-color zones with no unpainted base image. In the web editor, drag separators or edit the boundary fields to set where one color gives way to the next. The final zone fills the rest.
 
 ### Encoded-signal warnings
 
@@ -87,7 +125,7 @@ Range:         Full/data
 
 Bands are applied from low to high exposure, so higher-position bands win where ranges overlap. Bands at the same position retain creation order. Encoded-signal warnings are applied after exposure bands and therefore have final priority.
 
-## Supported Camera Profiles
+## Supported camera profiles
 
 | Profile | Camera gamut | Common camera families |
 | --- | --- | --- |
@@ -136,6 +174,7 @@ New setups are saved as version 2 JSON. Existing version 1 configs remain suppor
     {"stop": 0.0, "color": "#22c55e", "width": 0.3}
   ],
   "band_mode": "stops",
+  "ire_basis": "camera",
   "fill_mode": false,
   "low_signal_warning": true,
   "low_signal_hex": "#7c3aed",
@@ -167,16 +206,20 @@ Copy the LUT to the camera's supported custom-LUT location, then assign it throu
 
 Import the `.cube` file as a custom LUT in the application's color workflow. Use it as a monitoring diagnostic, not as the final creative grade.
 
-## How It Works
+## How it works
 
 ```mermaid
 flowchart TD
   Input["Camera log RGB"] --> Decode["Configured log decoder"]
+  Input --> CameraIRE["Camera-log encoded luma, new web IRE"]
   Decode --> Linear["Scene-linear camera-gamut RGB"]
   Linear --> Exposure["CIE Y exposure measurement"]
   Linear --> Gamut["Target-gamut conversion"]
   Gamut --> Transfer["Rec.709 or Rec.2020 OETF"]
-  Exposure --> Bands["Stops, IRE, or Fill mapping"]
+  Exposure --> Bands["Selected exposure-band mapping"]
+  CameraIRE --> Bands
+  Transfer --> LegacyIRE["Target-encoded luma, legacy IRE"]
+  LegacyIRE --> Bands
   Transfer --> Bands
   Bands --> Warnings["Encoded-signal warning priority"]
   Warnings --> Range["Full or legal range encoding"]
@@ -224,7 +267,7 @@ uv run lut-builder --help
 uv run lut-builder list
 ```
 
-Rebuild the bundled browser workspace after frontend changes with `cd frontend`, `pnpm install --frozen-lockfile`, and `pnpm build`.
+From `frontend/`, run `pnpm install --frozen-lockfile`, `pnpm lint`, `pnpm test`, and `pnpm build`. The build checks TypeScript and regenerates bundled assets in `src/lut_builder/static/`; include those assets with frontend changes. The Pages workflow builds separately for the repository URL.
 
 Run `uv run ruff format .` to apply formatting before submitting changes.
 
@@ -234,7 +277,7 @@ The current suite covers config compatibility, catalog validation, log decoding,
 
 Read [Contributing.md](../Contributing.md) before adding a profile or changing LUT behavior. Camera and transfer-function facts should have primary-source documentation and numerical coverage.
 
-Coding agents should start with [AGENTS.md](../AGENTS.md). Repository-specific issue, triage, domain, and research guidance lives under [`docs/`]().
+Coding agents should start with [AGENTS.md](../AGENTS.md). Repository-specific issue, triage, domain, and research guidance lives under [docs](./).
 
 Bug reports and profile requests belong in [GitHub Issues](https://github.com/Today20092/lut_builder/issues).
 

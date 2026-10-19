@@ -565,7 +565,7 @@ export function ColorPicker({
   }
 
   return (
-    <fieldset className="grid gap-2" disabled={disabled}>
+    <fieldset className="grid min-w-0 gap-2" disabled={disabled}>
       <legend className={hideLabel ? "sr-only" : "text-sm font-medium"}>{label}</legend>
       <Popover.Root
         open={open}
@@ -577,11 +577,11 @@ export function ColorPicker({
           setOpen(nextOpen)
         }}
       >
-        <div className="flex min-w-0 items-center gap-2">
+        <div className={`flex min-w-0 items-center ${hideLabel ? "gap-1 sm:gap-2" : "gap-2"}`}>
         <Popover.Trigger
           ref={triggerRef}
           aria-label={`Open ${label} picker`}
-          className="flex size-9 shrink-0 items-center justify-center rounded-md border border-input outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+          className={`flex ${hideLabel ? "size-7 sm:size-9" : "size-9"} shrink-0 items-center justify-center rounded-md border border-input outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50`}
           disabled={disabled}
         >
           <span
@@ -590,7 +590,7 @@ export function ColorPicker({
             style={{ backgroundColor: isHexColor(value) ? value : "#000000" }}
           />
         </Popover.Trigger>
-        <input aria-label={`${label} hex value`} title="Copy or paste a six-digit hex color, such as #2563eb" className={`${fieldClass} min-w-0 font-mono !px-2 text-xs`} value={hexValue} spellCheck={false} aria-invalid={!isHexColor(hexValue)}
+        <input aria-label={`${label} hex value`} title="Copy or paste a six-digit hex color, such as #2563eb" className={`${fieldClass} ${hideLabel ? "!px-1 sm:!px-2" : "!px-2"} min-w-0 font-mono text-xs`} value={hexValue} spellCheck={false} aria-invalid={!isHexColor(hexValue)}
           onChange={(event) => {
             const next = event.target.value
             setHexDraft(next)
@@ -1265,10 +1265,24 @@ export function App() {
               <input type="checkbox" checked={setup.monochrome} disabled={setup.fill_mode} onChange={(e) => patchSetup({ monochrome: e.target.checked })} />
               Monochrome base
             </label>
-            <label className="flex items-center gap-2 text-sm font-medium">
-              <input type="checkbox" checked={setup.legal_range} onChange={(e) => patchSetup({ legal_range: e.target.checked })} />
-              <span className="flex items-center gap-1.5">Legal/video range (off = Full range) <InfoTooltip text="Encodes output in video/legal range instead of full data range. Enable only when the monitoring pipeline expects legal-range levels." /></span>
-            </label>
+            <fieldset className="grid gap-3 sm:col-span-2">
+              <legend className="mb-2 text-sm font-medium">LUT output range</legend>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {([false, true] as const).map((legal) => <label key={String(legal)} className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 has-focus-visible:ring-2 has-focus-visible:ring-ring ${setup.legal_range === legal ? "border-foreground bg-muted" : ""}`}>
+                  <input aria-label={legal ? "Video / Legal" : "Full / Data"} className="mt-1" type="radio" name="output-range" checked={setup.legal_range === legal} onChange={() => patchSetup({ legal_range: legal })} />
+                  <span className="grid gap-1"><span className="text-sm font-medium">{legal ? "Video / Legal" : "Full / Data"}</span><span className="text-xs text-muted-foreground">{legal ? "Packs output into 64–940 (10-bit). Use only when your LUT destination requires it." : "Uses the full 0–1 output range. Tool default; keep unless your LUT destination requires video levels."}</span></span>
+                </label>)}
+              </div>
+              <details className="text-xs text-muted-foreground">
+                <summary className="cursor-pointer font-medium text-foreground">Which should I use?</summary>
+                <div className="mt-3 grid max-w-prose gap-2">
+                  <p>Match the monitor or device applying this LUT. Your camera model alone cannot determine this setting.</p>
+                  <p>Camera HDMI range and monitor input range must also agree. Those settings are separate from LUT output range. If your device already converts levels, extra conversion inside the LUT can give incorrect black and white levels.</p>
+                  <p>Check the device’s LUT instructions. For example, <a className="underline" href="https://guide.smallhd.com/a/1753041-look-3d-lut" target="_blank" rel="noreferrer">SmallHD has LUT data-range settings</a>, while <a className="underline" href="https://support.atomos.com/hc/en-us/articles/10342509794959-Input-Menu" target="_blank" rel="noreferrer">Atomos Legalize is an input conversion</a> with workflow-specific instructions. They are not interchangeable with this switch.</p>
+                  <p>Validate a known grayscale ramp and gray patch through your actual camera and monitor setup. This switch changes output levels; it does not correct a mismatched incoming signal.</p>
+                </div>
+              </details>
+            </fieldset>
             <details className="text-sm sm:col-span-2">
               <summary className="cursor-pointer font-medium">Customize output filename</summary>
             <div className="mt-3 grid max-w-2xl gap-2">
@@ -1297,10 +1311,10 @@ export function App() {
               <legend className="sr-only">Band mode</legend>
               {([
                 ["stops", "Stops", "Mark exposure", "−3   0   +3"],
-                ["ire", "IRE", "Mark brightness", "0   50   100"],
+                ["ire", "IRE", "Camera log level", "0   50   100"],
                 ["fill", "Fill", "Color every zone", "Low → High"],
               ] as const).map(([value, title, description, scale]) => <label key={value} className={`relative grid min-w-0 cursor-pointer gap-2 rounded-lg border p-2.5 has-focus-visible:ring-2 has-focus-visible:ring-ring ${mode === value ? "border-foreground bg-muted" : "hover:bg-muted/50"}`}>
-                <input className="sr-only" type="radio" name="band-mode" value={value} checked={mode === value} onChange={() => editSetup((current) => changeMode(current, value, catalog.palette))} />
+                <input className="absolute inset-0 size-full cursor-pointer opacity-0" type="radio" name="band-mode" value={value} checked={mode === value} onChange={() => editSetup((current) => changeMode(current, value, catalog.palette))} />
                 <span aria-hidden="true" className="flex h-8 overflow-hidden rounded border bg-background">
                   {(value === "fill" ? ["#5b21b6", "#2563eb", "#22c55e", "#facc15", "#dc2626"] : ["transparent", "#2563eb", "transparent", "#22c55e", "transparent", "#dc2626", "transparent"]).map((color, index) => <span key={index} className="flex-1" style={{ backgroundColor: color }} />)}
                 </span>
@@ -1309,30 +1323,43 @@ export function App() {
                 <span className="text-xs text-muted-foreground">{description}</span>
               </label>)}
             </fieldset>
+            {mode === "ire" && <p className="text-xs text-muted-foreground">{setup.ire_basis === "camera" ? `${setup.profile} · camera-log input · full-code-range scale` : "Legacy setup · target-display IRE"}{setup.ire_basis !== "camera" && <> · <button type="button" className="font-medium text-foreground underline" onClick={() => editSetup((current) => changeMode(current, "ire", catalog.palette))}>Switch to camera-log IRE</button></>}</p>}
             <div className="flex items-center justify-between gap-2">
-              <Button type="button" variant="outline" onClick={addBand}>+ Add band</Button>
-              <Button type="button" variant="ghost" disabled={!undo} aria-keyshortcuts="Control+z Meta+z" onClick={undoEdit}>Undo last band edit</Button>
+              <Button type="button" variant="outline" onClick={addBand}>Add band</Button>
+              <Button type="button" variant="ghost" disabled={!undo} onClick={undoEdit}>Undo last band edit</Button>
             </div>
             <details className="rounded-lg border p-3">
               <summary className="cursor-pointer text-sm font-medium">Band setup &amp; graph settings</summary>
-            <div className="grid min-w-0 gap-5">
-              <div className="flex flex-wrap items-end gap-5">
-                <div className="grid gap-1">
-                <span className="mt-4 text-sm font-semibold">Replace arrangement</span>
-                <div className="flex flex-wrap items-end gap-2">
+            <div className="mt-4 grid min-w-0 gap-5">
+              <section className="grid gap-3" aria-label="Replace arrangement">
+                <div className="grid grid-cols-1 items-end gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
                 {!setup.fill_mode && (
                   <>
-                    <label className="grid w-48 max-w-full gap-1 text-xs font-medium">Band preset
+                    <label className="grid min-w-0 gap-1.5 text-xs font-medium">Band preset
                       <select className={fieldClass} value={bandPreset} onChange={(event) => setBandPreset(event.target.value as BandPreset)}>
                         <option value="standard">Standard · 7 bands</option>
                         <option value="detailed">Detailed · {mode === "ire" ? "9" : "10"} bands</option>
                       </select>
                     </label>
-                    <Button type="button" size="lg" variant="outline" onClick={() => editSetup((current) => applyBandPreset(current, catalog.palette, bandPreset))}>Apply preset</Button>
+                    <Button type="button" className="w-full sm:w-auto" variant="outline" onClick={() => editSetup((current) => applyBandPreset(current, catalog.palette, bandPreset))}>Apply preset</Button>
                   </>
                 )}
+                {setup.fill_mode && <>
+                  <label className="grid min-w-0 gap-1.5 text-xs font-medium">Fill preset
+                    <select className={fieldClass} value={fillPreset} onChange={(event) => setFillPreset(event.target.value as FillPreset)}>
+                      <option value="standard">Standard · 5 zones</option>
+                      <option value="detailed">Detailed · 9 zones</option>
+                    </select>
+                  </label>
+                  <Button type="button" className="w-full sm:w-auto" variant="outline" onClick={() => editSetup((current) => applyFillPreset(current, catalog.palette, fillPreset))}>Apply preset</Button>
+                </>}
+                </div>
+                <p className="text-xs text-muted-foreground">Replaces positions and colors. Undo restores them.</p>
+              </section>
+              {(!setup.fill_mode || setup.band_mode === "stops") && <section className="grid gap-3 border-t pt-4" aria-label="Adjust bands and graph">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 {!setup.fill_mode && (
-                <label className="grid w-40 max-w-full gap-1 text-xs font-medium">Band width ({mode === "ire" ? "IRE" : "stops"})
+                <label className="grid min-w-0 gap-1.5 text-xs font-medium">All band widths ({mode === "ire" ? "IRE" : "stops"})
                   <BandNumberInput
                     aria-label="All total widths"
                     className={fieldClass}
@@ -1346,32 +1373,18 @@ export function App() {
                 </label>
                 )}
                 {mode === "stops" && (
-                  <label className="grid gap-1 text-xs font-medium">Drag step
-                    <select className={fieldClass} value={stopIncrement} onChange={(event) => setStopIncrement(Number(event.target.value) as 1 | 0.5 | 0.25)}>
+                  <label className="grid min-w-0 gap-1.5 text-xs font-medium">Drag step
+                    <select aria-label="Movement increment" className={fieldClass} value={stopIncrement} onChange={(event) => setStopIncrement(Number(event.target.value) as 1 | 0.5 | 0.25)}>
                       <option value="1">1 stop</option><option value="0.5">½ stop</option><option value="0.25">¼ stop</option>
                     </select>
                   </label>
                 )}
-                {setup.fill_mode && (
-                  <>
-                    <label className="grid gap-1 text-xs font-medium">
-                      Fill preset
-                      <select className={fieldClass} value={fillPreset} onChange={(event) => setFillPreset(event.target.value as FillPreset)}>
-                        <option value="standard">Standard · 5 zones</option>
-                        <option value="detailed">Detailed · 9 zones</option>
-                      </select>
-                    </label>
-                    <Button type="button" size="lg" variant="outline" onClick={() => editSetup((current) => applyFillPreset(current, catalog.palette, fillPreset))}>Apply preset</Button>
-                  </>
-                )}
-                </div>
-                </div>
-              </div>
-              <p className="text-xs text-muted-foreground">Applying a preset replaces band positions and colors. Undo restores them.</p>
-              {setup.band_mode === "stops" && <label className="flex flex-wrap items-center gap-2 text-sm">Visible range · ±
-                <select aria-label="Graph range in stops" className={`${fieldClass} !w-32`} value={graphRange} onChange={(event) => setGraphRange(Number(event.target.value))}>{Array.from({ length: 20 }, (_, index) => index + 1).map((value) => <option key={value} value={value}>±{value} stops</option>)}</select>
-                <span className="text-xs text-muted-foreground">View only</span>
+              {setup.band_mode === "stops" && <label className="grid min-w-0 gap-1.5 text-xs font-medium sm:col-span-2">Visible range (± stops)
+                <select aria-label="Graph range in stops" className={fieldClass} value={graphRange} onChange={(event) => setGraphRange(Number(event.target.value))}>{Array.from({ length: 20 }, (_, index) => index + 1).map((value) => <option key={value} value={value}>±{value} stops</option>)}</select>
+                <span className="text-xs font-normal text-muted-foreground">Zooms the graph; your bands stay unchanged.</span>
               </label>}
+                </div>
+              </section>}
             </div>
             </details>
           </CardHeader>
@@ -1397,23 +1410,24 @@ export function App() {
                     : updateBand(current, index, { stop }), index)}
                   onWidthChange={(index, width) => editSetup((current) => updateBand(current, index, { width }), index)}
                 />
-                <div className="relative overflow-x-auto rounded-lg border">
-                  <table className="w-full table-fixed min-w-[42rem] text-sm">
-                    <thead className="bg-muted/50 text-left text-xs text-muted-foreground"><tr><th className="w-20 px-3 py-2">Band</th><th className="w-44 px-3 py-2">Color</th><th className="px-3 py-2">{setup.fill_mode ? "Boundary to next color" : mode === "ire" ? "Position (IRE)" : "Position (stops)"}</th><th className="px-3 py-2">{setup.fill_mode ? "Coverage" : `Total width (${mode === "ire" ? "IRE" : "stops"})`}</th><th className="w-32 px-3 py-2"><span className="sr-only">Actions</span></th></tr></thead>
+                <div className="relative min-w-0 rounded-lg border">
+                  <table aria-label="Band colors and positions" className="w-full table-fixed text-sm [&_td]:p-1 [&_th]:p-1 sm:[&_td]:p-2 sm:[&_th]:p-2">
+                    <colgroup><col className="w-[42%] sm:w-[34%]" /><col className="w-[24%]" /><col /><col className="w-9 sm:w-28" /></colgroup>
+                    <thead className="bg-muted/50 text-left text-[10px] text-muted-foreground sm:text-xs"><tr><th>Color</th><th>{setup.fill_mode ? "Boundary" : <>Position <span className="block sm:inline">({mode === "ire" ? "IRE" : "stops"})</span></>}</th><th>{setup.fill_mode ? "Coverage" : <>Width <span className="block sm:inline">({mode === "ire" ? "IRE" : "stops"})</span></>}</th><th><span className="sr-only">Actions</span></th></tr></thead>
                     <tbody>{setup.bands.map((band, index) => (
                       <tr className={`border-t ${selectedBand === index ? "bg-accent/60" : ""}`} key={bandId(band)} onFocus={() => selectBand(index)} onClick={() => selectBand(index)}>
-                        <th className="p-3 text-left font-medium" scope="row">{setup.fill_mode ? "Color" : "Band"} {index + 1}{selectedBand === index && <span className="block text-xs">Selected</span>}</th>
-                        <td className="p-2"><ColorPicker hideLabel triggerRef={(element) => { if (element) colorTriggers.current.set(bandId(band), element); else colorTriggers.current.delete(bandId(band)) }} label={`Band ${index + 1} color`} value={band.color} onChange={(color) => editSetup((current) => updateBand(current, index, { color }), index)} /></td>
+                        <th scope="row" className="p-2 font-normal"><ColorPicker hideLabel triggerRef={(element) => { if (element) colorTriggers.current.set(bandId(band), element); else colorTriggers.current.delete(bandId(band)) }} label={`Band ${index + 1} color`} value={band.color} onChange={(color) => editSetup((current) => updateBand(current, index, { color }), index)} /></th>
                         <td className="p-2">{setup.fill_mode && index === setup.bands.length - 1
                           ? <span className="text-muted-foreground">—</span>
-                          : <BandNumberInput aria-label={setup.fill_mode ? `Boundary after color ${index + 1}` : `Band ${index + 1} ${mode === "ire" ? "IRE" : "stops"}`} className={fieldClass} step={movementIncrement} min={mode === "ire" ? 0 : undefined} max={mode === "ire" ? 100 : undefined} value={band.stop} onChange={(stop) => editSetup((current) => setup.fill_mode ? updateFillBoundary(current, index, stop, movementIncrement) : updateBand(current, index, { stop }), index)} />}</td>
+                          : <BandNumberInput aria-label={setup.fill_mode ? `Boundary after color ${index + 1}` : `Band ${index + 1} ${mode === "ire" ? "IRE" : "stops"}`} className={`${fieldClass} !px-1 !text-xs sm:!px-3 sm:!text-sm`} step={movementIncrement} min={mode === "ire" ? 0 : undefined} max={mode === "ire" ? 100 : undefined} value={band.stop} onChange={(stop) => editSetup((current) => setup.fill_mode ? updateFillBoundary(current, index, stop, movementIncrement) : updateBand(current, index, { stop }), index)} />}</td>
                         <td className="p-2">{setup.fill_mode
-                          ? <span className="text-muted-foreground">{index === setup.bands.length - 1 ? "Fills the rest" : "Until boundary"}</span>
-                          : <BandNumberInput aria-label={`Band ${index + 1} total width`} className={fieldClass} min={0} step={0.2} value={band.width * 2} onChange={(width) => editSetup((current) => updateBand(current, index, { width: width / 2 }), index)} />}</td>
+                          ? <span className="block break-words text-[10px] text-muted-foreground sm:text-xs">{index === setup.bands.length - 1 ? "Rest" : "To boundary"}</span>
+                          : <BandNumberInput aria-label={`Band ${index + 1} total width`} className={`${fieldClass} !px-1 !text-xs sm:!px-3 sm:!text-sm`} min={0} step={0.2} value={band.width * 2} onChange={(width) => editSetup((current) => updateBand(current, index, { width: width / 2 }), index)} />}</td>
                         <td className="p-2"><Button
                           aria-label={removingBandIndex === index ? `Confirm remove band ${index + 1}` : `Remove band ${index + 1}`}
                           type="button"
                           size="sm"
+                          className="h-9 w-7 !px-0 sm:w-full sm:!px-2"
                           variant={removingBandIndex === index ? "destructive" : "ghost"}
                           onClick={(event) => {
                             event.stopPropagation()
@@ -1421,7 +1435,7 @@ export function App() {
                             editSetup((current) => removeBand(current, index))
                             setRemovingBandIndex(null)
                           }}
-                        >{removingBandIndex === index ? "Confirm remove" : "Remove"}</Button></td>
+                        ><span aria-hidden="true" className="text-base sm:hidden">{removingBandIndex === index ? "✓" : "×"}</span><span className="hidden sm:inline">{removingBandIndex === index ? "Confirm remove" : "Remove"}</span></Button></td>
                       </tr>
                     ))}</tbody>
                   </table>

@@ -324,7 +324,7 @@ def test_cancel_partial_upload_releases_files_and_missing_tools_are_actionable(
     not shutil.which("ffmpeg") or not shutil.which("ffprobe"),
     reason="Real FFmpeg/FFprobe required",
 )
-@pytest.mark.parametrize("failed_tree_termination", [False, True])
+@pytest.mark.parametrize("failed_tree_termination", [False, True, "nonzero"])
 def test_invalid_media_and_processing_deadline_cleanup(
     tmp_path, monkeypatch, failed_tree_termination
 ):
@@ -349,6 +349,8 @@ def test_invalid_media_and_processing_deadline_cleanup(
 
             def fail_taskkill(args, **kwargs):
                 if str(args[0]).endswith("taskkill.exe"):
+                    if failed_tree_termination == "nonzero":
+                        return subprocess.CompletedProcess(args, 1)
                     raise OSError("Tree termination unavailable")
                 return original_run(args, **kwargs)
 

@@ -103,3 +103,9 @@ in this environment; those checks remain manual.
 No Python implementation changed for this ticket, so the standalone Python suite
 was not rerun. Existing camera-source validation tests ran in the frontend suite;
 new physical-camera/FFmpeg media acceptance was not performed.
+# PR integration verification
+
+Integrated main at `44ef7c1` before merging PR #46. Preserved camera-log IRE
+semantics and the responsive band settings from main. The combined frontend passes
+67 tests, lint, TypeScript and production build. Cancellation restores scroll
+after the parent preview collapses; the WebKit acceptance check covers this timing.

@@ -27,6 +27,7 @@ class LutSetup:
     output_filename: str = ""
     legal_range: bool = False
     fill_mode: bool = False
+    ire_basis: str = "target"
 
     def __post_init__(self) -> None:
         if self.profile_name not in PROFILE_CATALOG.source_names():
@@ -37,6 +38,8 @@ class LutSetup:
             raise ValueError(f"cube_size must be one of {sorted(CUBE_SIZES)}")
         if self.band_mode not in {"stops", "ire"}:
             raise ValueError("band_mode must be 'stops' or 'ire'")
+        if self.ire_basis not in {"camera", "target"}:
+            raise ValueError("ire_basis must be 'camera' or 'target'")
         if not self.output_filename:
             self.output_filename = f"{self.profile_name.replace(' ', '')}_Custom.cube"
 
@@ -74,6 +77,7 @@ class LutSetup:
             "cube_size": "cube_size",
             "bands": "bands",
             "band_mode": "band_mode",
+            "ire_basis": "ire_basis",
             "black_clip": "low_signal_warning",
             "black_hex": "low_signal_hex",
             "white_clip": "high_signal_warning",
@@ -104,6 +108,7 @@ class LutSetup:
             "cube_size": self.cube_size,
             "bands": self.bands,
             "band_mode": self.band_mode,
+            **({"ire_basis": "camera"} if self.ire_basis == "camera" else {}),
             "fill_mode": self.fill_mode,
             "low_signal_warning": self.low_signal_warning,
             "low_signal_hex": self.low_signal_hex,

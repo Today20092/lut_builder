@@ -52,6 +52,48 @@ def test_srgb_overlay_is_written_in_target_gamut(tmp_path, target_name):
         assert np.any(np.all(np.isclose(lut.table, expected, atol=1e-6), axis=-1))
 
 
+@pytest.mark.parametrize("profile_name", PROFILE_CATALOG.source_names())
+@pytest.mark.parametrize("target_name", ["Rec.709", "Rec.2020"])
+def test_camera_ire_measures_input_signal_and_reference(
+    tmp_path, profile_name, target_name
+):
+    profile = PROFILE_CATALOG.source(profile_name)
+    encoder = (
+        colour.cctf_encoding
+        if profile_name == "Blackmagic Film Gen 5"
+        else colour.models.log_encoding
+    )
+    reference = float(encoder(0.18, function=profile.log)) * 100
+    import re
+
+    reference_source = (
+        Path(__file__).parents[1] / "frontend/src/cameraReference.ts"
+    ).read_text()
+    match = re.search(rf'"{re.escape(profile_name)}": ([\d.]+)', reference_source)
+    assert match is not None
+    assert float(match.group(1)) == pytest.approx(reference, abs=1e-10)
+    setup = LutSetup(
+        profile_name,
+        target_name,
+        cube_size=17,
+        band_mode="ire",
+        ire_basis="camera",
+        bands=[{"stop": reference, "width": 3, "color": "#ffffff"}],
+        monochrome=True,
+        legal_range=target_name == "Rec.2020",
+        output_filename=str(tmp_path / "camera.cube"),
+    )
+    assert LutSetup.from_config(setup.to_config()) == setup
+    lut = colour.read_LUT(str(generate_lut(setup)))
+    assert isinstance(lut, colour.LUT3D)
+    samples = colour.LUT3D(size=17).table
+    weights = colour.RGB_COLOURSPACES[profile.gamut].matrix_RGB_to_XYZ[1, :]
+    mask = np.abs(np.dot(samples, weights) * 100 - reference) <= 3
+    assert np.any(mask)
+    white = 940 / 1023 if setup.legal_range else 1
+    assert np.allclose(lut.table[mask], white, atol=3e-5)
+
+
 @pytest.mark.parametrize("size", [17, 33, 65])
 @pytest.mark.parametrize("mode,center,width", [("stops", 0.0, 0.5), ("ire", 42.0, 6.0)])
 def test_neutral_ramp_band_edges_and_half_grid_clipping(

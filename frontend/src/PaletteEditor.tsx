@@ -78,10 +78,11 @@ export function PaletteEditor({ setup, palette, onApply, onPreview }: { setup: S
     const target = chooser.current
     const top = target?.getBoundingClientRect().top
     send({ type: "cancel" })
-    requestAnimationFrame(() => {
+    // Wait for the parent preview to collapse before restoring the chooser position.
+    requestAnimationFrame(() => requestAnimationFrame(() => {
       target?.focus({ preventScroll: true })
       if (target && top !== undefined) window.scrollBy(0, target.getBoundingClientRect().top - top)
-    })
+    }))
   }, [])
   function setDraft(next: Draft, label = "Custom gradient", origin?: HTMLElement) {
     if (origin) chooser.current = origin
@@ -164,20 +165,22 @@ export function PaletteEditor({ setup, palette, onApply, onPreview }: { setup: S
     </fieldset>
     </>}
     {mapping === "exposure" ? <div className="grid gap-1 text-xs text-muted-foreground">
-      <details><summary className="cursor-pointer py-2">About exposure colors</summary><p>Reference: {setup.band_mode === "stops" ? "0 stops" : `${exposureReferenceValue(setup).toFixed(1)} IRE on the neutral target scale`} = 18% scene-linear gray. Green marks this reference in the starting palettes, not a universal correct exposure.</p>
-      <p>Cool colors indicate below reference; yellow, orange and red indicate above it. {setup.band_mode === "stops" ? "Colors span −3 to +3 stops." : "Colors span 10 to 80 target IRE, with green at the neutral reference."} The end colors extend beyond that range. Red does not establish sensor clipping.</p>
+      <p>18% gray reference: <strong className="text-foreground">{exposureReferenceValue(setup).toFixed(setup.band_mode === "stops" ? 0 : 1)} {setup.band_mode === "stops" ? "stops" : "IRE"}</strong>{setup.band_mode === "ire" ? ` · ${setup.ire_basis === "camera" ? setup.profile : "Legacy target-display signal"}` : " · scene-linear exposure"}.</p>
+      <details><summary className="cursor-pointer">What does the reference mean?</summary><p className="mt-2">Green marks 18% scene gray, not a universal correct exposure for every subject. {setup.band_mode === "ire" && setup.ire_basis === "camera" ? "Camera-log IRE measures encoded input luma using the source gamut weights, on a full-code-range scale (0–1023). Match your monitor's signal range; legal-range waveform readings may differ. Stops measures scene-linear luminance and is preferable for exposure comparisons of colored subjects." : "Stops measures scene-linear luminance; older IRE setups measure the target-display signal."} Cool colors are below reference; warm colors are above. Red does not establish sensor clipping.</p></details>
       {setup.fill_mode && <p>Fill colors cover entire existing zones: the zone containing the reference uses its color, and the outer zones use the end colors.</p>}
-      </details><ul className="mt-2 grid grid-cols-4 gap-2 sm:grid-cols-7" aria-label="Exposure palette legend">{["Deep shadows", "Shadows", "Below reference", "Reference", "Above reference", "Highlights", "Very high"].map((label, index) => <li key={label} className="grid gap-1"><span aria-hidden="true" className="h-4 rounded border" style={{ backgroundColor: ramp[Math.round(index / 6 * 64)] }} /><span className="font-medium text-foreground">{setup.band_mode === "stops" && index > 3 ? "+" : ""}{Number(exposurePaletteScale(setup)[index].toFixed(1))} {setup.band_mode === "stops" ? "stops" : "IRE"}</span><span>{label}</span></li>)}</ul>
+      <p className="mt-2 font-medium">{setup.band_mode === "stops" ? "Stops from reference" : "Signal level · IRE"}</p>
+      <ul className="grid grid-cols-7 items-start gap-1.5" aria-label="Exposure palette legend">{["Deep shadows", "Shadows", "Below reference", "Reference", "Above reference", "Highlights", "Very high"].map((label, index) => <li key={label} className="grid min-w-0 grid-rows-[1rem_1rem_auto] gap-1"><span aria-hidden="true" className="h-4 rounded border" style={{ backgroundColor: ramp[Math.round(index / 6 * 64)] }} /><span className="whitespace-nowrap text-center text-[11px] font-medium tabular-nums text-foreground sm:text-xs">{setup.band_mode === "stops" && index > 3 ? "+" : ""}{Number(exposurePaletteScale(setup)[index].toFixed(1))}<span className="sr-only"> {setup.band_mode === "stops" ? "stops" : "IRE"}</span></span><span className="sr-only sm:not-sr-only sm:text-center">{label}</span></li>)}</ul>
+      <div aria-hidden="true" className="flex justify-between text-[11px] sm:hidden"><span>Shadows</span><span>Reference</span><span>Highlights</span></div>
     </div> : <p className="text-xs text-muted-foreground">Saved custom gradient: colors span your current band range. Its middle color is not anchored to the exposure reference.</p>}
     {method === "gradient" && <>
     <h4 className="text-sm font-medium">Shape your gradient</h4>
-    <div className="flex flex-wrap items-end gap-3">
-      <label className="grid min-w-40 gap-1 text-sm font-medium">Blend
+    <div className="grid grid-cols-1 items-end gap-3 sm:grid-cols-2">
+      <label className="grid min-w-0 gap-1 text-sm font-medium">Blend
         <select aria-label="Gradient blend" className={fieldClass} value={blend} onChange={(event) => setDraft({ ...draft, blend: event.target.value as GradientBlend })}>
           <option value="colorful">Colorful · OKLCH</option><option value="direct">Direct · OKLab</option>
         </select>
       </label>
-      {blend === "colorful" && <label className="grid min-w-40 gap-1 text-sm font-medium">Hue path
+      {blend === "colorful" && <label className="grid min-w-0 gap-1 text-sm font-medium">Hue path
         <select aria-label="Hue path" className={fieldClass} value={huePath} onChange={(event) => setDraft({ ...draft, huePath: event.target.value as HuePath })}>
           <option value="shorter">Shorter</option><option value="longer">Longer</option>
         </select>

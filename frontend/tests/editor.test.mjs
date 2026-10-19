@@ -18,6 +18,7 @@ import {
   oklchToHex,
   sampleOklabRamp,
   exposureReferenceValue,
+  exposurePaletteScale,
   importSetup,
   resizeBandWidth,
   removeBand,
@@ -191,6 +192,22 @@ test("exposure palettes keep the reference green with asymmetric ranges, IRE, an
   assert.deepEqual(apply(fill).bands.map((band) => band.color), ["#5b21b6", "#22c55e", "#dc2626"])
 })
 
+test("camera-log IRE anchors follow each camera and undo preserves legacy interpretation", () => {
+  const expected = { "Sony S-Log3": 41.1, "Panasonic V-Log": 42.3, "Canon Log 3": 34.3, "ARRI LogC3": 39.1, "RED Log3G10": 33.3, "Blackmagic Film Gen 5": 38.4 }
+  for (const [profile, reference] of Object.entries(expected)) {
+    const camera = changeMode({ ...setup, profile }, "ire", palette)
+    assert.equal(Number(exposureReferenceValue(camera).toFixed(1)), reference)
+    assert.equal(camera.bands[3].stop, exposureReferenceValue(camera))
+    assert.equal(camera.bands[3].color, palette.find(({ name }) => name === "green-500").hex)
+  }
+  const legacy = { ...setup, band_mode: "ire" }
+  assert.equal(Number(exposureReferenceValue(legacy).toFixed(1)), 40.9)
+  const changed = reduceEditor(createEditorState(legacy), { type: "edit", edit: (current) => changeMode(current, "ire", palette) })
+  const restored = reduceEditor(changed, { type: "undo" }).setup
+  assert.equal(restored.ire_basis, undefined)
+  assert.deepEqual(restored.bands, legacy.bands)
+})
+
 test("Colorful hue paths wrap around zero and neutral endpoints inherit the colored hue", () => {
   const anchors = [{ l: 0.7, c: 0.1, h: 350 }, { l: 0.7, c: 0.1, h: 10 }]
   assert.equal(sampleOklabRamp(anchors, 0.5, "colorful", "shorter"), oklchToHex({ l: 0.7, c: 0.1, h: 0 }))
@@ -210,7 +227,8 @@ test("band presets provide useful stops and IRE defaults", () => {
   assert.ok(stops.bands.every(({ width }) => width === 0.3))
 
   const ire = changeMode(setup, "ire", palette)
-  assert.deepEqual(ire.bands.map(({ stop }) => stop), [10, 25, 40, 50, 60, 75, 90])
+  assert.equal(ire.ire_basis, "camera")
+  assert.deepEqual(ire.bands.map(({ stop }) => stop), exposurePaletteScale(ire))
   assert.ok(ire.bands.every(({ width }) => width === 3))
 })
 

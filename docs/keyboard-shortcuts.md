@@ -37,14 +37,6 @@ available through their visible keyboard-operable controls.
 Band undo remains one step deep. Redo and a longer edit history are outside this
 change. Browser Save/Open/Reload shortcuts are preserved.
 
-## Integrated UI
-
-The current checkout includes the newer UI work from the `ui-workbench` worktree:
-gradient editing, exposure palette mapping, persistent exposure preview, palette
-audition/apply/cancel, and the revised layout. The existing browser camera
-verification is retained. The throwaway `prototype/lut-ui` runtime was excluded.
-The source worktree was left intact, and production browser assets were rebuilt.
-
 ## Verification
 
 Run from `frontend/`: `pnpm install --frozen-lockfile`, `pnpm lint`, `pnpm test`,
@@ -72,9 +64,12 @@ checked-cube identity, and desktop/narrow/200% text/dark layouts. FFmpeg and FFp
 were available. Unit coverage also checks frame jumps, bounds, field protection,
 busy states and confirmation invalidation.
 
-Final frontend checks: ESLint, all 62 tests, TypeScript/Vite production build and
-Git whitespace checks pass. Both connected Chromium scripts pass.
+The consolidated release passes ESLint, all 64 frontend tests, and the
+TypeScript/Vite production build. Browser-only Chromium checks cover desktop,
+mobile, and tablet layouts. Static-site acceptance also passes Firefox and WebKit
+at those widths. Python formatting, lint, and type checks pass.
+The full Python suite is checked separately from these keyboard acceptance tests.
 
-Not checked: Safari, Firefox, screen-reader speech, or a physical Mac keyboard.
+The keyboard-only walkthrough was not repeated in Safari or Firefox.
+Screen-reader speech and a physical Mac keyboard remain unchecked.
 Cmd+Z is covered by a synthetic event; Ctrl+Z is exercised in real Chromium.
-Python source was unchanged, so the full Python suite was not rerun.

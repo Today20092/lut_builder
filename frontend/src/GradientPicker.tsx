@@ -154,8 +154,8 @@ export function GradientPicker({ colors, positions, blend, huePath, displayColor
         <p className="text-xs text-muted-foreground">Tap to select. Use buttons to adjust; swipe vertically to scroll.</p>
       </div>
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h4 className="text-sm font-medium">Color {selected + 1} <span className="font-normal text-muted-foreground">· {positionLabel(positions[selected])}{selected === referenceIndex ? " · reference" : exposureAnchored ? "" : " of ramp"}</span></h4>
-        <Button type="button" variant="ghost" size="sm" disabled={colors.length <= 2 || selected === referenceIndex} onClick={remove}>Remove selected color</Button>
+          <Button type="button" variant="ghost" size="sm" aria-label="Remove selected color" disabled={colors.length <= 2 || selected === referenceIndex} onClick={remove}>Remove selected color</Button>
+          <h4 className="text-sm font-medium">Color {selected + 1} <span className="font-normal text-muted-foreground">· {positionLabel(positions[selected])}{selected === referenceIndex ? " · reference" : exposureAnchored ? "" : " of ramp"}</span></h4>
       </div>
       <OklchPicker key={selected} color={colors[selected]} onChange={(color) => onChange(colors.map((item, index) => index === selected ? color : item), positions)} />
     </div>

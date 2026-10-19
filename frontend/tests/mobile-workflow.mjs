@@ -32,7 +32,7 @@ for (const [engine, width, touch] of [['chromium', 320, true], ['chromium', 390,
     const navigation = await page.getByRole('navigation', { name: 'Workbench sections' }).locator('a').evaluateAll(links => links.map(link => link.getBoundingClientRect().top))
     assert.equal(new Set(navigation).size, 1, 'compact navigation stays on one row')
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true)
-    await button('+ Add band').click()
+    await button('Add band').click()
     const committed = await colors()
     const summary = await outputColors()
     await page.getByText('Band setup & graph settings', { exact: true }).click()
