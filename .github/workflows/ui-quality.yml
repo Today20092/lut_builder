@@ -3,6 +3,12 @@ name: UI quality
 on:
   workflow_call:
   workflow_dispatch:
+    inputs:
+      suite:
+        description: Run the full gate or capture canonical visual states only
+        type: choice
+        default: all
+        options: [all, visual]
 
 permissions:
   contents: read
@@ -24,7 +30,15 @@ jobs:
           version: 10.28.2
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck:ui
-      - run: pnpm test:ui
+      - name: Run UI quality suite
+        env:
+          UI_SUITE: ${{ inputs.suite || 'all' }}
+        run: |
+          if [ "$UI_SUITE" = visual ]; then
+            pnpm test:ui --grep '@visual'
+          else
+            pnpm test:ui
+          fi
       - name: Upload UI report, screenshot differences and traces
         if: always()
         uses: actions/upload-artifact@v6

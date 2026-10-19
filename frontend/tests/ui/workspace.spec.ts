@@ -279,6 +279,8 @@ async function snapshot(page: Page, region: Locator, name: string) {
   await page.evaluate(() => window.scrollTo(0, 0))
   const clip = await region.boundingBox()
   expect(clip).not.toBeNull()
+  // Missing baselines fail before Playwright attaches an actual image.
+  await page.screenshot({ path: test.info().outputPath(name), fullPage: true, clip: clip!, animations: 'disabled' })
   await expect.soft(page).toHaveScreenshot(name, { fullPage: true, clip: clip! })
 }
 
@@ -426,5 +428,6 @@ test('reviewed UI screenshots @visual', async ({ page }) => {
   await page.getByRole('button', { name: 'Confirm and apply look', exact: true }).click()
   await expect(page.locator('[aria-label="Neutral camera patches at labeled stops"] > div')).toHaveCount(9)
   await page.evaluate(() => window.scrollTo(0, 0))
+  await page.screenshot({ path: test.info().outputPath('imported-workspace.png'), fullPage: true, animations: 'disabled' })
   await expect.soft(page).toHaveScreenshot('imported-workspace.png', { fullPage: true })
 })
