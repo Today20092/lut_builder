@@ -6,6 +6,7 @@ import type { Setup } from "@/editor"
 import { isTypingTarget } from "./keyboard"
 import type { VideoFrame } from "./previewMedia"
 import { CheckedStillSchema, localVerifiedResult, type VerifiedResult, type VerifiedPixel } from "./verifiedResult"
+import { setupIdentity } from "./importedLut"
 
 export type SourceInterpretations = Record<string, { transfer: string; gamut: string }>
 const ErrorResponseSchema = Schema.Struct({ error: Schema.optional(Schema.String) })
@@ -81,6 +82,7 @@ export function CheckedImage({ result }: { result: VerifiedResult }) {
   const [pixel, setPixel] = useState<VerifiedPixel | null>(null)
   const [error, setError] = useState("")
   const [expanded, setExpanded] = useState(false)
+  const [diagnostics, setDiagnostics] = useState(true)
   const dialog = useRef<HTMLDialogElement>(null)
   const expand = useRef<HTMLButtonElement>(null)
   const sampleRequest = useRef(0)
@@ -114,12 +116,17 @@ export function CheckedImage({ result }: { result: VerifiedResult }) {
   }
 
   const content = <div className="grid min-w-0 gap-3">
-    <img src={result.image} alt="Verified LUT result in the declared SDR view" className="max-h-[65dvh] w-full object-contain bg-black" onError={() => setError("The browser could not display the verified image. Retry verification or inspect the numerical pixel values.")} />
+    <img src={!diagnostics && result.look_image ? result.look_image : result.image} alt={diagnostics ? "Verified LUT result in the declared SDR view" : "Imported look applied to the original camera samples"} className="max-h-[65dvh] w-full object-contain bg-black" onError={() => setError("The browser could not display the verified image. Retry verification or inspect the numerical pixel values.")} />
     <p className="text-sm">Unblended LUT result · 100% strength · Full frame {result.width} × {result.height}</p>
-    <fieldset className="flex flex-wrap gap-2" disabled>
+    {result.look_image ? <fieldset className="flex flex-wrap gap-2">
+      <legend className="mb-1 text-sm font-medium">Compare viewing modes</legend>
+      <Button variant="outline" aria-pressed={!diagnostics} onClick={() => setDiagnostics(false)}>Look</Button>
+      <Button variant="outline" aria-pressed={diagnostics} onClick={() => setDiagnostics(true)}>Look + diagnostics</Button>
+      <p className="w-full text-xs text-muted-foreground">Viewing only. Download and numerical inspection always include diagnostics.</p>
+    </fieldset> : <fieldset className="flex flex-wrap gap-2" disabled>
       <legend className="mb-1 text-sm font-medium">Source comparison unavailable</legend>
       <Button variant="outline" disabled>Original</Button><Button variant="outline" disabled>Split view</Button>
-    </fieldset>
+    </fieldset>}
     <p className="text-xs text-muted-foreground">{result.provenance.comparison_unavailable}</p>
     <fieldset className="grid gap-2">
       <legend className="mb-1 text-sm font-medium">Inspect original-resolution pixel</legend>
@@ -176,7 +183,7 @@ export function CameraVerification({ setup, interpretations, video }: { setup: S
   const pending = useRef<{ id: string; controller: AbortController } | null>(null)
   const fileSequence = useRef(0)
   const readController = useRef<AbortController | null>(null)
-  const key = JSON.stringify([setup, source?.id, video?.frame, transfer, gamut, range, confirmed, matrix, signalRange, chroma, bitDepth])
+  const key = JSON.stringify([setupIdentity(setup), source?.id, video?.frame, transfer, gamut, range, confirmed, matrix, signalRange, chroma, bitDepth])
   const expected = interpretations[setup.profile]
   const mismatch = Boolean(transfer && gamut && (transfer !== expected?.transfer || gamut !== expected?.gamut))
   const supported = ["Rec.709", "Rec.2020"].includes(setup.target)
@@ -251,7 +258,7 @@ export function CameraVerification({ setup, interpretations, video }: { setup: S
     setStatus({ key, text: "Decoding source and applying the exported cube…" })
     try {
       const response = await request(video ? "/verify-video" : "/verify", {
-        request_id: id, ...(video ? { source_id: video.source_id, frame: video.frame, name: video.name } : { source: { name: source!.name, data: source!.data } }), setup,
+        request_id: id, ...(video ? { source_id: video.source_id, frame: video.frame, name: video.name } : { source: { name: source!.name, data: source!.data } }), setup: {...(setup.imported_lut ? {version:3} : {}),...setup},
         interpretation: { transfer, gamut, range: video ? "camera-code-values" : range, confirmed, decoding: "RGB; no color transform or range scaling", ...(video ? { matrix, signal_range: signalRange, chroma_location: chroma, bit_depth: Number(bitDepth) } : {}) },
       }, controller.signal)
       const next = Schema.decodeUnknownSync(CheckedStillSchema)(await response.json())

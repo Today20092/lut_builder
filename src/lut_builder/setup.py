@@ -6,6 +6,7 @@ import numpy as np
 import colour
 
 from .data import MIDDLE_GREY, PROFILE_CATALOG
+from .imported_lut import validate_imported_lut
 
 
 CUBE_SIZES = {17, 33, 65}
@@ -28,6 +29,7 @@ class LutSetup:
     legal_range: bool = False
     fill_mode: bool = False
     ire_basis: str = "target"
+    imported_lut: dict | None = None
 
     def __post_init__(self) -> None:
         if self.profile_name not in PROFILE_CATALOG.source_names():
@@ -53,6 +55,8 @@ class LutSetup:
                 raise ValueError(
                     "each band needs numeric stop/width and a color"
                 ) from error
+            if not np.isfinite(center) or not np.isfinite(width):
+                raise ValueError("band stop and width must be finite")
             if width < 0:
                 raise ValueError("band width cannot be negative")
             if self.band_mode == "ire" and not 0 <= center <= 100:
@@ -61,6 +65,19 @@ class LutSetup:
                 raise ValueError(f"invalid band color: {color!r}")
             normalized.append({"stop": center, "color": color.lower(), "width": width})
         self.bands = sorted(normalized, key=lambda band: band["stop"])
+        if self.imported_lut is not None:
+            self.imported_lut = validate_imported_lut(
+                self.imported_lut,
+                self.profile_name,
+                self.target_name,
+                self.legal_range,
+                self.monochrome,
+                self.ire_basis,
+            )
+            if not self.fill_mode and any(band["width"] <= 0 for band in self.bands):
+                raise ValueError(
+                    "Imported diagnostic markers require a positive finite half-width; a zero-width level can miss every LUT node."
+                )
 
         for enabled, color, name in (
             (self.low_signal_warning, self.low_signal_hex, "low_signal_hex"),
@@ -73,6 +90,18 @@ class LutSetup:
 
     @classmethod
     def from_config(cls, config: Mapping[str, Any]) -> "LutSetup":
+        if "version" in config:
+            version = config["version"]
+            if version not in (1, 2, 3):
+                raise ValueError(
+                    "Only version-1, version-2 and version-3 configurations are supported"
+                )
+            if version == 3 and not config.get("imported_lut"):
+                raise ValueError(
+                    "Imported LUT is missing; reattach the original .cube."
+                )
+            if version != 3 and config.get("imported_lut") is not None:
+                raise ValueError("Imported LUT setups require version 3.")
         aliases = {
             "cube_size": "cube_size",
             "bands": "bands",
@@ -90,6 +119,7 @@ class LutSetup:
             "output": "output_filename",
             "legal_range": "legal_range",
             "fill_mode": "fill_mode",
+            "imported_lut": "imported_lut",
         }
         values = {
             attribute: config[key]
@@ -107,6 +137,11 @@ class LutSetup:
             "target": self.target_name,
             "cube_size": self.cube_size,
             "bands": self.bands,
+            **(
+                {"imported_lut": self.imported_lut}
+                if self.imported_lut is not None
+                else {}
+            ),
             "band_mode": self.band_mode,
             **({"ire_basis": "camera"} if self.ire_basis == "camera" else {}),
             "fill_mode": self.fill_mode,

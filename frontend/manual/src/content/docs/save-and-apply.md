@@ -23,6 +23,38 @@ The browser controls the download folder and may append a suffix for a repeated 
 
 JSON does not back up your entire saved-palette library, uploaded media, or an unaccepted palette draft. Applied band colors are preserved.
 
+## Compose an imported look
+
+In **Configuration**, choose **Import .cube LUT**. Confirm the actual camera input,
+output primaries, output transfer and full/legal output range, then choose
+**Confirm and apply look**. For example: Panasonic V-Log / V-Gamut → Rec.709,
+gamma 2.2, full. This also selects source-camera IRE and turns monochrome off so the
+look is preserved outside diagnostic bands. A filename cannot identify colorimetry.
+
+Supported files are a single baked 3D Iridas cube, size 2–65, up to 16 MiB, with finite
+RGB rows and an optional increasing domain. 1D and combined shaper LUTs are not
+supported: bake those into a single 3D cube first. Unsupported/malformed files leave
+the current look intact and show a recovery message.
+
+**Look / Look + diagnostics** changes viewing only. The camera exposure reference
+shows original neutral camera-code patches; the diagnostic view uses the sampled
+exported transform. Camera-media verification compares the imported look and the
+combined cube on preserved source samples. Downloads and numerical inspection always
+include diagnostics. Very narrow markers can blur or miss cube nodes, even at 65³;
+use positive widths and check the sampled result.
+
+The exported combined LUT replaces the original viewing LUT at its original
+camera-log input. Do not apply the creative LUT first and then feed its graded output
+into the combined LUT. Exposure bands measure recorded source-log exposure before
+the look, never exposure reconstructed by inverting a grade or physical sensor saturation.
+
+Portable setup version 3 embeds the original cube and its content identity, together
+with your confirmed interpretation. It can move between phone and desktop without
+reattaching the file. A damaged/missing imported asset fails visibly rather than
+substituting a different look. No-look setups remain compatible with version 1.
+Large LUTs can exceed browser storage quota: heed save errors and export setup JSON
+before closing if restoration could not be saved.
+
 ## Palettes and setups are different
 
 | Saved item | Includes | Where it lives |

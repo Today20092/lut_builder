@@ -980,7 +980,7 @@ test("setup changes are recoverable, deletion is deliberate, and feedback stays 
     assert.equal(button("Confirm delete setup"), undefined, "selecting a different preset cancels confirmation")
     await click("Delete setup")
     await click("Confirm delete setup")
-    assert.deepEqual(JSON.parse(window.localStorage.getItem(storageKey)).map((preset) => preset.name), ["Interview"])
+    assert.deepEqual(JSON.parse(window.localStorage.getItem(storageKey)).presets.map((preset) => preset.name), ["Interview"])
     const name = [...container.querySelectorAll("label")].find((label) => label.textContent.trim() === "Preset name").querySelector("input")
     await act(() => {
       Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set.call(name, " interview ")
@@ -989,7 +989,7 @@ test("setup changes are recoverable, deletion is deliberate, and feedback stays 
     assert.ok(button("Replace saved setup"), "case-insensitive replacements are explicit")
     assert.match(container.textContent, /overwrites that saved copy/)
     await click("Replace saved setup")
-    assert.equal(JSON.parse(window.localStorage.getItem(storageKey))[0].setup.cube_size, 17)
+    assert.equal(JSON.parse(window.localStorage.getItem(storageKey)).presets[0].setup.cube_size, 17)
     assert.equal(liveMessages("Named LUT setup saved").length, 1)
     assert.doesNotMatch(output(), /Named LUT setup saved/)
     assert.equal(container.querySelector('a[href="#photo-result"]').textContent, "View photo result")

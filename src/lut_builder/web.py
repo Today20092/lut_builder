@@ -20,6 +20,7 @@ from .data import PROFILE_CATALOG, oklch_to_hex
 from .engine import serialize_lut
 from .presets import WIDTH_PRESETS, suggest_color_for_stop
 from .setup import LutSetup, exposure_preview
+from .imported_lut import MAX_SETUP_BYTES
 from .video import MAX_UPLOAD, VideoStore
 from .verification import (
     MAX_SOURCE_BYTES,
@@ -80,7 +81,7 @@ LEGACY_FIELDS = {
     "white_clip": "high_signal_warning",
     "white_hex": "high_signal_hex",
 }
-CONFIG_FIELDS = {*DEFAULT_SETUP, *LEGACY_FIELDS, "version"}
+CONFIG_FIELDS = {*DEFAULT_SETUP, *LEGACY_FIELDS, "version", "ire_basis", "imported_lut"}
 
 
 def safe_output_name(value: object) -> str:
@@ -96,8 +97,15 @@ def _setup_from_payload(payload: dict) -> LutSetup:
     unsupported = payload.keys() - CONFIG_FIELDS
     if unsupported:
         raise ValueError(f"Unsupported fields: {', '.join(sorted(unsupported))}")
-    if payload.get("version", 1) != 1:
-        raise ValueError("Only version-1 configurations are supported")
+    version = payload.get("version", 1)
+    if version not in (1, 2, 3):
+        raise ValueError(
+            "Only version-1, version-2 and version-3 configurations are supported"
+        )
+    if version == 3 and not payload.get("imported_lut"):
+        raise ValueError("Imported LUT is missing; reattach the original .cube.")
+    if version != 3 and payload.get("imported_lut") is not None:
+        raise ValueError("Imported LUT setups require version 3.")
     config = {**DEFAULT_SETUP, **payload}
     for legacy, current in LEGACY_FIELDS.items():
         if legacy in payload and current not in payload:
@@ -308,6 +316,14 @@ class VerificationSession:
             "width": result.source_rgb.shape[1],
             "height": result.source_rgb.shape[0],
             "image": image,
+            **(
+                {
+                    "look_image": "data:image/png;base64,"
+                    + base64.b64encode(display_png(result.look_display_rgb)).decode()
+                }
+                if result.look_display_rgb is not None
+                else {}
+            ),
             "provenance": result.provenance,
         }
 
@@ -392,9 +408,9 @@ class WorkspaceHandler(BaseHTTPRequestHandler):
         try:
             length = int(self.headers.get("Content-Length", "0"))
             maximum = (
-                ((MAX_SOURCE_BYTES + 2) // 3) * 4 + 1_000_000
+                ((MAX_SOURCE_BYTES + 2) // 3) * 4 + MAX_SETUP_BYTES
                 if self.path == "/verify"
-                else 1_000_000
+                else MAX_SETUP_BYTES
             )
             if not 0 <= length <= maximum:
                 raise ValueError("Request body is too large")

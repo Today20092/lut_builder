@@ -1,4 +1,5 @@
 import type { Setup } from "./editor.ts"
+import { parseImportedCube, sampleImportedCube, overlayInOutput, verifyImportedIdentity } from "./importedLut.ts"
 import {
   logDecodeAtGrid,
   sourceLumaWeights,
@@ -93,7 +94,7 @@ function comments(setup: Setup, profile: (typeof sourceInfo)[keyof typeof source
     "",
     `Target      : ${setup.target}`,
     `  Gamut     : ${target.gamut}`,
-    `  Transfer  : ${target.transfer} (OETF)`,
+    setup.imported_lut ? `  Transfer  : ${setup.imported_lut.output_transfer} (confirmed imported output)` : `  Transfer  : ${target.transfer} (OETF)`,
     "",
   ]
   if (profile.sources.length) {
@@ -127,9 +128,12 @@ function comments(setup: Setup, profile: (typeof sourceInfo)[keyof typeof source
 
 export async function generateCube(
   setup: Setup,
-  options: { signal?: AbortSignal; onProgress?: (progress: number) => void } = {},
+  options: { signal?: AbortSignal; onProgress?: (progress: number) => void; diagnostics?: boolean } = {},
 ): Promise<string> {
   setup = validateBrowserSetup(setup)
+  const imported = setup.imported_lut
+  const importedCube = imported ? parseImportedCube(imported.cube) : null
+  if (imported) await verifyImportedIdentity(imported)
   const profileKey = setup.profile as keyof typeof sourceInfo
   const targetKey = setup.target as keyof typeof targets
   const profile = sourceInfo[profileKey]
@@ -168,10 +172,12 @@ export async function generateCube(
           : stops
         const low = setup.low_signal_warning && Math.min(red, green, blue) <= profile.floor + tolerance
         const high = setup.high_signal_warning && Math.max(red, green, blue) >= profile.ceiling - tolerance
-        const overlay = overlayFor(value, setup.fill_mode, sortedBands, low, high, setup)
-        let final = overlay ? colorInTarget(overlay, setup.target) : encoded
-        final = final.map((channel) => Math.max(0, Math.min(1, channel))) as [number, number, number]
-        if (setup.legal_range) {
+        const overlay = options.diagnostics === false ? null : overlayFor(value, setup.fill_mode, sortedBands, low, high, setup)
+        let final = imported && importedCube
+          ? overlay ? overlayInOutput(overlay, imported) : sampleImportedCube([red,green,blue], importedCube)
+          : overlay ? colorInTarget(overlay, setup.target) : encoded
+        if (!imported) final = final.map((channel) => Math.max(0, Math.min(1, channel))) as [number, number, number]
+        if (setup.legal_range && !imported) {
           const low = nextFloat32(64 / 1023, 1)
           const high = nextFloat32(940 / 1023, -1)
           final = final.map((channel) => channel * (high - low) + low) as [number, number, number]
@@ -186,6 +192,7 @@ export async function generateCube(
 
   const title = `${setup.profile} to ${setup.target} Custom Assist`
   const header = [`TITLE "${title}"`, ...comments(setup, profile, target).map((line) => `# ${line}`), `LUT_3D_SIZE ${size}`, "DOMAIN_MIN 0.0 0.0 0.0", "DOMAIN_MAX 1.0 1.0 1.0"]
+  if (imported) header.splice(1,0,`# Imported look: ${imported.sha256}`,`# Output: ${imported.output_gamut} ${imported.output_transfer} ${imported.output_range}; source-camera exposure before look; tetrahedral`)
   return `${header.join("\n")}\n${rows.join("\n")}\n`
 }
 
@@ -209,6 +216,16 @@ export function validateBrowserSetup(setup: Setup): Setup {
   }).sort((left, right) => left.stop - right.stop)
   if (setup.low_signal_warning && !/^#[0-9a-f]{6}$/i.test(setup.low_signal_hex)) throw new Error("low_signal_hex must be a hex color when its warning is enabled")
   if (setup.high_signal_warning && !/^#[0-9a-f]{6}$/i.test(setup.high_signal_hex)) throw new Error("high_signal_hex must be a hex color when its warning is enabled")
+  if (setup.imported_lut !== undefined) {
+    const imported = setup.imported_lut
+    if (!imported || imported.version !== 1 || typeof imported.name !== "string" || !imported.name.length || imported.name.length > 255 || [...imported.name].some(character => character.charCodeAt(0) < 32) || typeof imported.sha256 !== "string" || !/^[0-9a-f]{64}$/.test(imported.sha256)) throw new Error("Imported LUT needs version-1 identity and interpretation fields; reattach the original .cube.")
+    if (imported.source_profile !== setup.profile || imported.output_gamut !== setup.target) throw new Error("Imported LUT source/output interpretation does not match configuration. Reconfirm the LUT interpretation.")
+    if (!["gamma2.2","gamma2.4","sRGB","BT.709"].includes(imported.output_transfer) || !["full","legal"].includes(imported.output_range)) throw new Error("Confirm an SDR output transfer and full/legal output range.")
+    if ((imported.output_range === "legal") !== setup.legal_range) throw new Error("Imported LUT output range does not match configuration.")
+    if (setup.monochrome || setup.ire_basis !== "camera") throw new Error("Imported looks require source-camera IRE and monochrome off to preserve the look.")
+    if (!setup.fill_mode && bands.some(band => band.width <= 0)) throw new Error("Imported diagnostic markers require a positive finite half-width; a zero-width level can miss every LUT node.")
+    if (typeof imported.cube !== "string") throw new Error("Imported LUT is missing; reattach the original .cube.")
+  }
   return { ...setup, bands }
 }
 
