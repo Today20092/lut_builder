@@ -30,7 +30,9 @@ does not add boundaries or change widths. A broad zone may therefore share its
 reference or endpoint color across a broad exposure interval.
 
 Named palettes save this mapping. Older palettes without a mapping retain their
-original band-range-relative behavior and are labeled accordingly. Setup JSON
-and exported LUTs continue to contain the applied band colors, with no format or
-LUT-engine change. Previewing remains non-destructive until Use palette is chosen;
+original band-range-relative behavior and are labeled accordingly. Palette
+application stores the chosen band colors in Setup JSON and exported LUTs; it
+does not change exposure calculations. Camera-log IRE separately adds the
+`ire_basis` setup field and its documented calculation behavior. Previewing
+remains non-destructive until Use palette is chosen;
 the whole application is one undoable band edit.

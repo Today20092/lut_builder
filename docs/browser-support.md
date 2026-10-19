@@ -5,16 +5,55 @@ This matrix describes the static [GitHub Pages app](https://today20092.github.io
 | Feature | Browser build |
 | --- | --- |
 | Camera profiles and output gamuts | Six supported profiles; Rec.709 and Rec.2020 |
-| Exposure editor | Stops and IRE bands, Fill zones, overlap priority, palette and setup controls |
+| Exposure editor | Stops and camera-log IRE bands, Fill zones, overlap priority, OKLCH gradient palettes, sticky palette audition with apply/cancel, setup controls, and keyboard shortcuts |
 | LUT generation | On-device worker; 17, 33, and 65 point `.cube` downloads |
 | Setup JSON | Import and export remain available |
 | Named setup presets | Saved in this browser only; storage may be cleared and does not sync between devices. Export JSON for backup or transfer. |
 | Exposure diagram | Editable local Stops/IRE graph and Fill zones; describes band settings, not verification of the sampled cube |
-| Camera-exposure media preview | Not included in the static build; see [follow-up #39](https://github.com/Today20092/lut_builder/issues/39) |
-| Camera-matched still verification | Not available in the static build; see [follow-up #39](https://github.com/Today20092/lut_builder/issues/39) |
-| Camera-matched video verification | Not available in the static build; see [follow-up #39](https://github.com/Today20092/lut_builder/issues/39) |
+| Camera-exposure media preview | Not included |
+| Camera-matched still verification | On-device for untagged, non-interlaced 16-bit RGB PNG and float32 RGB PFM; maximum 4,194,304 pixels |
+| Camera-matched video verification | On-device for H.264, HEVC, ProRes 422 and FFV1 in supported planar 4:2:0 8/10-bit or 4:2:2 10-bit formats; choose a frame from an inspected one-second interval |
 
-The demonstration image is illustrative. It does not apply the exported LUT and is not a verification result. The static app does not send setup data, LUTs, or media to a calculation service.
+Still and video verification apply the exact serialized cube used for download, with tetrahedral interpolation and the documented SDR display policy. Original/Split comparison remains unavailable because no camera-to-SDR reference viewing transform is established. Source interpretation must be confirmed; reported metadata is shown separately, and a file cannot prove its camera profile. Verification is diagnostic and does not certify sensor exposure.
+
+Still uploads are limited to 48 MiB plus header. Video is limited to 512 MiB, five minutes, progressive square-pixel sources, and 4,194,304 decoded pixels; HDR, rotation, RAW, JPEG, and unsupported pixel layouts are rejected. The 32 MiB WebAssembly decoder is fetched from this site only when verification starts. Source media and LUTs stay in the browser and are not sent to a processing service. The demonstration image is illustrative and never used as a verification fallback.
+
+## Exposure editor update, October 19, 2026
+
+New IRE selections use camera-log encoded luma and the selected profile's neutral
+gray reference. Existing saved setups retain target-based IRE unless explicitly
+switched. Output Full/Legal packing is a separate setting. See [camera-log IRE](camera-log-ire.md)
+and the [range guide](output-range-guide.md) for conventions and limits.
+
+The mobile layout includes visual mode choices, a persistent exposure preview,
+responsive band rows, and a scrollable gradient editor. Selecting a palette
+auditions it; Use palette commits its colors, and Cancel keeps the current bands.
+The [palette guide](exposure-palettes.md) and [keyboard reference](keyboard-shortcuts.md)
+describe editing behavior. Earlier dated acceptance below records the version
+tested at that time; it does not establish physical phone support for this update.
+
+## Camera verification acceptance, October 18, 2026
+
+The production browser build inspected and verified a selected frame from a local
+10-bit HEVC 4:2:0, 2048×1080 Lumix proxy. The selected frame's native YUV bytes
+matched an independent FFmpeg decode exactly, and an original-resolution RGB
+sample matched FFmpeg's independent matrix/range/chroma conversion within
+`3e-8`. Verification applied the serialized 65³ cube and returned provenance,
+pixel inspection, and the checked-cube download entirely in the browser.
+
+The standalone browser parity harness also passed every 16-bit PNG code, FFV1
+4:2:0 at 8 and 10 bits, FFV1 4:2:2 at 10 bits, H.264, HEVC, and ProRes 422.
+Its independent native-FFmpeg comparisons covered matrix, full/limited range,
+and left/center/top-left chroma settings with maximum RGB error below `2e-6`.
+These synthetic fixtures establish decoder parity; they do not identify the
+camera profile of a real recording.
+
+This clip reports BT.709 transfer and primaries while its owner identifies the
+recording as V-Log/V-Gamut. That evidence confirms decoder parity and the browser
+workflow; it does not establish the clip's true camera encoding. The browser UI
+shows reported transfer/primaries and warns when they conflict with the confirmed
+source interpretation. Confirm the original recording/export path before trusting
+the false-color result.
 
 ## Editor decisions
 

@@ -1,10 +1,11 @@
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { hexToOklch, isHexColor, maxSrgbChroma, oklchToHex, sampleOklabRamp, type GradientBlend, type HuePath, type OklchAnchor } from "./editor"
 
 const fieldClass = "h-9 w-full min-w-0 rounded-md border border-input bg-transparent px-3 text-sm"
 
 function OklchPicker({ color, onChange }: { color: string; onChange: (color: string) => void }) {
+  const originalHex = useRef(color)
   const [edited, setEdited] = useState<{ hex: string; channels: OklchAnchor } | null>(null)
   const channels = edited?.hex === color ? edited.channels : hexToOklch(isHexColor(color) ? color : "#2563eb")
   const controls = [
@@ -31,7 +32,9 @@ function OklchPicker({ color, onChange }: { color: string; onChange: (color: str
     <details>
       <summary className="cursor-pointer text-xs font-medium">Exact hex color</summary>
       <label className="mt-2 grid gap-1 text-sm">Hex color
-        <input aria-label="Selected color hex" className={fieldClass} value={color} aria-invalid={!isHexColor(color)} spellCheck={false} onChange={(event) => onChange(event.target.value)} />
+        <input aria-label="Selected color hex" className={fieldClass} value={color} aria-invalid={!isHexColor(color)} spellCheck={false} onChange={(event) => onChange(event.target.value)}
+          onFocus={() => { if (isHexColor(color)) originalHex.current = color }}
+          onKeyDown={(event) => { if (event.key === "Escape" && !event.nativeEvent.isComposing) { event.preventDefault(); event.stopPropagation(); onChange(originalHex.current) } }} />
       </label>
     </details>
   </div>
@@ -120,6 +123,7 @@ export function GradientPicker({ colors, positions, blend, huePath, exposureScal
         onPointerUp={(event) => { if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId) }}
         onPointerCancel={(event) => { if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId) }}
         onKeyDown={(event) => {
+          if (event.altKey || event.ctrlKey || event.metaKey || event.nativeEvent.isComposing) return
           if (["ArrowLeft", "ArrowDown", "ArrowRight", "ArrowUp", "Home", "End"].includes(event.key)) {
             event.preventDefault()
             setSelection(index)

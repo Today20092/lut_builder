@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Data, Effect, Result, Schema } from "effect"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { GradientPicker } from "./GradientPicker"
+import { isTypingTarget } from "./keyboard"
 import { applyColorPreset, applyLightnessProfile, exposurePaletteScale, exposureReferenceValue, hexToOklch, isHexColor, sampleOklabRamp, type GradientBlend, type HuePath, type LightnessProfile, type PaletteColor, type PaletteMapping, type Setup } from "./editor"
 
 type Draft = { colors: string[]; positions?: number[]; brightness: LightnessProfile; intensity: number; blend?: GradientBlend; huePath?: HuePath; mapping?: PaletteMapping }
@@ -70,6 +71,8 @@ function persistPalettes(palettes: SavedPalette[]): Effect.Effect<void, PaletteS
 }
 
 export function PaletteEditor({ setup, palette, onApply, onPreview }: { setup: Setup; palette: PaletteColor[]; onApply: (next: Setup) => void; onPreview?: (preview: PalettePreview | null) => void }) {
+  const applyButton = useRef<HTMLButtonElement>(null)
+  function cancelPreview() { setAudition(false); applyButton.current?.focus() }
   const [draft, setDraftState] = useState<Draft>({ colors: startingPalettes[0].colors, brightness: "custom", intensity: 100, blend: "colorful", huePath: "shorter", mapping: "exposure" })
   const [audition, setAudition] = useState(false)
   const [draftLabel, setDraftLabel] = useState("Custom gradient")
@@ -126,7 +129,12 @@ export function PaletteEditor({ setup, palette, onApply, onPreview }: { setup: S
     }).catch((error: unknown) => setLibrary({ ...library, message: error instanceof Error ? error.message : "Could not save palettes in this browser." }))
   }
 
-  return <section aria-label="Band colors" className="grid gap-3 border-t pt-4">
+  return <section aria-label="Band colors" className="grid gap-3 border-t pt-4" onKeyDown={(event) => {
+    if (event.key === "Escape" && !event.defaultPrevented && !event.nativeEvent.isComposing && !isTypingTarget(event.target) && audition) {
+      event.preventDefault()
+      cancelPreview()
+    }
+  }}>
     <h3 className="text-sm font-semibold">Recolor all bands</h3>
     <p className="text-sm text-muted-foreground">Change one band using its swatch in the table above. Here you can build a palette for all bands, from low to high exposure.</p>
     <fieldset className="grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -191,8 +199,8 @@ export function PaletteEditor({ setup, palette, onApply, onPreview }: { setup: S
     <p className="text-xs text-muted-foreground">Apply colors replaces every band color and keeps positions and widths. Undo restores your previous colors.</p>
     <p role="status" className="text-sm">{pending ? applied && applied.colors !== bandColors ? "Band colors changed since application. Applying will replace manual overrides." : "Unapplied palette changes." : "Palette applied to bands."}</p>
     <div className="flex flex-wrap gap-2">
-      <Button type="button" className="justify-self-start" disabled={!valid || setup.bands.length === 0} onClick={apply}>Use palette</Button>
-      {audition && <Button type="button" variant="outline" onClick={() => setAudition(false)}>Cancel preview</Button>}
+      <Button ref={applyButton} type="button" className="justify-self-start" disabled={!valid || setup.bands.length === 0} onClick={apply}>Use palette</Button>
+      {audition && <Button type="button" variant="outline" onClick={cancelPreview}>Cancel preview</Button>}
     </div>
     <details className="rounded-md border p-3">
     <summary className="cursor-pointer text-sm font-medium">Use standard exposure colors instead</summary>

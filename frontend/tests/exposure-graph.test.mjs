@@ -45,6 +45,7 @@ const bundle = await build({
   stdin: {
     contents: `
       export { App, ColorPicker, ExposureGraph, LutImagePreview } from "./src/App.tsx";
+      export { BrowserVerification } from "./src/BrowserVerification.tsx";
       export { tailwindPalette } from "./src/tailwindPalette.ts";
       export { outputFilename, defaultFilenameTemplate } from "./src/outputFilename.ts";
       export { displayPreviewOverlayAt, overlayForExposure, previewColorAt, previewOverlayAt } from "./src/demonstration.ts";
@@ -60,7 +61,7 @@ stop()
 const bundleDirectory = await mkdtemp(join(process.cwd(), "tests", ".graph-"))
 const bundlePath = join(bundleDirectory, "graph.mjs")
 await writeFile(bundlePath, bundle.outputFiles[0].text)
-const { App, ColorPicker, ExposureGraph, LutImagePreview, tailwindPalette, outputFilename, defaultFilenameTemplate, displayPreviewOverlayAt, overlayForExposure, previewColorAt, previewOverlayAt, React, act, createRoot } = await import(pathToFileURL(bundlePath).href)
+const { App, BrowserVerification, ColorPicker, ExposureGraph, LutImagePreview, tailwindPalette, outputFilename, defaultFilenameTemplate, displayPreviewOverlayAt, overlayForExposure, previewColorAt, previewOverlayAt, React, act, createRoot } = await import(pathToFileURL(bundlePath).href)
 await rm(bundleDirectory, { recursive: true })
 
 const preview = {
@@ -199,9 +200,19 @@ test("video controls show server-selected identity and reject stale frames after
     await click("Next frame")
     assert.deepEqual(JSON.parse(requests.at(-1).options.body), { source_id: "source-1", index: 1 })
     assert.match(container.textContent, /Decoding the selected presentation frame/)
+    const videoKeys = async (key, options = {}) => act(() => container.querySelector("aside").dispatchEvent(new window.KeyboardEvent("keydown", { bubbles: true, cancelable: true, key, ...options })))
+    const busyCount = requests.length
+    await videoKeys("ArrowRight")
+    assert.equal(requests.length, busyCount, "decoding blocks repeated requests")
     await act(() => finishFrame({ ...result, display: "data:image/png;base64,next", frame: { ...result.frame, index: 1, pts: "5100", relative_time: "1/10", seconds: 0.1 } }))
     assert.match(container.textContent, /Selected 0.100000 s · exact 1\/10 s/)
     assert.equal(images.at(-1), "data:image/png;base64,next")
+    await videoKeys("ArrowRight", { shiftKey: true })
+    assert.equal(JSON.parse(requests.at(-1).options.body).index, 3, "ten-frame jumps clamp to the last frame")
+    await act(() => finishFrame({ ...result, frame: { ...result.frame, index: 3 } }))
+    await videoKeys("ArrowLeft", { shiftKey: true })
+    assert.equal(JSON.parse(requests.at(-1).options.body).index, 0)
+    await act(() => finishFrame(result))
     await click("Next frame")
     await click("Cancel video")
     assert.match(container.textContent, /Video cancelled and temporary data released/)
@@ -270,6 +281,11 @@ test("camera video selection confirms decoding, verifies, invalidates and reject
     assert.doesNotMatch(JSON.stringify(job.payload), /NEVER-VERIFY/)
     await finish(job)
     assert.ok(container.querySelector("img"))
+    await click("Expand verified image")
+    const frameRequests = calls.filter((call) => call.path === "/video/frame").length
+    await act(() => container.querySelector('dialog[open] button').dispatchEvent(new window.KeyboardEvent("keydown", { bubbles: true, cancelable: true, key: "ArrowRight" })))
+    assert.equal(calls.filter((call) => call.path === "/video/frame").length, frameRequests, "verified-image dialogs cannot change the underlying selected frame")
+    await click("Close verified image")
     assert.equal(button("Original").disabled, true)
     assert.ok(button("Inspect pixel"))
     assert.ok(button("Download checked cube"))
@@ -747,7 +763,7 @@ test("band editing preserves valid generation data, selection, and one-step reco
   const field = (label) => container.querySelector(`[aria-label='${label}']`)
   const button = (text) => [...container.querySelectorAll("button")].find((item) => item.textContent === text)
   const click = async (element) => { assert.ok(element); await act(() => element.click()) }
-  const key = async (element, key) => { await act(() => element.dispatchEvent(new window.KeyboardEvent("keydown", { bubbles: true, key }))) }
+  const key = async (element, key, options = {}) => { await act(() => element.dispatchEvent(new window.KeyboardEvent("keydown", { bubbles: true, cancelable: true, key, ...options }))) }
   const type = async (element, value) => {
     await act(() => {
       Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set.call(element, value)
@@ -769,6 +785,38 @@ test("band editing preserves valid generation data, selection, and one-step reco
     assert.equal((await generate()).legal_range, true)
     await click(field("Full / Data"))
     assert.equal((await generate()).legal_range, false)
+    const graphKeys = () => container.querySelector("[aria-label^='Editable exposure graph']")
+    const centers = () => [...graphKeys().querySelectorAll("[data-band-center]")]
+    await act(() => centers()[0].focus())
+    await key(centers()[0], "ArrowRight", { altKey: true })
+    assert.equal(document.activeElement, centers()[1])
+    assert.equal(field("Band 2 stops").value, "1")
+    await key(centers()[1], "ArrowLeft", { ctrlKey: true })
+    assert.equal(field("Band 2 stops").value, "1")
+    await key(centers()[1], "ArrowRight", { shiftKey: true })
+    assert.equal(field("Band 2 stops").value, "3.5")
+    await key(field("Band 2 stops"), "z", { ctrlKey: true })
+    assert.equal(field("Band 2 stops").value, "3.5", "text fields retain native undo")
+    await key(centers()[1], "z", { ctrlKey: true })
+    assert.equal(field("Band 2 stops").value, "1")
+    await key(field("Band 2 stops"), "Delete")
+    assert.equal(centers().length, 2, "typing never removes a band")
+    await act(() => centers()[1].focus())
+    await key(centers()[1], "Delete")
+    assert.equal(centers().length, 1)
+    assert.equal(document.activeElement, centers()[0], "deletion focuses the nearest band")
+    await key(centers()[0], "Delete", { repeat: true })
+    assert.equal(centers().length, 1, "holding Delete cannot remove more bands")
+    await key(centers()[0], "?", { shiftKey: true })
+    const shortcutDialog = container.querySelector("[aria-labelledby='keyboard-help-title']")
+    assert.equal(shortcutDialog.open, true)
+    await key(shortcutDialog.querySelector("button"), "z", { ctrlKey: true })
+    assert.equal(centers().length, 1, "modal shortcuts cannot undo the editor underneath")
+    await click(button("Close shortcuts"))
+    assert.equal(document.activeElement, centers()[0])
+    await key(centers()[0], "z", { metaKey: true })
+    assert.equal(centers().length, 2)
+    assert.equal(field("Band 2 stops").value, "1")
     await type(field("Output filename template"), defaultFilenameTemplate)
     await act(() => new Promise((resolve) => setTimeout(resolve, 300)))
     assert.equal(requests.filter(({ path }) => path === "/preview").at(-1).setup.output, defaultFilenameTemplate)
@@ -877,7 +925,7 @@ test("browser-only app generates and downloads through a local worker without ba
   const root = createRoot(container)
   try {
     await act(() => root.render(React.createElement(App)))
-    assert.match(container.textContent, /Camera-matched still and video verification are not available/)
+    assert.ok(container.querySelector('[aria-label="Browser camera verification"]'))
     const marker = container.querySelector('button[aria-label="Band 1, 0 stops"]')
     assert.ok(marker, "static app exposes the editable graph without a backend preview")
     assert.ok(container.querySelector('[aria-label="Band 1 total width"]'))
@@ -920,6 +968,61 @@ test("browser-only app generates and downloads through a local worker without ba
     globalThis.URL.createObjectURL = originalCreateObjectURL
     globalThis.URL.revokeObjectURL = originalRevokeObjectURL
     window.HTMLAnchorElement.prototype.click = originalAnchorClick
+  }
+})
+
+test("browser video shortcuts select interval frames, clamp jumps and respect fields and busy state", async () => {
+  const originalWorker = globalThis.Worker
+  let worker
+  globalThis.Worker = class {
+    constructor() { worker = this }
+    postMessage() {}
+    terminate() {}
+  }
+  const container = document.createElement("div")
+  document.body.append(container)
+  const root = createRoot(container)
+  const button = (name) => [...container.querySelectorAll("button")].find((node) => node.textContent === name)
+  const field = () => container.querySelector('input[type="number"][step="1"]')
+  const key = (target, key, options = {}) => act(() => target.dispatchEvent(new window.KeyboardEvent("keydown", { bubbles: true, cancelable: true, key, ...options })))
+  const info = { frames: Array.from({ length: 13 }, (_, pts) => ({ pts })), stream: { width: 16, height: 16, codec_name: "h264", pix_fmt: "yuv420p", time_base: "1/24", start_pts: 0 }, bitDepth: 8 }
+  const finish = () => act(() => worker.onmessage({ data: { type: "complete", value: info } }))
+  try {
+    await act(() => root.render(React.createElement(BrowserVerification, { setup: { ...setup, profile: "Sony S-Log3" } })))
+    await act(() => [...container.querySelectorAll('input[type="radio"]')][1].click())
+    const input = container.querySelector('input[type="file"]')
+    Object.defineProperty(input, "files", { value: [new window.File(["video"], "camera.mp4")] })
+    await act(() => input.dispatchEvent(new window.Event("change", { bubbles: true })))
+    await act(() => button("Inspect video").click())
+    await finish()
+    const preview = container.querySelector('[aria-label="Browser camera verification"]')
+    const confirm = [...container.querySelectorAll('input[type="checkbox"]')].at(-1)
+    await act(() => confirm.click())
+    await key(preview, "ArrowRight")
+    assert.equal(field().value, "1")
+    assert.equal(confirm.checked, false, "changing frames requires confirmation again")
+    await key(preview, "ArrowRight", { shiftKey: true })
+    assert.equal(field().value, "11")
+    await key(preview, "ArrowRight", { shiftKey: true })
+    assert.equal(field().value, "12")
+    assert.equal(button("Next frame").disabled, true)
+    await key(preview, "ArrowLeft", { ctrlKey: true })
+    await key(field(), "ArrowLeft")
+    await key(preview, "ArrowLeft", { repeat: true })
+    assert.equal(field().value, "12")
+    await key(preview, "ArrowLeft", { shiftKey: true })
+    assert.equal(field().value, "2")
+    await act(() => button("Inspect video").click())
+    await key(preview, "ArrowRight")
+    assert.equal(field().value, "2", "inspection blocks frame shortcuts")
+    await finish()
+    await key(preview, "ArrowLeft", { shiftKey: true })
+    assert.equal(field().value, "0")
+    assert.equal(button("Previous frame").disabled, true)
+  } finally {
+    await act(() => root.unmount())
+    container.remove()
+    globalThis.Worker = originalWorker
   }
 })
 

@@ -1,4 +1,5 @@
 import {
+  Fragment,
   useCallback,
   useEffect,
   useMemo,
@@ -15,6 +16,8 @@ import { Data, Effect, Result, Schema } from "effect"
 import { Button } from "@/components/ui/button"
 import { PaletteEditor, type PalettePreview } from "./PaletteEditor"
 import { ExposurePreview } from "./ExposurePreview"
+import { KeyboardHelp } from "./KeyboardHelp"
+import { isTypingTarget } from "./keyboard"
 import { tailwindPalette } from "./tailwindPalette"
 import { BandNumberInput } from "./BandNumberInput"
 import { overlayForExposure } from "./demonstration"
@@ -30,7 +33,8 @@ import { Spinner } from "@/components/ui/spinner"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import referenceImage from "@/assets/lut-preview-reference.jpg"
 import { CameraVerification, type SourceInterpretations } from "@/CameraVerification"
-import { browserProfiles, browserTargets, sourceInfo } from "@/lutEngine"
+import { BrowserVerification } from "./BrowserVerification"
+import { browserInterpretations, browserProfiles, browserTargets } from "@/lutEngine"
 import { defaultFilenameTemplate, outputFilename } from "./outputFilename"
 import { deleteSetupPreset, readSetupPresets, saveSetupPreset, type SetupPreset } from "@/setupPresets"
 import { decodeSetup, SetupSchema, SetupValidationError } from "@/setupSchema"
@@ -398,7 +402,19 @@ export function LutImagePreview({ preview, camera }: { preview: Preview | null; 
   </div>
 
   return (
-    <aside className="min-w-0 self-start @min-[64rem]:sticky @min-[64rem]:top-6" aria-label={camera ? "Camera video selection" : "Demonstration preview"}>
+    <aside tabIndex={0} className="min-w-0 self-start @min-[64rem]:sticky @min-[64rem]:top-6" aria-label={camera ? "Camera video selection" : "Demonstration preview"}
+      onKeyDown={(event) => {
+        if (event.defaultPrevented || event.nativeEvent.isComposing || isTypingTarget(event.target) || event.altKey || event.ctrlKey || event.metaKey) return
+        if (camera && event.target instanceof Element && event.target.closest("dialog")) return
+        if (!camera && !expanded && event.key.toLowerCase() === "f") {
+          event.preventDefault()
+          expandRef.current?.click()
+        } else if (video && !videoBusy && !event.repeat && (event.key === "ArrowLeft" || event.key === "ArrowRight")) {
+          event.preventDefault()
+          const next = Math.max(0, Math.min(video.frame.count - 1, video.frame.index + (event.key === "ArrowLeft" ? -1 : 1) * (event.shiftKey ? 10 : 1)))
+          if (next !== video.frame.index) void selectVideoFrame({ index: next })
+        }
+      }}>
       <Card className="overflow-hidden border-white/15 bg-card/95 shadow-2xl backdrop-blur">
         <CardHeader className="flex flex-wrap items-center justify-between gap-3 py-3">
           <div>
@@ -407,6 +423,7 @@ export function LutImagePreview({ preview, camera }: { preview: Preview | null; 
           </div>
           <Button
             ref={expandRef}
+            aria-keyshortcuts="f"
             hidden={!!camera}
             type="button"
             variant="ghost"
@@ -435,7 +452,7 @@ export function LutImagePreview({ preview, camera }: { preview: Preview | null; 
 function WorkbenchPreview({ preview, setup, catalog, browserOnly }: { preview: Preview | null; setup: Setup; catalog: Catalog; browserOnly: boolean }) {
   const [mode, setMode] = useState("Demonstration")
   const [sourceKind, setSourceKind] = useState("Still")
-  if (browserOnly) return <Card className="min-w-0 self-start"><CardHeader><CardTitle>Preview and camera verification</CardTitle></CardHeader><CardContent><p className="text-sm text-muted-foreground">The GitHub Pages editor generates LUTs on this device. Camera-matched still and video verification are not available in this browser build. The demonstration image is illustrative and does not apply the exported LUT. <a className="underline" href="https://github.com/Today20092/lut_builder/issues/39">Track browser verification support</a>.</p></CardContent></Card>
+  if (browserOnly) return <BrowserVerification setup={setup} />
   return <div className="grid min-w-0 self-start gap-3 @min-[64rem]:sticky @min-[64rem]:top-6">
     <fieldset className="flex flex-wrap gap-2">
       <legend className="mb-2 text-sm font-medium">Preview mode</legend>
@@ -579,7 +596,7 @@ export function ColorPicker({
             if (isHexColor(next)) onChange(next)
           }}
           onBlur={() => setHexDraft(value)}
-          onKeyDown={(event) => { if (event.key === "Escape") setHexDraft(value) }} />
+          onKeyDown={(event) => { if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); setHexDraft(value) } }} />
         </div>
         <Popover.Portal>
           <Popover.Positioner
@@ -589,7 +606,7 @@ export function ColorPicker({
               collisionAvoidance={{ side: "none", align: "shift", fallbackAxisSide: "none" }}
             sideOffset={8}
           >
-            <Popover.Popup
+            <Popover.Popup data-workbench-popup
               aria-label={`${label} picker`}
                 className="grid max-h-[var(--available-height)] w-80 max-w-[calc(100vw-2rem)] gap-4 overflow-y-auto rounded-lg border bg-popover p-3 text-popover-foreground shadow-lg outline-none"
             >
@@ -662,6 +679,7 @@ export function ExposureGraph({
   onEditStart,
   onEditEnd,
   onEditColor,
+  onRemove,
 }: {
   setup: Setup
   preview: Pick<Preview, "minimum" | "maximum" | "unit">
@@ -673,8 +691,22 @@ export function ExposureGraph({
   onEditStart?: () => void
   onEditEnd?: () => void
   onEditColor?: (index: number) => void
+  onRemove?: (index: number) => void
 }) {
   const graph = useRef<HTMLDivElement>(null)
+  const pendingFocus = useRef<number | null>(null)
+  function focusBand(index: number) {
+    const control = graph.current?.querySelector<HTMLButtonElement>(`[data-band-center="${index}"]`)
+    pendingFocus.current = control ? null : index
+    control?.focus()
+  }
+  useEffect(() => {
+    if (pendingFocus.current === null) return
+    const index = Math.min(pendingFocus.current, setup.bands.length - 1)
+    const control = graph.current?.querySelector<HTMLButtonElement>(`[data-band-center="${index}"]`)
+    ;(control ?? graph.current)?.focus()
+    pendingFocus.current = null
+  }, [setup.bands, selectedBand])
   const position = (value: number) =>
     Math.max(
       0,
@@ -708,6 +740,7 @@ export function ExposureGraph({
     : `Band ${selectedBand + 1} · center ${selected.stop} ${preview.unit} · total width ${Number((selected.width * 2).toFixed(6))} ${preview.unit} · boundaries ${Number((selected.stop - selected.width).toFixed(6))} to ${Number((selected.stop + selected.width).toFixed(6))} ${preview.unit}${selected.stop < preview.minimum || selected.stop > preview.maximum ? " · outside visible range" : ""}`)
 
   function handleKeyDown(event: KeyboardEvent<HTMLButtonElement>, index: number) {
+    if (event.altKey || event.ctrlKey || event.metaKey || event.nativeEvent.isComposing) return
     const direction =
       event.key === "ArrowUp" || event.key === "ArrowRight"
         ? 1
@@ -717,7 +750,7 @@ export function ExposureGraph({
     if (direction === null) return
     event.preventDefault()
     onSelect(index)
-    onChange(index, stepBandValue(setup.bands[index].stop, direction, increment, ...bounds))
+    onChange(index, stepBandValue(setup.bands[index].stop, direction, increment * (event.shiftKey ? 10 : 1), ...bounds))
   }
 
   function handlePointerMove(event: PointerEvent<HTMLButtonElement>, index: number) {
@@ -744,6 +777,23 @@ export function ExposureGraph({
     </div>
     <div
       ref={graph}
+      tabIndex={setup.bands.length ? -1 : 0}
+      role="group"
+      aria-keyshortcuts="Delete Backspace Alt+ArrowLeft Alt+ArrowRight"
+      onKeyDown={(event) => {
+        if (event.defaultPrevented || event.nativeEvent.isComposing || isTypingTarget(event.target) || event.ctrlKey || event.metaKey) return
+        if (event.altKey && !event.shiftKey && (event.key === "ArrowLeft" || event.key === "ArrowRight") && setup.bands.length) {
+          event.preventDefault()
+          const next = Math.max(0, Math.min(setup.bands.length - 1, selectedBand + (event.key === "ArrowLeft" ? -1 : 1)))
+          onSelect(next)
+          focusBand(next)
+        } else if (!event.altKey && !event.shiftKey && (event.key === "Delete" || event.key === "Backspace")) {
+          event.preventDefault()
+          if (event.repeat || !onRemove || !setup.bands[selectedBand] || (setup.fill_mode && setup.bands.length <= 2)) return
+          pendingFocus.current = selectedBand
+          onRemove(selectedBand)
+        }
+      }}
       className="relative isolate flex h-28 touch-none overflow-hidden rounded-lg border"
         style={{ backgroundColor: fillBands[0]?.color, backgroundImage: fillBands.length > 1
           ? `linear-gradient(to right, ${fillBands.map((band, index) => `${band.color} ${index === 0 ? 0 : position(fillBands[index - 1].stop)}% ${index === fillBands.length - 1 ? 100 : position(band.stop)}%`).join(",")})`
@@ -758,6 +808,8 @@ export function ExposureGraph({
         const left = index === 0 ? 0 : position(fillBands[index - 1].stop)
         const right = index === fillBands.length - 1 ? 100 : position(band.stop)
         return <button key={`fill-color-${bandId(band)}`} type="button" aria-label={`Edit fill color ${index + 1}`} title="Double-click to edit color; Enter or Space also opens the picker"
+          data-band-center={index === setup.bands.length - 1 ? index : undefined}
+          onFocus={() => onSelect(index)}
           className="absolute inset-y-0 bg-transparent focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-4 focus-visible:outline-foreground"
           style={{ left: `${left}%`, width: `${right - left}%` }}
           onClick={(event) => { onSelect(index); if (event.detail === 0) onEditColor?.(index) }}
@@ -818,6 +870,7 @@ export function ExposureGraph({
             aria-hidden="true"
             className="absolute inset-y-0"
             data-band-width={index}
+            onPointerDown={() => { onSelect(index); focusBand(index) }}
             key={`width-${index}`}
             style={{
               backgroundColor: band.color,
@@ -827,33 +880,6 @@ export function ExposureGraph({
           />
         )
       })}
-      {!setup.fill_mode && setup.bands.map((band, index) => [-1, 1].map((side) => (
-          <button
-            aria-label={`Resize ${side < 0 ? "left" : "right"} edge of band ${index + 1}`}
-            aria-valuemin={0.1}
-            aria-valuenow={band.width}
-            aria-valuetext={`${Number((band.width * 2).toFixed(6))} ${preview.unit} total width`}
-            className={`absolute inset-y-0 z-20 w-3 -translate-x-1/2 cursor-ew-resize bg-transparent outline-none after:absolute after:inset-y-0 after:left-1/2 after:w-0.5 after:-translate-x-1/2 after:bg-white after:shadow hover:after:w-1 focus-visible:ring-2 focus-visible:ring-ring ${selectedBand === index ? "after:w-1" : ""}`}
-            key={`${bandId(band)}-${side}`}
-            role="slider"
-            style={{ left: `${position(band.stop + side * band.width)}%`, zIndex: selectedBand === index ? 30 : undefined }}
-            type="button"
-            onFocus={() => onSelect(index)}
-            onKeyDown={(event) => {
-              const direction = event.key === "ArrowRight" || event.key === "ArrowUp" ? 1 : event.key === "ArrowLeft" || event.key === "ArrowDown" ? -1 : 0
-              if (!direction) return
-              event.preventDefault()
-              onSelect(index)
-              onWidthChange(index, Math.max(0.1, Number((band.width + direction * side * 0.1).toFixed(6))))
-            }}
-            onPointerDown={(event) => {
-              onEditStart?.()
-              onSelect(index)
-              event.currentTarget.setPointerCapture(event.pointerId)
-            }}
-            onPointerMove={(event) => handleWidthPointerMove(event, index)}
-          />
-      )))}
       {!setup.fill_mode && selected && (
         <span aria-hidden="true" className="pointer-events-none absolute inset-y-0 z-[2] border-2 border-dashed border-white outline outline-1 outline-black"
           style={{ left: `${position(selected.stop - selected.width)}%`, width: `${position(selected.stop + selected.width) - position(selected.stop - selected.width)}%` }} />
@@ -863,41 +889,71 @@ export function ExposureGraph({
         const below = band.stop < preview.minimum
         const above = band.stop > preview.maximum
         const edge = below || above
-        if (edge && selectedBand !== index) return null
         return (
-          <button
-            key={`handle-${bandId(band)}`}
-            type="button"
-            className={setup.fill_mode
-                ? `absolute inset-y-0 z-10 w-6 -translate-x-1/2 cursor-ew-resize bg-transparent after:absolute after:inset-y-0 after:left-1/2 after:w-0.5 after:-translate-x-1/2 after:bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${selectedBand === index ? "after:w-1" : ""}`
-                : `absolute z-10 size-4 cursor-ew-resize rounded-full border-2 border-background shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${selectedBand === index ? "ring-2 ring-ring ring-offset-2" : ""}`}
-            style={{
-              left: `${position(band.stop)}%`,
-              zIndex: selectedBand === index ? 40 : undefined,
-              ...(setup.fill_mode ? {} : {
-                backgroundColor: band.color,
-                color: contrastTextColor(band.color),
-                top: edge ? "70%" : "50%",
-                transform: edge
-                  ? `translate(${below ? "0" : "-100%"}, -50%)`
-                  : "translate(-50%, -50%)",
-              }),
-            }}
-            aria-label={setup.fill_mode
-              ? `Boundary between colors ${index + 1} and ${index + 2}, ${band.stop} ${preview.unit}`
-              : `Band ${index + 1}, ${band.stop} ${preview.unit}${edge ? ", outside visible range" : ""}`}
-              title={`${band.stop} ${preview.unit}${edge ? " · outside visible range" : " · drag to move"}`}
-            onClick={() => onSelect(index)}
-            onFocus={() => onSelect(index)}
-            onKeyDown={(event) => handleKeyDown(event, index)}
-            onPointerDown={(event) => {
-              onEditStart?.()
-              onSelect(index)
-              event.currentTarget.setPointerCapture(event.pointerId)
-            }}
-            onPointerMove={(event) => handlePointerMove(event, index)}
-          >
-          </button>
+          <Fragment key={bandId(band)}>
+            {!setup.fill_mode && [-1, 1].map((side) => (
+                <button
+                  aria-label={`Resize ${side < 0 ? "left" : "right"} edge of band ${index + 1}`}
+                  aria-valuemin={0.1}
+                  aria-valuenow={band.width}
+                  aria-valuetext={`${Number((band.width * 2).toFixed(6))} ${preview.unit} total width`}
+                  className={`absolute inset-y-0 z-20 w-3 -translate-x-1/2 cursor-ew-resize bg-transparent outline-none after:absolute after:inset-y-0 after:left-1/2 after:w-0.5 after:-translate-x-1/2 after:bg-white after:shadow hover:after:w-1 focus-visible:ring-2 focus-visible:ring-ring ${selectedBand === index ? "after:w-1" : ""}`}
+                  key={`${bandId(band)}-${side}`}
+                  role="slider"
+                  style={{ left: `${position(band.stop + side * band.width)}%`, zIndex: selectedBand === index ? 30 : undefined }}
+                  type="button"
+                  onFocus={() => onSelect(index)}
+                  onKeyDown={(event) => {
+                    if (event.altKey || event.ctrlKey || event.metaKey || event.nativeEvent.isComposing) return
+                    const direction = event.key === "ArrowRight" || event.key === "ArrowUp" ? 1 : event.key === "ArrowLeft" || event.key === "ArrowDown" ? -1 : 0
+                    if (!direction) return
+                    event.preventDefault()
+                    onSelect(index)
+                    onWidthChange(index, Math.max(0.1, Number((band.width + direction * side * (event.shiftKey ? 1 : 0.1)).toFixed(6))))
+                  }}
+                  onPointerDown={(event) => {
+                    onEditStart?.()
+                    onSelect(index)
+                    event.currentTarget.setPointerCapture(event.pointerId)
+                  }}
+                  onPointerMove={(event) => handleWidthPointerMove(event, index)}
+                />
+            ))}
+            {(!edge || selectedBand === index) && <button
+              key={`handle-${bandId(band)}`}
+              data-band-center={index}
+              type="button"
+              className={setup.fill_mode
+                  ? `absolute inset-y-0 z-10 w-6 -translate-x-1/2 cursor-ew-resize bg-transparent after:absolute after:inset-y-0 after:left-1/2 after:w-0.5 after:-translate-x-1/2 after:bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${selectedBand === index ? "after:w-1" : ""}`
+                  : `absolute z-10 size-4 cursor-ew-resize rounded-full border-2 border-background shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${selectedBand === index ? "ring-2 ring-ring ring-offset-2" : ""}`}
+              style={{
+                left: `${position(band.stop)}%`,
+                zIndex: selectedBand === index ? 40 : undefined,
+                ...(setup.fill_mode ? {} : {
+                  backgroundColor: band.color,
+                  color: contrastTextColor(band.color),
+                  top: edge ? "70%" : "50%",
+                  transform: edge
+                    ? `translate(${below ? "0" : "-100%"}, -50%)`
+                    : "translate(-50%, -50%)",
+                }),
+              }}
+              aria-label={setup.fill_mode
+                ? `Boundary between colors ${index + 1} and ${index + 2}, ${band.stop} ${preview.unit}`
+                : `Band ${index + 1}, ${band.stop} ${preview.unit}${edge ? ", outside visible range" : ""}`}
+                title={`${band.stop} ${preview.unit}${edge ? " · outside visible range" : " · drag to move"}`}
+              onClick={() => onSelect(index)}
+              onFocus={() => onSelect(index)}
+              onKeyDown={(event) => handleKeyDown(event, index)}
+              onPointerDown={(event) => {
+                onEditStart?.()
+                onSelect(index)
+                event.currentTarget.setPointerCapture(event.pointerId)
+              }}
+              onPointerMove={(event) => handlePointerMove(event, index)}
+            >
+            </button>}
+          </Fragment>
         )
       })}
     </div>
@@ -1140,6 +1196,7 @@ export function App() {
         <p className="text-muted-foreground">{browserOnly ? "Browser-based diagnostic scene-exposure LUT editor" : "Local diagnostic scene-exposure LUT editor"}</p>
         </div>
         <nav aria-label="Workbench sections" className="flex flex-wrap gap-4 text-sm font-medium">
+          <KeyboardHelp canUndo={Boolean(undo)} onUndo={undoEdit} />
           <a className="underline-offset-4 hover:underline" href="#configuration">01 Configure</a>
           <a className="underline-offset-4 hover:underline" href="#exposure-bands">02 Edit bands</a>
           <a className="underline-offset-4 hover:underline" href="#export">03 Download</a>
@@ -1156,7 +1213,7 @@ export function App() {
             <label className="grid gap-1 text-sm font-medium">
               Camera recording
               <select className={fieldClass} value={setup.profile} onChange={(e) => patchSetup({ profile: e.target.value })}>
-                {catalog.profiles.map((profile) => <option key={profile} value={profile}>{profile} · {sourceInfo[profile as keyof typeof sourceInfo]?.gamut ?? "Profile gamut"}</option>)}
+                {catalog.profiles.map((profile) => <option key={profile} value={profile}>{profile} · {browserInterpretations[profile]?.gamut ?? "Profile gamut"}</option>)}
               </select>
             </label>
             <label className="grid gap-1 text-sm font-medium">
@@ -1310,6 +1367,11 @@ export function App() {
                   increment={movementIncrement}
                   selectedBand={selectedBand}
                   onSelect={selectBand}
+                  onRemove={(index) => {
+                    editSetup((current) => removeBand(current, index))
+                    setRemovingBandIndex(null)
+                    setStatus(`Removed band ${index + 1}. Undo last band edit restores it.`)
+                  }}
                   onEditColor={(index) => { selectBand(index); colorTriggers.current.get(bandId(setup.bands[index]))?.click() }}
                   onEditStart={() => dispatch({ type: "begin" })}
                   onEditEnd={() => dispatch({ type: "end" })}

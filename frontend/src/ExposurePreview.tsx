@@ -2,6 +2,7 @@ import { useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { exposureReferenceValue, type Setup } from "./editor"
 import type { PalettePreview } from "./PaletteEditor"
+import { isTypingTarget } from "./keyboard"
 
 function BandStrip({ setup, minimum, maximum, expanded = false }: { setup: Setup; minimum: number; maximum: number; expanded?: boolean }) {
   const position = (value: number) => Math.max(0, Math.min(1000, (value - minimum) / (maximum - minimum) * 1000))
@@ -31,7 +32,12 @@ export function ExposurePreview({ setup, preview, minimum, maximum, unit }: {
     <Button type="button" className="flex-1" disabled={!preview.valid} onClick={() => decide(preview.apply)}>Use palette</Button>
     <Button type="button" variant="outline" onClick={() => decide(preview.cancel)}>Cancel</Button>
   </div>
-  return <div className="sticky top-0 z-40 grid gap-2 border-b bg-card p-3 shadow-sm" aria-label="Persistent exposure preview">
+  return <div tabIndex={0} role="group" className="sticky top-0 z-40 grid gap-2 border-b bg-card p-3 shadow-sm" aria-label="Persistent exposure preview"
+    onKeyDown={(event) => {
+      if (event.defaultPrevented || event.nativeEvent.isComposing || isTypingTarget(event.target) || event.altKey || event.ctrlKey || event.metaKey) return
+      if (event.key.toLowerCase() === "f" && !dialog.current?.open) { event.preventDefault(); trigger.current?.click() }
+      if (event.key === "Escape" && preview && !dialog.current?.open) { event.preventDefault(); decide(preview.cancel) }
+    }}>
     <button ref={trigger} type="button" aria-label="Expand exposure preview" aria-haspopup="dialog" className="grid gap-1 rounded text-left" onClick={() => dialog.current?.showModal()}>
       <span className="flex flex-wrap justify-between gap-x-3 text-xs"><span className="font-semibold" role="status">{label}</span><span className="text-muted-foreground">Tap to expand</span></span>
       <BandStrip setup={displayed} minimum={minimum} maximum={maximum} />
