@@ -22,6 +22,7 @@ import { isTypingTarget } from "./keyboard"
 import { tailwindPalette } from "./tailwindPalette"
 import { BandNumberInput } from "./BandNumberInput"
 import { overlayForExposure } from "./demonstration"
+import { usePreviewMedia } from "./previewMedia"
 import {
   Card,
   CardContent,
@@ -97,170 +98,24 @@ function srgbToLinear(value: number) {
   return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4
 }
 
-const VideoFrameSchema = Schema.Struct({
-  name: Schema.optional(Schema.String),
-  source_id: Schema.String,
-  display: Schema.String,
-  frame: Schema.Struct({ source_id: Schema.optional(Schema.String), index: Schema.Finite, pts: Schema.String, time_base: Schema.String, first_pts: Schema.String, relative_time: Schema.String, seconds: Schema.Finite, count: Schema.Finite }),
-  facts: Schema.Struct({ stream: Schema.Record(Schema.String, Schema.Unknown), frame: Schema.Record(Schema.String, Schema.Unknown) }),
-  source: Schema.Struct({ precision_bits: Schema.Finite, pixel_format: Schema.String }),
-  provenance: Schema.Struct({ matrix: Schema.String, range: Schema.String, chroma_location: Schema.String, view: Schema.String }),
-})
-export type VideoFrame = typeof VideoFrameSchema.Type
-
 class WorkspaceRequestError extends Data.TaggedError("WorkspaceRequestError")<{
   readonly message: string
   readonly cause: unknown
 }> {}
-
-function videoRequest<T>(path: string, body: object | File, decode: (input: unknown) => T, signal?: AbortSignal): Promise<T> {
-  const operation = Effect.tryPromise({
-    try: async (requestSignal) => {
-      const response = await fetch(`/video/${path}`, {
-        method: "POST",
-        headers: { "Content-Type": body instanceof File ? "application/octet-stream" : "application/json", "X-LUT-Builder-Token": window.LUT_BUILDER_TOKEN },
-        body: body instanceof File ? body : JSON.stringify(body),
-        signal: requestSignal,
-      })
-      const result = await response.json()
-      if (!response.ok) throw new Error(Schema.decodeUnknownSync(ErrorResponseSchema)(result).error || "Video request failed")
-      return decode(result)
-    },
-    catch: (cause) => new WorkspaceRequestError({ message: cause instanceof Error ? cause.message : "Video request failed", cause }),
-  })
-  return Effect.runPromise(operation, { signal })
-}
-
-function readImage(file: File): Effect.Effect<string, WorkspaceRequestError> {
-  return Effect.callback((resume, signal) => {
-    const reader = new FileReader()
-    const abort = () => reader.abort()
-    const cleanup = () => {
-      signal.removeEventListener("abort", abort)
-      reader.onload = null
-      reader.onerror = null
-      reader.onabort = null
-    }
-    reader.onload = () => {
-      const data = String(reader.result)
-      cleanup()
-      resume(Effect.succeed(data))
-    }
-    reader.onerror = () => {
-      cleanup()
-      resume(Effect.fail(new WorkspaceRequestError({ message: "Could not read this image. Try a PNG, JPEG, or WebP file.", cause: reader.error })))
-    }
-    signal.addEventListener("abort", abort, { once: true })
-    reader.readAsDataURL(file)
-    return Effect.sync(() => {
-      cleanup()
-      if (reader.readyState === FileReader.LOADING) reader.abort()
-    })
-  })
-}
-
-function releaseVideo(source_id: string) {
-  void Effect.runPromise(Effect.tryPromise({
-    try: (signal) => fetch("/video/cancel", {
-      method: "POST", keepalive: true, signal,
-      headers: { "Content-Type": "application/json", "X-LUT-Builder-Token": window.LUT_BUILDER_TOKEN },
-      body: JSON.stringify({ source_id }),
-    }),
-    catch: (cause) => new WorkspaceRequestError({ message: "Video cancellation failed.", cause }),
-  })).catch(() => {}) // Server expiry also cleans up if the page has disconnected.
-}
 
 export function LutImagePreview({ preview, camera }: { preview: Preview | null; camera?: { setup: Setup; interpretations: SourceInterpretations } }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const dialogRef = useRef<HTMLDialogElement>(null)
   const expandRef = useRef<HTMLButtonElement>(null)
-  const selection = useRef(0)
-  const [imageUrl, setImageUrl] = useState(referenceImage)
-  const [imageName, setImageName] = useState("Reference photo")
-  const [imageError, setImageError] = useState("")
   const [comparison, setComparison] = useState("Split view")
   const [expanded, setExpanded] = useState(false)
   const [opacity, setOpacity] = useState(100)
   const videoInput = useRef<HTMLInputElement>(null)
-  const imageRead = useRef<AbortController | null>(null)
-  const videoSource = useRef("")
-  const videoAbort = useRef<AbortController | null>(null)
-  const [video, setVideo] = useState<VideoFrame | null>(null)
-  const [videoBusy, setVideoBusy] = useState("")
-  const [videoTime, setVideoTime] = useState("0")
-  const [frameRevision, setFrameRevision] = useState(0)
-
-  useEffect(() => {
-    const cleanup = () => {
-      videoAbort.current?.abort()
-      if (videoSource.current) releaseVideo(videoSource.current)
-    }
-    window.addEventListener("pagehide", cleanup)
-    return () => { cleanup(); window.removeEventListener("pagehide", cleanup) }
-  }, [])
-
-  function stopVideo() {
-    selection.current += 1
-    videoAbort.current?.abort()
-    if (videoSource.current) releaseVideo(videoSource.current)
-    videoSource.current = ""
-    setVideo(null)
-    setVideoBusy("")
-  }
-
-  async function chooseVideo(file: File) {
-    stopVideo()
-    const request = selection.current
-    setImageUrl(referenceImage)
-    setImageName("Reference photo")
-    setImageError("")
-    if (file.size === 0 || file.size > 256 * 1024 * 1024) {
-      setImageError("Choose a nonempty video up to 256 MB.")
-      return
-    }
-    setVideoBusy("Uploading and indexing decoded presentation frames…")
-    const controller = new AbortController()
-    videoAbort.current = controller
-    try {
-      const { source_id } = await videoRequest("start", {}, Schema.decodeUnknownSync(Schema.Struct({ source_id: Schema.String })))
-      if (request !== selection.current) { releaseVideo(source_id); return }
-      videoSource.current = source_id
-      const result = await videoRequest(`upload?source_id=${encodeURIComponent(source_id)}`, file, Schema.decodeUnknownSync(VideoFrameSchema), controller.signal)
-      if (request !== selection.current) return
-      setVideo({ ...result, name: file.name })
-      setVideoTime("0")
-      setImageUrl(result.display)
-      setImageName(file.name)
-    } catch (error) {
-      if (request === selection.current) {
-        if (videoSource.current) releaseVideo(videoSource.current)
-        videoSource.current = ""
-        setImageError(error instanceof Error ? error.message : "Video import failed")
-      }
-    } finally {
-      if (request === selection.current) setVideoBusy("")
-    }
-  }
-
-  async function selectVideoFrame(position: { time: string } | { index: number }) {
-    const request = ++selection.current
-    setFrameRevision((value) => value + 1)
-    setVideoBusy("Decoding the selected presentation frame…")
-    setImageError("")
-    const controller = new AbortController()
-    videoAbort.current = controller
-    try {
-      const result = await videoRequest("frame", { source_id: videoSource.current, ...position }, Schema.decodeUnknownSync(VideoFrameSchema), controller.signal)
-      if (request !== selection.current) return
-      setVideo({ ...result, name: video?.name })
-      setImageUrl(result.display)
-    } catch (error) {
-      if (request === selection.current) setImageError(`${error instanceof Error ? error.message : "Frame extraction failed"} The displayed frame is unchanged.`)
-    } finally {
-      if (request === selection.current) setVideoBusy("")
-    }
-  }
+  const {
+    imageUrl, imageName, imageError, video, videoBusy, videoTime, frameRevision,
+    chooseVideo, selectVideoFrame, chooseImage, reference, setVideoTime, displayError,
+  } = usePreviewMedia(referenceImage)
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -306,42 +161,10 @@ export function LutImagePreview({ preview, camera }: { preview: Preview | null; 
 
     const image = new Image()
     image.onload = () => draw(image)
-    image.onerror = () => setImageError("This image could not be displayed. Choose another still image.")
+    image.onerror = () => displayError("This image could not be displayed. Choose another still image.")
     image.src = imageUrl
     return () => { image.onload = null; image.onerror = null }
-  }, [imageUrl, comparison, opacity, preview, expanded])
-
-  useEffect(() => () => imageRead.current?.abort(), [])
-
-  function chooseImage(file: File) {
-    stopVideo()
-    const request = ++selection.current
-    imageRead.current?.abort()
-    setImageError("")
-    if (!file.type.startsWith("image/") || file.size > 25 * 1024 * 1024) {
-      setImageError("Choose a still image up to 25 MB. The previous image is unchanged.")
-      return
-    }
-    const controller = new AbortController()
-    imageRead.current = controller
-    void Effect.runPromise(readImage(file), { signal: controller.signal }).then((data) => {
-      if (request !== selection.current) return
-      const candidate = new Image()
-      candidate.onerror = () => {
-        if (request === selection.current) setImageError("Could not read this image. Try a PNG, JPEG, or WebP file. The previous image is unchanged.")
-      }
-      candidate.onload = () => {
-        if (request !== selection.current) return
-        setImageUrl(data)
-        setImageName(file.name)
-      }
-      candidate.src = data
-    }).catch((error: unknown) => {
-      if (request === selection.current && !controller.signal.aborted) {
-        setImageError(`${error instanceof Error ? error.message : "Could not read this image."} The previous image is unchanged.`)
-      }
-    })
-  }
+  }, [imageUrl, comparison, opacity, preview, expanded, displayError])
 
   const content = <div className="grid min-w-0 gap-3">
     {!camera && <>
@@ -361,10 +184,10 @@ export function LutImagePreview({ preview, camera }: { preview: Preview | null; 
     <div className="flex flex-wrap gap-2">
       {!camera && <Button type="button" variant="outline" onClick={() => inputRef.current?.click()}>Choose image</Button>}
       <Button type="button" variant="outline" onClick={() => videoInput.current?.click()}>Choose video</Button>
-      {!camera && imageUrl !== referenceImage && <Button type="button" variant="ghost" onClick={() => { stopVideo(); setImageUrl(referenceImage); setImageName("Reference photo"); setImageError("") }}>Reference photo</Button>}
+      {!camera && imageUrl !== referenceImage && <Button type="button" variant="ghost" onClick={() => reference()}>Reference photo</Button>}
       <input ref={inputRef} className="sr-only" tabIndex={-1} aria-label="Choose demonstration still image" type="file" accept="image/*" onChange={(event) => {
         const file = event.target.files?.[0]
-        if (file) chooseImage(file)
+        if (file) void chooseImage(file)
         event.target.value = ""
       }} />
       <input ref={videoInput} className="sr-only" tabIndex={-1} aria-label={camera ? "Choose local camera video" : "Choose local demonstration video"} type="file" accept=".mp4,.mov,.mkv" onChange={(event) => {
@@ -375,7 +198,7 @@ export function LutImagePreview({ preview, camera }: { preview: Preview | null; 
     </div>
     <p className="break-all text-xs text-muted-foreground" role="status">{camera && !video ? "No camera video selected." : imageName} · {camera || video ? "Video stays on this computer in temporary server storage." : "Still images stay in this browser session. Maximum 25 MB."}</p>
     <p className="text-xs text-muted-foreground">Video: MP4/MOV/MKV, H.264, HEVC, ProRes 422 or FFV1. Progressive, square pixels, no rotation. Up to 256 MB, 1920 × 1080, 120 seconds and 10,000 frames. Processing limit: 60 seconds per stage. One video per app launch; expires after 15 idle minutes.</p>
-    {videoBusy && <div className="flex flex-wrap items-center gap-2"><p role="status" className="text-sm">{videoBusy}</p><Button type="button" variant="outline" onClick={() => { stopVideo(); setImageUrl(referenceImage); setImageName("Reference photo"); setImageError("Video cancelled and temporary data released.") }}>Cancel video</Button></div>}
+    {videoBusy && <div className="flex flex-wrap items-center gap-2"><p role="status" className="text-sm">{videoBusy}</p><Button type="button" variant="outline" onClick={() => reference("Video cancelled and temporary data released.")}>Cancel video</Button></div>}
     {video && <div className="grid gap-3 rounded-md border p-3">
       <label className="grid gap-2 text-sm">Requested relative time in seconds
         <input type="number" min="0" step="any" className={fieldClass} value={videoTime} onChange={(event) => setVideoTime(event.target.value)} disabled={!!videoBusy} />
@@ -384,7 +207,7 @@ export function LutImagePreview({ preview, camera }: { preview: Preview | null; 
         <Button type="button" variant="outline" disabled={!!videoBusy || !videoTime.trim()} onClick={() => void selectVideoFrame({ time: videoTime })}>Select frame</Button>
         <Button type="button" variant="outline" disabled={!!videoBusy || video.frame.index === 0} onClick={() => void selectVideoFrame({ index: video.frame.index - 1 })}>Previous frame</Button>
         <Button type="button" variant="outline" disabled={!!videoBusy || video.frame.index + 1 === video.frame.count} onClick={() => void selectVideoFrame({ index: video.frame.index + 1 })}>Next frame</Button>
-        <Button type="button" variant="ghost" onClick={() => { stopVideo(); setImageUrl(referenceImage); setImageName("Reference photo") }}>Release video</Button>
+        <Button type="button" variant="ghost" onClick={() => reference()}>Release video</Button>
       </div>
       <p role="status" className="text-sm">Selected {video.frame.seconds.toFixed(6)} s · exact {video.frame.relative_time} s · frame {video.frame.index + 1} of {video.frame.count}. PTS {video.frame.pts}, time base {video.frame.time_base}; first PTS {video.frame.first_pts}.</p>
       <p className="text-xs text-muted-foreground">First decoded presentation frame at or after the request. Previous/Next follows decoded frames, including variable frame rate.</p>
