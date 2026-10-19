@@ -39,8 +39,8 @@ import { BrowserVerification } from "./BrowserVerification"
 import { browserInterpretations, browserProfiles, browserTargets } from "@/lutEngine"
 import { defaultFilenameTemplate, outputFilename } from "./outputFilename"
 import { deleteSetupPreset, readSetupPresets, saveSetupPreset, type SetupPreset } from "@/setupPresets"
-import { decodeSetup, SetupSchema, SetupValidationError } from "@/setupSchema"
-import { generateInWorker } from "@/lutWorkerClient"
+import { SetupValidationError } from "@/setupSchema"
+import { createWorkspaceRuntime, type Preview } from "./workspaceRuntime"
 import {
   applyBandPreset,
   applyFillPreset,
@@ -79,19 +79,6 @@ type Catalog = {
   palette: PaletteColor[]
 }
 
-const PreviewSchema = Schema.Struct({
-  minimum: Schema.Finite,
-  maximum: Schema.Finite,
-  unit: Schema.String,
-  colors: Schema.Array(Schema.String),
-  overlays: Schema.Array(Schema.NullOr(Schema.String)),
-  input_overlays: Schema.Array(Schema.NullOr(Schema.String)),
-  input_exposure: Schema.Array(Schema.Finite),
-  legend: Schema.Array(Schema.Struct({ kind: Schema.String, color: Schema.String, label: Schema.String })),
-  warnings: Schema.Array(Schema.String),
-  setup: SetupSchema,
-})
-type Preview = typeof PreviewSchema.Type
 const ErrorResponseSchema = Schema.Struct({ error: Schema.optional(Schema.String) })
 
 function srgbToLinear(value: number) {
@@ -320,32 +307,6 @@ const browserSetup: Setup = {
 
 const fieldClass =
   "h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 disabled:cursor-not-allowed disabled:opacity-50"
-
-function postJson(path: string, setup: Setup, signal?: AbortSignal): Promise<Preview> {
-  const request = Effect.tryPromise({
-    try: async (requestSignal) => {
-      const response = await fetch(path, {
-        method: "POST",
-        signal: requestSignal,
-        headers: {
-          "Content-Type": "application/json",
-          "X-LUT-Builder-Token": window.LUT_BUILDER_TOKEN,
-        },
-        body: JSON.stringify({ version: 1, ...setup }),
-      })
-      if (!response.ok) {
-        const result = Schema.decodeUnknownSync(ErrorResponseSchema)(await response.json())
-        throw new Error(result.error || "Request failed")
-      }
-      return Schema.decodeUnknownSync(PreviewSchema)(await response.json())
-    },
-    catch: (cause) => new WorkspaceRequestError({
-      message: cause instanceof Error ? cause.message : "Request failed",
-      cause,
-    }),
-  })
-  return Effect.runPromise(request, { signal })
-}
 
 export function ColorPicker({
   label,
@@ -814,7 +775,8 @@ function InfoTooltip({ text }: { text: string }) {
 }
 
 export function App() {
-  const browserOnly = !window.LUT_BUILDER_TOKEN
+  const [runtime] = useState(() => createWorkspaceRuntime(window.LUT_BUILDER_TOKEN))
+  const { browserOnly } = runtime
   const catalog = window.LUT_BUILDER_CATALOG ?? browserCatalog
   const [{ setup, selection: selectedBand, undo, revision }, dispatch] = useReducer(reduceEditor, window.LUT_BUILDER_SETUP ?? browserSetup, createEditorState)
   const [preview, setPreview] = useState<Preview | null>(null)
@@ -860,11 +822,11 @@ export function App() {
   }
 
   useEffect(() => {
-    if (browserOnly) return
+    if (!runtime.capabilities.remotePreview) return
     const controller = new AbortController()
     const timer = window.setTimeout(async () => {
       try {
-        const next = await postJson("/preview", setup, controller.signal)
+        const next = await Effect.runPromise(runtime.preview(setup), { signal: controller.signal })
         if (!controller.signal.aborted) {
           setPreview(next)
           setValidationError("")
@@ -879,7 +841,7 @@ export function App() {
       controller.abort()
       window.clearTimeout(timer)
     }
-  }, [setup, browserOnly])
+  }, [setup, runtime])
 
   function patchSetup(changes: Partial<Setup>) {
     dispatch({ type: "patch", changes })
@@ -909,54 +871,21 @@ export function App() {
     if (isGenerating || isLoadingSetup) return
     setIsGenerating(true)
     setStatus(`Generating ${setup.cube_size}³ LUT…`)
-    const controller = browserOnly ? new AbortController() : null
+    const controller = runtime.capabilities.cancellableGeneration ? new AbortController() : null
     if (controller) workerRef.current = controller
     try {
-      if (browserOnly) {
-        const outcome = await Effect.runPromise(
-          Effect.result(generateInWorker(setup, (progress) => {
-            setStatus(`Generating ${setup.cube_size}³ LUT… ${Math.round(progress * 100)}%`)
-          })),
-          { signal: controller!.signal },
-        )
-        if (Result.isFailure(outcome)) throw outcome.failure
-        const url = URL.createObjectURL(new Blob([outcome.success], { type: "text/plain;charset=utf-8" }))
-        const link = document.createElement("a")
-        link.href = url
-        link.download = outputFilename(setup)
-        link.click()
-        window.setTimeout(() => URL.revokeObjectURL(url), 1000)
-        setStatus("LUT downloaded. Calculations stayed on this device.")
-        return
-      }
-      const response = await Effect.runPromise(Effect.tryPromise({
-        try: async (signal) => {
-          const next = await fetch("/generate", {
-            method: "POST",
-            signal,
-            headers: {
-              "Content-Type": "application/json",
-              "X-LUT-Builder-Token": window.LUT_BUILDER_TOKEN,
-            },
-            body: JSON.stringify({ version: 1, ...setup, output: outputFilename(setup) }),
-          })
-          if (!next.ok) {
-            const result = Schema.decodeUnknownSync(ErrorResponseSchema)(await next.json())
-            throw new Error(result.error || "Generation failed")
-          }
-          return next
-        },
-        catch: (cause) => new WorkspaceRequestError({ message: cause instanceof Error ? cause.message : "Generation failed", cause }),
-      }))
+      const outcome = await Effect.runPromise(Effect.result(runtime.generate(setup, outputFilename(setup), (progress) => {
+        setStatus(`Generating ${setup.cube_size}³ LUT… ${Math.round(progress * 100)}%`)
+      })), { signal: controller?.signal })
+      if (Result.isFailure(outcome)) throw outcome.failure
+      const artifact = outcome.success
       const link = document.createElement("a")
-      link.href = URL.createObjectURL(await response.blob())
-      link.download =
-        /filename="([^"]+)"/.exec(
-          response.headers.get("Content-Disposition") || "",
-        )?.[1] || "lut.cube"
+      const url = URL.createObjectURL(artifact.blob)
+      link.href = url
+      link.download = artifact.filename
       link.click()
-      URL.revokeObjectURL(link.href)
-      setStatus("LUT downloaded.")
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+      setStatus(browserOnly ? "LUT downloaded. Calculations stayed on this device." : "LUT downloaded.")
     } catch (error) {
       setStatus(controller?.signal.aborted ? "Generation cancelled." : error instanceof Error ? error.message : "Generation failed")
     } finally {
@@ -973,12 +902,7 @@ export function App() {
         try: () => file.text(),
         catch: (cause) => new SetupValidationError({ message: "Could not read this setup file.", cause }),
       }))
-      const imported = await importSetup(text, async (candidate) => {
-        const validated = await Effect.runPromise(decodeSetup(candidate))
-        if (browserOnly) return validated
-        const result = await postJson("/preview", validated)
-        return result.setup
-      })
+      const imported = await importSetup(text, (candidate) => Effect.runPromise(runtime.normalize(candidate)))
       if (request !== loadRequest.current) return
       setPreviousSetup(setup)
       dispatch({ type: "import", setup: imported })
@@ -1017,8 +941,7 @@ export function App() {
     const request = ++loadRequest.current
     setIsLoadingSetup(true)
     try {
-      const validated = await Effect.runPromise(decodeSetup(preset.setup))
-      const next = browserOnly ? validated : (await postJson("/preview", validated)).setup
+      const next = await Effect.runPromise(runtime.normalize(preset.setup))
       if (request !== loadRequest.current) return
       setPreviousSetup(setup)
       dispatch({ type: "import", setup: next })
