@@ -38,7 +38,8 @@ import { CameraVerification, type SourceInterpretations } from "@/CameraVerifica
 import { BrowserVerification } from "./BrowserVerification"
 import { browserInterpretations, browserProfiles, browserTargets } from "@/lutEngine"
 import { defaultFilenameTemplate, outputFilename } from "./outputFilename"
-import { deleteSetupPreset, readSetupPresets, saveSetupPreset, type SetupPreset } from "@/setupPresets"
+import { deleteSetupPreset, readSetupPresets, saveSetupPreset, readWorkspaceSession, writeWorkspaceSession, workspaceSessionBackup, type SetupPreset } from "@/setupPresets"
+import { WorkspaceShell, WorkspacePanel } from "./WorkspaceShell"
 import { createWorkspaceRuntime, type Preview } from "./workspaceRuntime"
 import { createSetupReplacement, createSetupWorkspace, reduceSetupWorkspace } from "./setupReplacement"
 import {
@@ -768,9 +769,8 @@ export function App() {
   const [runtime] = useState(() => createWorkspaceRuntime(window.LUT_BUILDER_TOKEN))
   const { browserOnly } = runtime
   const catalog = window.LUT_BUILDER_CATALOG ?? browserCatalog
-  const [presetRead] = useState(() => Effect.runSync(Effect.result(readSetupPresets(() => window.localStorage))))
   const [{ setup, selection: selectedBand, undo, revision, previousSetup, isLoadingSetup, loadStatus, palettePreview, bandStatus }, dispatch] = useReducer(
-    reduceSetupWorkspace, undefined, () => createSetupWorkspace(window.LUT_BUILDER_SETUP ?? browserSetup, Result.isFailure(presetRead) ? presetRead.failure.message : ""),
+    reduceSetupWorkspace, undefined, () => createSetupWorkspace(window.LUT_BUILDER_SETUP ?? browserSetup),
   )
   const [setupReplacement] = useState(() => createSetupReplacement(runtime.normalize, dispatch))
   const setupLoads = useRef<AbortController | null>(null)
@@ -788,7 +788,43 @@ export function App() {
   const [deletingPreset, setDeletingPreset] = useState(false)
   const [isGenerating, setIsGenerating] = useState(false)
   const workerRef = useRef<AbortController | null>(null)
-  const [setupPresets, setSetupPresets] = useState<SetupPreset[]>(() => Result.isSuccess(presetRead) ? presetRead.success : [])
+  const [setupPresets, setSetupPresets] = useState<SetupPreset[]>([])
+  const [sessionReady, setSessionReady] = useState(false)
+  const [sessionBlocked, setSessionBlocked] = useState(false)
+  const [sessionStatus, setSessionStatus] = useState("")
+  const [sessionRetry, setSessionRetry] = useState(0)
+  useEffect(() => {
+    const controller = new AbortController()
+    void Effect.runPromise(Effect.all({
+      presets: Effect.result(readSetupPresets(() => window.localStorage)),
+      session: Effect.result(readWorkspaceSession(() => window.localStorage)),
+    }), { signal: controller.signal }).then(({ presets, session }) => {
+      if (controller.signal.aborted) return
+      if (Result.isSuccess(presets)) setSetupPresets(presets.success)
+      else dispatch({ type: "load-status", value: presets.failure.message })
+      if (Result.isFailure(session)) {
+        setSessionBlocked(true)
+        setSessionStatus(session.failure.message)
+      } else if (session.success) {
+        dispatch({ type: "load-start", request: -1 })
+        dispatch({ type: "load-commit", request: -1, setup: session.success, message: "Last session restored. Reselect any camera media to verify; media files are not stored." })
+        setSessionStatus("Last session restored on this device.")
+      }
+      setSessionReady(true)
+    }).catch(() => { /* An aborted mount must not replace the next mount's state. */ })
+    return () => controller.abort()
+  }, [])
+  useEffect(() => {
+    if (!sessionReady || sessionBlocked || isLoadingSetup) return
+    const controller = new AbortController()
+    const timer = window.setTimeout(() => {
+      void Effect.runPromise(Effect.result(writeWorkspaceSession(() => window.localStorage, setup)), { signal: controller.signal }).then((result) => {
+        if (controller.signal.aborted) return
+        setSessionStatus(Result.isFailure(result) ? result.failure.message : "Session saved on this device. Media must be reselected after reopening.")
+      }).catch(() => undefined)
+    }, 500)
+    return () => { window.clearTimeout(timer); controller.abort() }
+  }, [setup, sessionReady, sessionBlocked, isLoadingSetup, sessionRetry])
   const [presetName, setPresetName] = useState("")
   const [selectedPreset, setSelectedPreset] = useState("")
   const replacingPreset = setupPresets.some((preset) => preset.name.toLocaleLowerCase() === presetName.trim().toLocaleLowerCase())
@@ -902,7 +938,7 @@ export function App() {
     link.download = outputFilename(setup).replace(/\.cube$/i, ".json")
     link.click()
     URL.revokeObjectURL(link.href)
-    setSaveStatus("Version-1 configuration exported.")
+    setSaveStatus("Setup file exported.")
   }
 
   function saveCurrentPreset() {
@@ -928,24 +964,48 @@ export function App() {
     }).catch((error: unknown) => setLoadStatus(error instanceof Error ? error.message : "Could not update browser storage. Export your setup as JSON to keep a copy."))
   }
 
-  return (
-    <main className="mx-auto flex min-h-svh w-full max-w-[100rem] flex-col gap-6 p-4 py-6 sm:p-8">
-      <header className="flex flex-wrap items-start justify-between gap-4 border-b pb-6">
-        <div className="grid gap-1">
-        <h1 className="font-heading text-3xl font-semibold tracking-tight">LUT Builder</h1>
-        <p className="text-muted-foreground">{browserOnly ? "Browser-based diagnostic scene-exposure LUT editor" : "Local diagnostic scene-exposure LUT editor"}</p>
-        </div>
-        <a className="inline-flex min-h-11 items-center text-sm underline" href={`${import.meta.env.BASE_URL}docs/`} target="_blank" rel="noreferrer">Help / Manual <span className="sr-only">(opens in a new tab)</span></a>
-        <a className="inline-flex min-h-11 items-center text-sm underline" href="https://github.com/Today20092/lut_builder/issues/new/choose" target="_blank" rel="noreferrer">Report an issue · GitHub</a>
-        <nav aria-label="Workbench sections" className="flex w-full items-center justify-between gap-1 text-sm font-medium sm:w-auto sm:gap-4">
-            <span className="hidden sm:inline-flex"><KeyboardHelp canUndo={Boolean(undo)} onUndo={undoEdit} /></span>
-          <a className="inline-flex min-h-11 items-center px-1 underline-offset-4 hover:underline" href="#configuration">01 Configure</a>
-          <a className="inline-flex min-h-11 items-center px-1 underline-offset-4 hover:underline" href="#exposure-bands">02 Edit bands</a>
-          <a className="inline-flex min-h-11 items-center px-1 underline-offset-4 hover:underline" href="#export">03 Download</a>
-        </nav>
-      </header>
+  function downloadSessionBackup() {
+    void Effect.runPromise(workspaceSessionBackup(() => window.localStorage)).then((raw) => {
+      if (raw === null) return setSessionStatus("No saved session backup is available. Export your current setup instead.")
+      const url = URL.createObjectURL(new Blob([raw], { type: "application/json" }))
+      const link = document.createElement("a")
+      link.href = url
+      link.download = "lut-builder-session-backup.json"
+      link.click()
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+    }).catch((error: unknown) => setSessionStatus(error instanceof Error ? error.message : "Could not read the saved session."))
+  }
 
-      <fieldset disabled={isGenerating || isLoadingSetup} className="@container grid min-w-0 gap-6">
+  return (
+    <WorkspaceShell setup={setup} busy={isGenerating || isLoadingSetup || !sessionReady}
+      shortcuts={<KeyboardHelp canUndo={Boolean(undo)} onUndo={undoEdit} />}
+      stage={(openBands) => <>
+        <ExposurePreview setup={setup} preview={palettePreview} minimum={graphMinimum} maximum={graphMaximum} unit={graphPreview.unit} />
+        <fieldset disabled={isGenerating || isLoadingSetup || !sessionReady} className="workspace-graph">
+          <ExposureGraph setup={setup} preview={graphPreview} increment={movementIncrement} selectedBand={selectedBand}
+            onSelect={(index) => { selectBand(index); openBands() }}
+            onRemove={(index) => { editSetup((current) => removeBand(current, index)); setRemovingBandIndex(null); setBandStatus(`Removed band ${index + 1}. Undo last band edit restores it.`) }}
+            onEditColor={(index) => { selectBand(index); openBands(); requestAnimationFrame(() => colorTriggers.current.get(bandId(setup.bands[index]))?.click()) }}
+            onEditStart={() => dispatch({ type: "begin" })} onEditEnd={() => dispatch({ type: "end" })}
+            onChange={(index, stop) => editSetup((current) => setup.fill_mode ? updateFillBoundary(current, index, stop, movementIncrement) : updateBand(current, index, { stop }), index)}
+            onWidthChange={(index, width) => editSetup((current) => updateBand(current, index, { width }), index)} />
+        </fieldset>
+        <div className="workspace-band-picker" aria-label="Select exposure band">
+          {setup.bands.map((band, index) => <Button key={bandId(band)} type="button" variant={selectedBand === index ? "secondary" : "ghost"} aria-pressed={selectedBand === index} aria-label={`Select band ${index + 1}`} disabled={isGenerating || isLoadingSetup || !sessionReady} onClick={() => { selectBand(index); openBands() }}><span className="workspace-swatch" style={{ backgroundColor: band.color }} aria-hidden="true" />{index + 1}</Button>)}
+        </div>
+        <p className="workspace-stage-hint">Select a band to edit its color and exposure range.</p>
+        <details id="photo-result" className="workspace-photo"><summary>Photo illustration · optional</summary><ReferencePreview setup={palettePreview?.valid ? palettePreview.setup : setup} draft={Boolean(palettePreview?.valid)} /><a href="#exposure-bands" className="inline-flex min-h-11 items-center text-sm underline" onClick={openBands}>Back to band editing</a></details>
+      </>}
+      feedback={<>
+        <p className="workspace-session-status" role="status">{sessionStatus || (!sessionReady ? "Restoring workspace…" : "")}</p>
+        {sessionBlocked && <div className="grid gap-2 p-3"><Button type="button" variant="outline" onClick={downloadSessionBackup}>Download saved session backup</Button><Button type="button" variant="outline" onClick={() => { setSessionBlocked(false); setSessionRetry((value) => value + 1) }}>Replace saved session with current setup</Button></div>}
+        {!sessionBlocked && sessionStatus.startsWith("Could not") && <Button type="button" variant="outline" onClick={() => setSessionRetry((value) => value + 1)}>Retry session save</Button>}
+        <div className={loadStatus || isLoadingSetup || previousSetup ? "workspace-feedback" : "hidden"} aria-label="Setup loading feedback">
+          <p role="status" className="text-sm">{isLoadingSetup ? "Loading setup…" : loadStatus}</p>
+          {previousSetup && <Button type="button" variant="outline" onClick={setupReplacement.restore}>Restore previous setup</Button>}
+        </div>
+      </>}>
+        <WorkspacePanel value="files">
         <details className="rounded-lg border p-4">
           <summary className="cursor-pointer font-medium">Load setup · optional</summary>
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
@@ -962,10 +1022,8 @@ export function App() {
               {deletingPreset && <p className="text-sm sm:col-span-2">Delete “{selectedPreset}” from this browser? This cannot be undone. Your current editing setup will stay open.</p>}
           </div>
         </details>
-          <div className={loadStatus || isLoadingSetup || previousSetup ? undefined : "hidden"} aria-label="Setup loading feedback">
-            <p role="status" className="text-sm">{isLoadingSetup ? "Loading setup…" : loadStatus}</p>
-            {previousSetup && <Button type="button" variant="outline" className="mt-2" onClick={setupReplacement.restore}>Restore previous setup</Button>}
-          </div>
+        </WorkspacePanel>
+        <WorkspacePanel value="configuration">
         <Card id="configuration" className="scroll-mt-6">
           <CardHeader>
             <CardTitle><h2>Configuration</h2></CardTitle>
@@ -1030,14 +1088,10 @@ export function App() {
           </CardContent>
         </Card>
 
-        <div className="grid min-w-0 items-start gap-6">
-        <div className="grid min-w-0 gap-6">
-        <Card id="exposure-bands" className="min-w-0 scroll-mt-6 overflow-visible">
-          <ExposurePreview setup={setup} preview={palettePreview} minimum={graphMinimum} maximum={graphMaximum} unit={graphPreview.unit} />
-          <CardHeader className="grid gap-4">
-            <div>
-              <CardTitle className="text-lg font-semibold"><h2>Exposure bands</h2></CardTitle>
-            </div>
+        </WorkspacePanel>
+        <WorkspacePanel value="presets">
+          <div className="workspace-preset-panel">
+            <h2 className="font-semibold">Exposure presets</h2>
             <section className="grid gap-2" aria-label="Exposure presets">
               <div className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-2">
                 <label className="grid min-w-0 gap-1.5 text-sm font-medium">Start with a preset
@@ -1068,6 +1122,14 @@ export function App() {
                 </div>
               </details>
             </section>
+          </div>
+        </WorkspacePanel>
+        <WorkspacePanel value="bands">
+        <Card id="exposure-bands" className="min-w-0 scroll-mt-6 overflow-visible">
+          <CardHeader className="grid gap-4">
+            <div>
+              <CardTitle className="text-lg font-semibold"><h2>Exposure bands</h2></CardTitle>
+            </div>
             <fieldset className="grid grid-cols-3 gap-2" aria-label="Band mode">
               <legend className="sr-only">Band mode</legend>
               {([
@@ -1152,31 +1214,12 @@ export function App() {
           <CardContent className="grid gap-4">
             {graphPreview ? (
               <>
-                <ExposureGraph
-                  setup={setup}
-                  preview={graphPreview}
-                  increment={movementIncrement}
-                  selectedBand={selectedBand}
-                  onSelect={selectBand}
-                  onRemove={(index) => {
-                    editSetup((current) => removeBand(current, index))
-                    setRemovingBandIndex(null)
-                    setBandStatus(`Removed band ${index + 1}. Undo last band edit restores it.`)
-                  }}
-                  onEditColor={(index) => { selectBand(index); colorTriggers.current.get(bandId(setup.bands[index]))?.click() }}
-                  onEditStart={() => dispatch({ type: "begin" })}
-                  onEditEnd={() => dispatch({ type: "end" })}
-                  onChange={(index, stop) => editSetup((current) => setup.fill_mode
-                    ? updateFillBoundary(current, index, stop, movementIncrement)
-                    : updateBand(current, index, { stop }), index)}
-                  onWidthChange={(index, width) => editSetup((current) => updateBand(current, index, { width }), index)}
-                />
                 <div className="relative overflow-x-auto">
                   <table className="band-table w-full table-fixed min-w-[29rem] text-sm" role="table" aria-label="Band colors and positions">
                     <caption className="caption-bottom pt-2 text-left text-xs text-muted-foreground sm:hidden">Scroll sideways for position, width, and remove.</caption>
                     <thead className="text-left text-xs text-muted-foreground"><tr><th className="w-44 px-3 py-2">Color</th><th className="px-3 py-2">{setup.fill_mode ? "Boundary to next color" : mode === "ire" ? "Position (IRE)" : "Position (stops)"}</th><th className="px-3 py-2">{setup.fill_mode ? "Coverage" : `Total width (${mode === "ire" ? "IRE" : "stops"})`}</th><th className="w-16 px-3 py-2"><span className="sr-only">Actions</span></th></tr></thead>
                     <tbody>{setup.bands.map((band, index) => (
-                      <tr className={`border-t ${selectedBand === index ? "bg-accent/60" : ""}`} key={bandId(band)} onFocus={() => selectBand(index)} onClick={() => selectBand(index)}>
+                      <tr className={`border-t ${selectedBand === index ? "bg-accent/60" : ""}`} data-selected={selectedBand === index} key={bandId(band)} onFocus={() => selectBand(index)} onClick={() => selectBand(index)}>
                         <td className="p-2"><span className="band-field-label" aria-hidden="true">Color</span><ColorPicker hideLabel triggerRef={(element) => { if (element) colorTriggers.current.set(bandId(band), element); else colorTriggers.current.delete(bandId(band)) }} label={`Band ${index + 1} color`} value={band.color} onChange={(color) => editSetup((current) => updateBand(current, index, { color }), index)} /></td>
                         <td className="p-2"><span className="band-field-label" aria-hidden="true">{setup.fill_mode ? "Next boundary" : `Position (${mode === "ire" ? "IRE" : "stops"})`}</span>{setup.fill_mode && index === setup.bands.length - 1
                           ? <span className="text-muted-foreground">—</span>
@@ -1203,15 +1246,18 @@ export function App() {
                   {setup.bands.length === 0 && <p className="p-4 text-sm text-muted-foreground">No bands yet. Choose Add band to start, or apply a preset above.</p>}
                 </div>
                 <p role="status" className="empty:hidden text-sm">{bandStatus}</p>
-                <a className="inline-flex min-h-11 items-center text-sm underline underline-offset-4" href="#photo-result">View photo result</a>
+                <a className="inline-flex min-h-11 items-center text-sm underline underline-offset-4" href="#photo-result" onClick={() => { const photo = document.querySelector<HTMLDetailsElement>('.workspace-photo'); if (photo) photo.open = true }}>View photo result</a>
                 {preview?.warnings.map((warning) => <p className="text-sm text-amber-700 dark:text-amber-300" key={warning}>{warning}</p>)}
               </>
             ) : <p className="text-sm text-muted-foreground">{browserOnly ? "The browser build creates LUTs locally; exposure preview is not included in this release." : "Preparing preview…"}</p>}
             {validationError && <p className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive" role="alert">{validationError}</p>}
-            <PaletteEditor key={`${revision}:${paletteRevision}`} setup={setup} palette={catalog.palette} onApply={applyPalette} onPreview={setPalettePreview} />
           </CardContent>
         </Card>
-
+        </WorkspacePanel>
+        <WorkspacePanel value="palette">
+          <PaletteEditor key={`${revision}:${paletteRevision}`} setup={setup} palette={catalog.palette} onApply={applyPalette} onPreview={setPalettePreview} />
+        </WorkspacePanel>
+        <WorkspacePanel value="configuration">
         <Card>
             <CardHeader>
               <CardTitle><h2>Recorded-signal limit warnings</h2></CardTitle>
@@ -1242,12 +1288,11 @@ export function App() {
             </CardContent>
         </Card>
 
-        </div>
-        <div id="photo-result" className="grid min-w-0 scroll-mt-6 gap-2">
-          <a className="inline-flex min-h-11 items-center text-sm underline underline-offset-4" href="#exposure-bands">Back to band editing</a>
-          <ReferencePreview setup={palettePreview?.valid ? palettePreview.setup : setup} draft={Boolean(palettePreview?.valid)} />
-        </div>
+        </WorkspacePanel>
+        <WorkspacePanel value="media">
         <details className="min-w-0 rounded-lg border p-4"><summary className="cursor-pointer font-medium">Use original camera media · image or video</summary><div className="mt-4"><p className="mb-3 text-xs text-muted-foreground">Camera verification requires known source settings. <a className="underline" href={`${import.meta.env.BASE_URL}docs/verification/`} target="_blank" rel="noreferrer">Preview and source interpretation help (new tab)</a></p><WorkbenchPreview preview={preview} setup={{ ...setup, output: outputFilename(setup) }} catalog={catalog} browserOnly={browserOnly} /></div></details>
+        </WorkspacePanel>
+        <WorkspacePanel value="files">
         <Card>
           <CardHeader>
             <CardTitle><h2>Save setup · optional</h2></CardTitle>
@@ -1263,6 +1308,8 @@ export function App() {
             <p role="status" className="text-sm sm:col-span-2">{saveStatus}</p>
           </CardContent>
         </Card>
+        </WorkspacePanel>
+        <WorkspacePanel value="export">
         <aside className="grid min-w-0 gap-6" aria-label="LUT output">
         <Card id="export" className="scroll-mt-6">
           <CardHeader>
@@ -1289,10 +1336,9 @@ export function App() {
         </Card>
 
         </aside>
-        </div>
-      </fieldset>
+        </WorkspacePanel>
       {browserOnly && isGenerating && <Button type="button" variant="outline" onClick={() => workerRef.current?.abort()}>Cancel generation</Button>}
-    </main>
+    </WorkspaceShell>
   )
 }
 

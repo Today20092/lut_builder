@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import { mkdtemp, rm, writeFile } from "node:fs/promises"
 import { join } from "node:path"
-import test, { after } from "node:test"
+import test, { after, beforeEach } from "node:test"
 import { pathToFileURL } from "node:url"
 
 import { build, stop } from "esbuild"
@@ -23,6 +23,7 @@ globalThis.cancelAnimationFrame = clearTimeout
 globalThis.IS_REACT_ACT_ENVIRONMENT = true
 Object.defineProperty(globalThis, "navigator", { value: dom.window.navigator })
 after(() => dom.window.close())
+beforeEach(() => window.localStorage.removeItem("lut-builder.workspace-session.v1"))
 
 const capturedPointers = new WeakMap()
 dom.window.HTMLElement.prototype.setPointerCapture = function (pointerId) {
@@ -617,6 +618,7 @@ test("custom palettes draft, persist, reload, and reach generation without chang
     await click(button("Save new palette"))
     assert.equal(JSON.parse(window.localStorage.getItem("lut-builder.palettes.v1"))[0].mapping, "exposure")
     await act(() => root.unmount())
+    window.localStorage.removeItem("lut-builder.workspace-session.v1")
     root = createRoot(container)
     window.localStorage.setItem("lut-builder.palettes.v1", JSON.stringify([{ name: "Custom draft", colors: ["#2563eb", "#f59e0b"], brightness: "custom", intensity: 100, blend: "colorful", huePath: "shorter" }]))
     await mount()
@@ -717,6 +719,7 @@ test("custom palettes draft, persist, reload, and reach generation without chang
     assert.equal(JSON.parse(window.localStorage.getItem("lut-builder.palettes.v1"))[0].blend, "colorful")
     assert.equal(JSON.parse(window.localStorage.getItem("lut-builder.palettes.v1"))[0].huePath, "longer")
     await act(() => root.unmount())
+    window.localStorage.removeItem("lut-builder.workspace-session.v1")
     root = createRoot(container)
     await mount()
     await choose("Neutral renamed")
@@ -941,7 +944,7 @@ test("setup changes are recoverable, deletion is deliberate, and feedback stays 
   const click = async (text) => { assert.ok(button(text), text); await act(() => button(text).click()) }
   const liveMessages = (text) => [...container.querySelectorAll('[role="status"]')].filter((item) => item.textContent.includes(text))
   const select = async (value) => {
-    const field = container.querySelector("details select")
+    const field = [...container.querySelectorAll("label")].find((label) => label.textContent.includes("Saved setup in this browser")).querySelector("select")
     await act(() => { field.value = value; field.dispatchEvent(new window.Event("change", { bubbles: true })) })
   }
   const importFile = async (text) => {
@@ -1037,6 +1040,13 @@ test("browser-only app generates and downloads through a local worker without ba
   try {
     await act(() => root.render(React.createElement(App)))
     assert.ok(container.querySelector('[aria-label="Browser camera verification"]'))
+    assert.ok(container.querySelector('[role="tablist"][aria-label="Editing sections"]'))
+    assert.equal(container.querySelector('[role="tab"][data-active]').textContent, "Bands")
+    const configurationTab = [...container.querySelectorAll('[role="tab"]')].find((tab) => tab.textContent === "Configure")
+    await act(() => configurationTab.click())
+    assert.equal(container.querySelector('#configuration').closest('[role="tabpanel"]').hidden, false)
+    await act(() => configurationTab.dispatchEvent(new window.KeyboardEvent("keydown", { bubbles: true, cancelable: true, key: "Escape" })))
+    assert.equal(container.querySelector('#configuration').closest('[role="tabpanel"]').hidden, true)
     const marker = container.querySelector('button[aria-label="Band 1, 0 stops"]')
     assert.ok(marker, "static app exposes the editable graph without a backend preview")
     assert.ok(container.querySelector('[aria-label="Band 1 total width"]'))
