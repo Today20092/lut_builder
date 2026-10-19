@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import type { Setup } from "@/editor"
 import { isTypingTarget } from "./keyboard"
-import type { VideoFrame } from "@/App"
+import type { VideoFrame } from "./previewMedia"
 import { CheckedStillSchema, localVerifiedResult, type VerifiedResult, type VerifiedPixel } from "./verifiedResult"
 
 export type SourceInterpretations = Record<string, { transfer: string; gamut: string }>
