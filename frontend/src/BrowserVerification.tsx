@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from "react"
-import { Effect, Schema } from "effect"
+import { Effect } from "effect"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { CheckedImage } from "./CameraVerification"
 import { browserInterpretations } from "./lutEngine"
 import { browserVerification } from "./browserVerificationClient"
-import { displayRgb, type Interpretation } from "./verificationMath"
+import type { Interpretation } from "./verificationMath"
+import { browserVerifiedResult } from "./verifiedResult"
 import type { VideoInfo } from "./browserMedia"
 import type { BrowserResult } from "./browserVerificationWorker"
 import type { Setup } from "./editor"
@@ -13,7 +14,6 @@ import { isTypingTarget } from "./keyboard"
 
 const field = "h-9 min-w-0 w-full rounded-md border border-input bg-transparent px-3 text-sm focus-visible:ring-2 focus-visible:ring-ring"
 const emptyInterpretation: Interpretation = { transfer: "", gamut: "", matrix: "", signalRange: "", chroma: "", confirmed: false }
-const PixelRequest = Schema.Struct({ x: Schema.Number, y: Schema.Number })
 
 function BrowserCheckedImage({ result, setup }: { result: BrowserResult; setup: Setup }) {
   const [image] = useState(() => {
@@ -25,17 +25,9 @@ function BrowserCheckedImage({ result, setup }: { result: BrowserResult; setup: 
     context.putImageData(new ImageData(new Uint8ClampedArray(result.rgba), result.width, result.height), 0, 0)
     return canvas.toDataURL("image/png")
   })
-  const request = (path: string, payload: object): Promise<Response> => Effect.runPromise(Effect.tryPromise({
-    try: async () => {
-      if (path === "/verify-cube") return new Response(result.cube)
-      const { x, y } = Schema.decodeUnknownSync(PixelRequest)(payload)
-      if (!Number.isInteger(x) || !Number.isInteger(y) || x < 0 || y < 0 || x >= result.width || y >= result.height) throw new Error("Choose a pixel inside the original frame.")
-      const i = (y * result.width + x) * 3
-      const output = result.output.subarray(i, i + 3)
-      return Response.json({ x, y, source_rgb: Array.from(result.source.subarray(i, i + 3)), output_rgb: Array.from(output), display_rgb: displayRgb(output, setup) })
-    }, catch: (cause) => cause,
-  }))
-  return image ? <CheckedImage result={{ request_id: "browser", width: result.width, height: result.height, image, provenance: result.provenance }} localRequest={request} /> : <p role="status">Preparing the SDR display image…</p>
+  const [verified] = useState(() => browserVerifiedResult(result, setup, image))
+  useEffect(() => () => { void Effect.runPromise(verified.release()).catch(() => {}) }, [verified])
+  return image ? <CheckedImage result={verified} /> : <p role="status">Preparing the SDR display image…</p>
 }
 
 export function BrowserVerification({ setup }: { setup: Setup }) {
