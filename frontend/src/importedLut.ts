@@ -58,9 +58,14 @@ export function sampleImportedCube(rgb: ArrayLike<number>, cube: ImportedCube): 
   return applyCube([0,1,2].map(i => (rgb[i] - cube.minimum[i]) / (cube.maximum[i] - cube.minimum[i])), cube)
 }
 
+let lastHash: {text:string;digest:string}|undefined
 export async function cubeSha256(text: string) {
+  // Text is immutable; repeated band edits need not hash the same embedded asset again.
+  if(lastHash?.text===text)return lastHash.digest
   if(!globalThis.crypto?.subtle)throw new Error("This browser cannot verify LUT identity. Open the app over HTTPS or localhost in a current browser.")
-  return [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text)))].map(b => b.toString(16).padStart(2,"0")).join("")
+  const digest=[...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text)))].map(b => b.toString(16).padStart(2,"0")).join("")
+  lastHash={text,digest}
+  return digest
 }
 
 export async function verifyImportedIdentity(imported: ImportedLut) {
