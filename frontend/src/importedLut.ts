@@ -19,7 +19,7 @@ type ImportedCube = CubeTable & { minimum: RGB; maximum: RGB }
 const numberToken = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/
 
 export function parseImportedCube(text: string): ImportedCube {
-  if (typeof text !== "string" || new TextEncoder().encode(text).length > MAX_CUBE_BYTES) throw new Error("Imported LUT must be UTF-8 text up to 16 MiB.")
+  if (typeof text !== "string" || text.length > MAX_CUBE_BYTES || new TextEncoder().encode(text).length > MAX_CUBE_BYTES) throw new Error("Imported LUT must be UTF-8 text up to 16 MiB.")
   let size = 0
   const minimum: RGB = [0,0,0], maximum: RGB = [1,1,1]
   const seen = new Set<string>(), rows: number[] = []

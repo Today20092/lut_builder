@@ -980,7 +980,7 @@ test("setup changes are recoverable, deletion is deliberate, and feedback stays 
     assert.equal(button("Confirm delete setup"), undefined, "selecting a different preset cancels confirmation")
     await click("Delete setup")
     await click("Confirm delete setup")
-    assert.deepEqual(JSON.parse(window.localStorage.getItem(storageKey)).map((preset) => preset.name), ["Interview"])
+    assert.deepEqual(JSON.parse(window.localStorage.getItem(storageKey)).presets.map((preset) => preset.name), ["Interview"])
     const name = [...container.querySelectorAll("label")].find((label) => label.textContent.trim() === "Preset name").querySelector("input")
     await act(() => {
       Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set.call(name, " interview ")

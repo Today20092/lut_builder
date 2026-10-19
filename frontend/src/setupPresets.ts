@@ -1,7 +1,6 @@
 import { Data, Effect, Exit } from "effect"
 import { exportSetup, importSetup, type Setup } from "./editor.ts"
 import { decodeSetup } from "./setupSchema.ts"
-import { exportSetup, importSetup } from "./editor.ts"
 
 export type SetupPreset = { name: string; setup: Setup }
 

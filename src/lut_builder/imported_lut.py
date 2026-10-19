@@ -16,7 +16,11 @@ NUMBER = re.compile(r"[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?$
 
 def parse_cube(text: str) -> colour.LUT3D:
     """Validate before allocating; red varies fastest, finite output excursions survive."""
-    if not isinstance(text, str) or len(text.encode("utf-8")) > MAX_CUBE_BYTES:
+    if (
+        not isinstance(text, str)
+        or len(text) > MAX_CUBE_BYTES
+        or len(text.encode("utf-8")) > MAX_CUBE_BYTES
+    ):
         raise ValueError("Imported LUT must be UTF-8 text up to 16 MiB.")
     size = None
     domain = np.array([[0.0] * 3, [1.0] * 3])

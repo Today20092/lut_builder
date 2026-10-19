@@ -132,8 +132,8 @@ export async function generateCube(
 ): Promise<string> {
   setup = validateBrowserSetup(setup)
   const imported = setup.imported_lut
-  if (imported) await verifyImportedIdentity(imported)
   const importedCube = imported ? parseImportedCube(imported.cube) : null
+  if (imported) await verifyImportedIdentity(imported)
   const profileKey = setup.profile as keyof typeof sourceInfo
   const targetKey = setup.target as keyof typeof targets
   const profile = sourceInfo[profileKey]
