@@ -3,6 +3,7 @@ import { Data, Effect, Schema } from "effect"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import type { Setup } from "@/editor"
+import { isTypingTarget } from "./keyboard"
 import type { VideoFrame } from "@/App"
 
 export type SourceInterpretations = Record<string, { transfer: string; gamut: string }>
@@ -157,14 +158,20 @@ export function CheckedImage({ result, localRequest }: { result: CheckedStill; l
     </details>
     {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
   </div>
-  return <>
-    <Button ref={expand} variant="outline" onClick={() => { setExpanded(true); dialog.current?.showModal() }}>Expand verified image</Button>
+  return <div tabIndex={0} role="group" aria-label="Verified image preview" onKeyDown={(event) => {
+    if (event.defaultPrevented || event.nativeEvent.isComposing || isTypingTarget(event.target) || event.altKey || event.ctrlKey || event.metaKey) return
+    if (event.key.toLowerCase() === "f") {
+      event.stopPropagation()
+      if (!expanded) { event.preventDefault(); expand.current?.click() }
+    }
+  }}>
+    <Button ref={expand} variant="outline" aria-keyshortcuts="f" onClick={() => { setExpanded(true); dialog.current?.showModal() }}>Expand verified image</Button>
     {!expanded && content}
     <dialog ref={dialog} aria-labelledby="verified-dialog-title" className="m-auto max-h-[90dvh] w-[min(72rem,calc(100%-2rem))] overflow-auto rounded-xl border bg-card p-4 text-card-foreground backdrop:bg-black/70" onClose={() => { setExpanded(false); expand.current?.focus() }}>
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2"><h2 id="verified-dialog-title">Expanded verified image</h2><Button variant="outline" onClick={() => dialog.current?.close()}>Close verified image</Button></div>
       {expanded && content}
     </dialog>
-  </>
+  </div>
 }
 
 export function CameraVerification({ setup, interpretations, video }: { setup: Setup; interpretations: SourceInterpretations; video?: VideoFrame }) {

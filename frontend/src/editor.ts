@@ -81,8 +81,20 @@ export function reduceEditor(state: EditorState, action: EditorAction): EditorSt
 }
 
 export type PaletteColor = { name: string; hex: string }
-export type OklchAnchor = { l: number; c: number; h: number }
+export type OklchAnchor = { l: number; c: number; h: number; position?: number }
 export type LightnessProfile = "ascending" | "even" | "custom"
+export type GradientBlend = "colorful" | "direct"
+export type HuePath = "shorter" | "longer"
+export type PaletteMapping = "band-range" | "exposure"
+
+export function exposureReferenceValue(setup: Pick<Setup, "band_mode">) {
+  // IRE is target-encoded brightness before legal-range packing, matching lutEngine.ts.
+  return setup.band_mode === "stops" ? 0 : (1.099 * 0.18 ** 0.45 - 0.099) * 100
+}
+
+export function exposurePaletteScale(setup: Pick<Setup, "band_mode">) {
+  return setup.band_mode === "stops" ? [-3, -2, -1, 0, 1, 2, 3] : [10, 25, 35, exposureReferenceValue(setup), 55, 65, 80]
+}
 export type FillPreset = "standard" | "detailed"
 export type BandPreset = "standard" | "detailed"
 
@@ -130,8 +142,10 @@ function oklabToHex(lab: number[]) {
   let [, a, b] = lab
   for (let attempt = 0; attempt < 16; attempt += 1) {
     const rgb = oklabRgb([l, a, b])
-    if (rgb.every((channel) => channel >= 0 && channel <= 1)) {
-      return `#${rgb.map((value) => {
+    // Matrix round trips can put sRGB boundary colors just outside the gamut.
+    if (rgb.every((channel) => channel >= -1e-7 && channel <= 1 + 1e-7)) {
+      return `#${rgb.map((channel) => {
+        const value = Math.max(0, Math.min(1, channel))
         const srgb = value <= 0.0031308 ? 12.92 * value : 1.055 * value ** (1 / 2.4) - 0.055
         return Math.round(srgb * 255).toString(16).padStart(2, "0")
       }).join("")}`
@@ -221,12 +235,31 @@ export function vividRampAnchors(palette: PaletteColor[]) {
   return FALSE_COLOR_NAMES.map((name) => colors.get(name)).filter((color): color is string => Boolean(color)).map(hexToOklch)
 }
 
-export function sampleOklabRamp(anchors: OklchAnchor[], amount: number) {
+export function sampleOklabRamp(anchors: OklchAnchor[], amount: number, blend: GradientBlend = "direct", huePath: HuePath = "shorter") {
   if (anchors.length === 0) return "#000000"
   if (anchors.length === 1) return oklchToHex(anchors[0])
-  const position = Math.max(0, Math.min(1, amount)) * (anchors.length - 1)
-  const left = Math.min(Math.floor(position), anchors.length - 2)
-  const fraction = position - left
+  const positions = anchors.map((anchor, index) => anchor.position ?? index / (anchors.length - 1))
+  if (amount <= positions[0]) return oklchToHex(anchors[0])
+  if (amount >= positions.at(-1)!) return oklchToHex(anchors.at(-1)!)
+  const left = positions.findIndex((position, index) => index < positions.length - 1 && amount < positions[index + 1] && amount >= position)
+  const fraction = (amount - positions[left]) / (positions[left + 1] - positions[left])
+  if (blend === "colorful") {
+    const first = anchors[left]
+    const second = anchors[left + 1]
+    // Neutral colors have no meaningful hue; inherit the colored endpoint's hue.
+    const firstHue = first.c < 0.000004 ? second.h : first.h
+    const secondHue = second.c < 0.000004 ? firstHue : second.h
+    let difference = secondHue - firstHue
+    if (huePath === "shorter") {
+      if (difference > 180) difference -= 360
+      if (difference < -180) difference += 360
+    } else {
+      if (difference >= 0 && difference < 180) difference -= 360
+      else if (difference < 0 && difference > -180) difference += 360
+    }
+    if (first.c < 0.000004 || second.c < 0.000004) difference = 0
+    return oklchToHex({ l: first.l + (second.l - first.l) * fraction, c: first.c + (second.c - first.c) * fraction, h: firstHue + difference * fraction })
+  }
   const first = oklchToOklab(anchors[left])
   const second = oklchToOklab(anchors[left + 1])
   return oklabToHex(first.map((value, index) => value + (second[index] - value) * fraction))
@@ -313,6 +346,9 @@ export function applyColorPreset(
   rampAnchors = vividRampAnchors(palette),
   lightnessProfile: LightnessProfile = "custom",
   reserveEndpoints = true,
+  blend: GradientBlend = "direct",
+  huePath: HuePath = "shorter",
+  mapping: PaletteMapping = "band-range",
 ) {
   const colors = new Map(palette.map(({ name, hex }) => [name, hex]))
   const limits = setup.band_mode === "ire" ? IRE_COLOR_LIMITS : STOP_COLOR_LIMITS
@@ -321,10 +357,22 @@ export function applyColorPreset(
   const range = Math.max(1, Math.max(...setup.bands.map(({ stop }) => stop)) - minimum)
   return {
     ...setup,
-    bands: setup.bands.map((band) => {
+    bands: setup.bands.map((band, index) => {
       if (preset === "gradient") {
+        let amount = (band.stop - minimum) / range
+        if (mapping === "exposure") {
+          const reference = exposureReferenceValue(setup)
+          const low = index === 0 ? -Infinity : setup.bands[index - 1].stop
+          const high = index === setup.bands.length - 1 ? Infinity : band.stop
+          // Fill stops are boundaries, so sample inside each zone, including the reference zone.
+          const value = !setup.fill_mode ? Math.abs(band.stop - reference) <= band.width ? reference : band.stop : low <= reference && reference < high ? reference : !Number.isFinite(low) || !Number.isFinite(high) ? band.stop : (low + high) / 2
+          const scale = exposurePaletteScale(setup)
+          const upper = scale.findIndex((threshold) => value <= threshold)
+          amount = upper < 0 ? 1 : upper === 0 ? 0 : (upper - 1 + (value - scale[upper - 1]) / (scale[upper] - scale[upper - 1])) / 6
+          if (setup.fill_mode && !(low <= reference && reference < high) && (!Number.isFinite(low) || !Number.isFinite(high))) amount = high <= reference ? 0 : 1
+        }
         return gradient.length > 0
-          ? copyBand(band, { color: sampleOklabRamp(gradient, (band.stop - minimum) / range) })
+          ? copyBand(band, { color: sampleOklabRamp(gradient, amount, blend, huePath) })
           : band
       }
       const colorIndex = limits.findIndex((limit) => band.stop <= limit)

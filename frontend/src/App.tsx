@@ -1,4 +1,6 @@
 import {
+  Fragment,
+  useCallback,
   useEffect,
   useMemo,
   useReducer,
@@ -6,12 +8,17 @@ import {
   useState,
   type KeyboardEvent,
   type PointerEvent,
+  type Ref,
 } from "react"
 import { Popover } from "@base-ui/react/popover"
 import { Data, Effect, Result, Schema } from "effect"
 
 import { Button } from "@/components/ui/button"
-import { PaletteEditor } from "./PaletteEditor"
+import { PaletteEditor, type PalettePreview } from "./PaletteEditor"
+import { ExposurePreview } from "./ExposurePreview"
+import { KeyboardHelp } from "./KeyboardHelp"
+import { isTypingTarget } from "./keyboard"
+import { tailwindPalette } from "./tailwindPalette"
 import { BandNumberInput } from "./BandNumberInput"
 import { overlayForExposure } from "./demonstration"
 import {
@@ -27,7 +34,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import referenceImage from "@/assets/lut-preview-reference.jpg"
 import { CameraVerification, type SourceInterpretations } from "@/CameraVerification"
 import { BrowserVerification } from "./BrowserVerification"
-import { browserProfiles, browserTargets, cubeFilename } from "@/lutEngine"
+import { browserInterpretations, browserProfiles, browserTargets } from "@/lutEngine"
+import { defaultFilenameTemplate, outputFilename } from "./outputFilename"
 import { deleteSetupPreset, readSetupPresets, saveSetupPreset, type SetupPreset } from "@/setupPresets"
 import { decodeSetup, SetupSchema, SetupValidationError } from "@/setupSchema"
 import { generateInWorker } from "@/lutWorkerClient"
@@ -40,6 +48,7 @@ import {
   createBand,
   createEditorState,
   exportSetup,
+  exposureReferenceValue,
   filterPalette,
   hexToHsv,
   hsvToHex,
@@ -393,7 +402,19 @@ export function LutImagePreview({ preview, camera }: { preview: Preview | null; 
   </div>
 
   return (
-    <aside className="min-w-0 self-start @min-[64rem]:sticky @min-[64rem]:top-6" aria-label={camera ? "Camera video selection" : "Demonstration preview"}>
+    <aside tabIndex={0} className="min-w-0 self-start @min-[64rem]:sticky @min-[64rem]:top-6" aria-label={camera ? "Camera video selection" : "Demonstration preview"}
+      onKeyDown={(event) => {
+        if (event.defaultPrevented || event.nativeEvent.isComposing || isTypingTarget(event.target) || event.altKey || event.ctrlKey || event.metaKey) return
+        if (camera && event.target instanceof Element && event.target.closest("dialog")) return
+        if (!camera && !expanded && event.key.toLowerCase() === "f") {
+          event.preventDefault()
+          expandRef.current?.click()
+        } else if (video && !videoBusy && !event.repeat && (event.key === "ArrowLeft" || event.key === "ArrowRight")) {
+          event.preventDefault()
+          const next = Math.max(0, Math.min(video.frame.count - 1, video.frame.index + (event.key === "ArrowLeft" ? -1 : 1) * (event.shiftKey ? 10 : 1)))
+          if (next !== video.frame.index) void selectVideoFrame({ index: next })
+        }
+      }}>
       <Card className="overflow-hidden border-white/15 bg-card/95 shadow-2xl backdrop-blur">
         <CardHeader className="flex flex-wrap items-center justify-between gap-3 py-3">
           <div>
@@ -402,6 +423,7 @@ export function LutImagePreview({ preview, camera }: { preview: Preview | null; 
           </div>
           <Button
             ref={expandRef}
+            aria-keyshortcuts="f"
             hidden={!!camera}
             type="button"
             variant="ghost"
@@ -467,7 +489,7 @@ const browserSetup: Setup = {
   bands: [{ stop: 0, width: 0.3, color: "#22c55e" }], band_mode: "stops",
   fill_mode: false, low_signal_warning: false, low_signal_hex: "#5b21b6",
   high_signal_warning: false, high_signal_hex: "#dc2626", monochrome: true,
-  legal_range: false, output: "SonySLog3_Rec709.cube",
+  legal_range: false, output: defaultFilenameTemplate,
 }
 
 const fieldClass =
@@ -502,16 +524,18 @@ function postJson(path: string, setup: Setup, signal?: AbortSignal): Promise<Pre
 export function ColorPicker({
   label,
   value,
-  palette,
+  palette = tailwindPalette,
   disabled = false,
   hideLabel = false,
+  triggerRef,
   onChange,
 }: {
   label: string
   value: string
-  palette: PaletteColor[]
+  palette?: PaletteColor[]
   disabled?: boolean
   hideLabel?: boolean
+  triggerRef?: Ref<HTMLButtonElement>
   onChange: (value: string) => void
 }) {
   const [open, setOpen] = useState(false)
@@ -519,6 +543,8 @@ export function ColorPicker({
   const [showPresets, setShowPresets] = useState(false)
   const [hue, setHue] = useState(() => hexToHsv(isHexColor(value) ? value : "#000000").hue)
   const originalValue = useRef(value)
+  const [hexDraft, setHexDraft] = useState(value)
+  const hexValue = isHexColor(hexDraft) ? value : hexDraft
   const matches = useMemo(
     () => filterPalette(palette, search),
     [palette, search],
@@ -528,7 +554,6 @@ export function ColorPicker({
     ;(groups[family] ??= []).push(color)
     return groups
   }, {}))
-  const paletteColumnCount = new Set(palette.map((color) => color.name.replace(/-\d+$/, ""))).size
   const hsv = hexToHsv(isHexColor(value) ? value : "#000000")
 
   function pickSaturation(event: PointerEvent<HTMLDivElement>) {
@@ -551,9 +576,11 @@ export function ColorPicker({
           setOpen(nextOpen)
         }}
       >
+        <div className="flex min-w-0 items-center gap-2">
         <Popover.Trigger
+          ref={triggerRef}
           aria-label={`Open ${label} picker`}
-          className="flex h-9 w-full items-center gap-2 rounded-md border border-input px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 disabled:cursor-not-allowed disabled:opacity-50"
+          className="flex size-9 shrink-0 items-center justify-center rounded-md border border-input outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
           disabled={disabled}
         >
           <span
@@ -561,20 +588,33 @@ export function ColorPicker({
             className="size-5 shrink-0 rounded border border-black/10"
             style={{ backgroundColor: isHexColor(value) ? value : "#000000" }}
           />
-          {value}
         </Popover.Trigger>
+        <input aria-label={`${label} hex value`} title="Copy or paste a six-digit hex color, such as #2563eb" className={`${fieldClass} min-w-0 font-mono !px-2 text-xs`} value={hexValue} spellCheck={false} aria-invalid={!isHexColor(hexValue)}
+          onChange={(event) => {
+            const next = event.target.value
+            setHexDraft(next)
+            if (isHexColor(next)) onChange(next)
+          }}
+          onBlur={() => setHexDraft(value)}
+          onKeyDown={(event) => { if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); setHexDraft(value) } }} />
+        </div>
         <Popover.Portal>
           <Popover.Positioner
             align="start"
             className="z-50"
-            collisionAvoidance={{ side: "flip", align: "shift", fallbackAxisSide: "end" }}
+              side="bottom"
+              collisionAvoidance={{ side: "none", align: "shift", fallbackAxisSide: "none" }}
             sideOffset={8}
           >
-            <Popover.Popup
+            <Popover.Popup data-workbench-popup
               aria-label={`${label} picker`}
-              className={`flex max-h-[var(--available-height)] max-w-[calc(100vw-2rem)] items-start gap-4 overflow-hidden rounded-lg border bg-popover p-3 text-popover-foreground shadow-lg outline-none ${showPresets ? "w-[78rem]" : "w-80"}`}
+                className="grid max-h-[var(--available-height)] w-80 max-w-[calc(100vw-2rem)] gap-4 overflow-y-auto rounded-lg border bg-popover p-3 text-popover-foreground shadow-lg outline-none"
             >
-              <div className="grid w-[calc(20rem-1.5rem-2px)] shrink-0 gap-3">
+                <div className="flex items-center justify-between gap-2">
+                  <Button type="button" size="sm" variant="outline" aria-expanded={showPresets} onClick={() => setShowPresets((shown) => !shown)}>{showPresets ? "Custom color" : "Tailwind presets"}</Button>
+                  <Popover.Close render={<Button size="sm" variant="ghost" />}>Done</Popover.Close>
+                </div>
+                <div className={showPresets ? "hidden" : "grid min-w-0 gap-3"}>
               <div
                 aria-label={`${label} saturation and brightness`}
                 className="relative h-44 w-full cursor-crosshair touch-none select-none overflow-hidden rounded-md border border-white/10"
@@ -607,15 +647,15 @@ export function ColorPicker({
                 placeholder="#rrggbb"
                 onChange={(event) => { const next = event.target.value; if (isHexColor(next)) setHue(hexToHsv(next).hue); onChange(next) }}
               />
-              <Button type="button" size="sm" variant="outline" aria-expanded={showPresets} onClick={() => setShowPresets((shown) => !shown)}>Tailwind presets</Button>
               </div>
-              {showPresets && <div className="grid h-[30rem] min-w-0 flex-1 grid-rows-[auto_1fr] gap-3">
+                {showPresets && <div className="grid min-w-0 gap-3">
                 <input aria-label={`Search ${label} palette`} className={fieldClass} value={search} placeholder="Search red-500 or #ef44" onChange={(event) => setSearch(event.target.value)} />
-                <div className="grid h-full gap-2" style={{ gridTemplateColumns: `repeat(${paletteColumnCount}, minmax(0, 1fr))` }}>
-                  {presetGroups.map(([family, colors]) => <div className="grid min-w-0 grid-rows-[auto_repeat(11,minmax(0,1fr))] gap-2" key={family}>
-                    <span className="truncate text-center text-[10px] text-muted-foreground" title={family}>{family}</span>
+                  <div className="grid gap-3">
+                    {presetGroups.length === 0 && <p className="text-xs text-muted-foreground">No matching colors.</p>}
+                    {presetGroups.map(([family, colors]) => <div className="grid min-w-0 grid-cols-6 gap-1" key={family}>
+                      <span className="col-span-6 text-xs text-muted-foreground">{family}</span>
                     {colors.map((color) => (
-                      <button aria-label={color.name} aria-pressed={color.hex.toLowerCase() === value.toLowerCase()} className={`min-h-0 rounded border border-black/10 outline-none hover:scale-105 focus-visible:ring-2 focus-visible:ring-ring ${color.hex.toLowerCase() === value.toLowerCase() ? "ring-2 ring-white ring-offset-2 ring-offset-black" : ""}`} key={color.name} title={color.name} type="button" style={{ backgroundColor: color.hex }} onClick={() => { setHue(hexToHsv(color.hex).hue); onChange(color.hex) }} />
+                        <button aria-label={color.name} aria-pressed={color.hex.toLowerCase() === value.toLowerCase()} className={`h-8 rounded border border-black/10 text-[10px] outline-none focus-visible:ring-2 focus-visible:ring-ring ${color.hex.toLowerCase() === value.toLowerCase() ? "ring-2 ring-ring ring-offset-1" : ""}`} key={color.name} title={color.name} type="button" style={{ backgroundColor: color.hex, color: contrastTextColor(color.hex) }} onClick={() => { setHue(hexToHsv(color.hex).hue); onChange(color.hex) }}>{color.name.split("-").at(-1)}</button>
                     ))}
                   </div>)}
                 </div>
@@ -638,9 +678,11 @@ export function ExposureGraph({
   onWidthChange,
   onEditStart,
   onEditEnd,
+  onEditColor,
+  onRemove,
 }: {
   setup: Setup
-  preview: Pick<Preview, "minimum" | "maximum" | "unit" | "colors">
+  preview: Pick<Preview, "minimum" | "maximum" | "unit">
   increment: number
   selectedBand: number
   onSelect: (index: number) => void
@@ -648,8 +690,23 @@ export function ExposureGraph({
   onWidthChange: (index: number, width: number) => void
   onEditStart?: () => void
   onEditEnd?: () => void
+  onEditColor?: (index: number) => void
+  onRemove?: (index: number) => void
 }) {
   const graph = useRef<HTMLDivElement>(null)
+  const pendingFocus = useRef<number | null>(null)
+  function focusBand(index: number) {
+    const control = graph.current?.querySelector<HTMLButtonElement>(`[data-band-center="${index}"]`)
+    pendingFocus.current = control ? null : index
+    control?.focus()
+  }
+  useEffect(() => {
+    if (pendingFocus.current === null) return
+    const index = Math.min(pendingFocus.current, setup.bands.length - 1)
+    const control = graph.current?.querySelector<HTMLButtonElement>(`[data-band-center="${index}"]`)
+    ;(control ?? graph.current)?.focus()
+    pendingFocus.current = null
+  }, [setup.bands, selectedBand])
   const position = (value: number) =>
     Math.max(
       0,
@@ -662,17 +719,19 @@ export function ExposureGraph({
     ? ([preview.minimum, preview.maximum] as const)
     : ([-Infinity, Infinity] as const)
   const interactiveBands = setup.fill_mode ? setup.bands.slice(0, -1) : setup.bands
+  const fillBands = setup.fill_mode ? [...setup.bands].sort((a, b) => a.stop - b.stop) : []
   const belowIndexes = interactiveBands.flatMap((band, index) =>
     band.stop < preview.minimum ? [index] : [],
   )
   const aboveIndexes = interactiveBands.flatMap((band, index) =>
     band.stop > preview.maximum ? [index] : [],
   )
+  const tickStep = Math.max(1, Math.ceil((preview.maximum - preview.minimum) / 14))
   const ticks = setup.band_mode === "stops"
-    ? Array.from(
-        { length: preview.maximum - preview.minimum + 1 },
-        (_, index) => preview.minimum + index,
-      )
+    ? [...new Set([preview.minimum, ...Array.from(
+        { length: Math.floor(preview.maximum / tickStep) - Math.ceil(preview.minimum / tickStep) + 1 },
+        (_, index) => (Math.ceil(preview.minimum / tickStep) + index) * tickStep,
+      ), preview.maximum])]
     : Array.from({ length: 11 }, (_, index) => index * 10)
   const selected = interactiveBands[selectedBand]
   const unitLabel = setup.band_mode === "stops" ? "stops from reference" : preview.unit
@@ -681,6 +740,7 @@ export function ExposureGraph({
     : `Band ${selectedBand + 1} · center ${selected.stop} ${preview.unit} · total width ${Number((selected.width * 2).toFixed(6))} ${preview.unit} · boundaries ${Number((selected.stop - selected.width).toFixed(6))} to ${Number((selected.stop + selected.width).toFixed(6))} ${preview.unit}${selected.stop < preview.minimum || selected.stop > preview.maximum ? " · outside visible range" : ""}`)
 
   function handleKeyDown(event: KeyboardEvent<HTMLButtonElement>, index: number) {
+    if (event.altKey || event.ctrlKey || event.metaKey || event.nativeEvent.isComposing) return
     const direction =
       event.key === "ArrowUp" || event.key === "ArrowRight"
         ? 1
@@ -690,7 +750,7 @@ export function ExposureGraph({
     if (direction === null) return
     event.preventDefault()
     onSelect(index)
-    onChange(index, stepBandValue(setup.bands[index].stop, direction, increment, ...bounds))
+    onChange(index, stepBandValue(setup.bands[index].stop, direction, increment * (event.shiftKey ? 10 : 1), ...bounds))
   }
 
   function handlePointerMove(event: PointerEvent<HTMLButtonElement>, index: number) {
@@ -713,24 +773,48 @@ export function ExposureGraph({
     <div className="grid gap-1">
     <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 text-xs">
       <span className="font-medium">Exposure · {unitLabel}</span>
-      <span className="text-muted-foreground">Range {preview.minimum} to {preview.maximum} {preview.unit}{setup.band_mode === "stops" ? " · Reference 0 stops" : ""}</span>
+      <span className="text-muted-foreground">Range {preview.minimum} to {preview.maximum} {preview.unit}{setup.band_mode === "stops" ? " · Reference 0 stops" : ` · Neutral reference ${exposureReferenceValue(setup).toFixed(1)} IRE`}</span>
     </div>
     <div
       ref={graph}
+      tabIndex={setup.bands.length ? -1 : 0}
+      role="group"
+      aria-keyshortcuts="Delete Backspace Alt+ArrowLeft Alt+ArrowRight"
+      onKeyDown={(event) => {
+        if (event.defaultPrevented || event.nativeEvent.isComposing || isTypingTarget(event.target) || event.ctrlKey || event.metaKey) return
+        if (event.altKey && !event.shiftKey && (event.key === "ArrowLeft" || event.key === "ArrowRight") && setup.bands.length) {
+          event.preventDefault()
+          const next = Math.max(0, Math.min(setup.bands.length - 1, selectedBand + (event.key === "ArrowLeft" ? -1 : 1)))
+          onSelect(next)
+          focusBand(next)
+        } else if (!event.altKey && !event.shiftKey && (event.key === "Delete" || event.key === "Backspace")) {
+          event.preventDefault()
+          if (event.repeat || !onRemove || !setup.bands[selectedBand] || (setup.fill_mode && setup.bands.length <= 2)) return
+          pendingFocus.current = selectedBand
+          onRemove(selectedBand)
+        }
+      }}
       className="relative isolate flex h-28 touch-none overflow-hidden rounded-lg border"
+        style={{ backgroundColor: fillBands[0]?.color, backgroundImage: fillBands.length > 1
+          ? `linear-gradient(to right, ${fillBands.map((band, index) => `${band.color} ${index === 0 ? 0 : position(fillBands[index - 1].stop)}% ${index === fillBands.length - 1 ? 100 : position(band.stop)}%`).join(",")})`
+          : undefined }}
       onPointerUp={onEditEnd}
       onPointerCancel={onEditEnd}
       onLostPointerCapture={onEditEnd}
       aria-label={`Editable exposure graph from ${preview.minimum} to ${preview.maximum} ${preview.unit}`}
     >
-      {preview.colors.map((color, index) => (
-        <span
-          className="flex-1"
-          data-preview-color={index}
-          key={index}
-          style={{ backgroundColor: setup.fill_mode ? color : undefined }}
-        />
-      ))}
+      {setup.band_mode === "ire" && <span aria-hidden="true" className="pointer-events-none absolute inset-y-0 z-[1] border-l border-dashed border-current" style={{ left: `${position(exposureReferenceValue(setup))}%` }} />}
+      {setup.fill_mode && fillBands.map((band, index) => {
+        const left = index === 0 ? 0 : position(fillBands[index - 1].stop)
+        const right = index === fillBands.length - 1 ? 100 : position(band.stop)
+        return <button key={`fill-color-${bandId(band)}`} type="button" aria-label={`Edit fill color ${index + 1}`} title="Double-click to edit color; Enter or Space also opens the picker"
+          data-band-center={index === setup.bands.length - 1 ? index : undefined}
+          onFocus={() => onSelect(index)}
+          className="absolute inset-y-0 bg-transparent focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-4 focus-visible:outline-foreground"
+          style={{ left: `${left}%`, width: `${right - left}%` }}
+          onClick={(event) => { onSelect(index); if (event.detail === 0) onEditColor?.(index) }}
+          onDoubleClick={() => onEditColor?.(index)} />
+      })}
       {setup.low_signal_warning && (
         <span
           className="pointer-events-none absolute bottom-1 left-1 z-30 rounded px-1.5 py-0.5 text-[10px] font-semibold shadow"
@@ -749,7 +833,7 @@ export function ExposureGraph({
           High signal
         </span>
       )}
-      {ticks.map((tick) => (
+        {ticks.filter((tick) => tick === 0).map((tick) => (
         <span
           aria-hidden="true"
           className={`pointer-events-none absolute inset-y-0 z-[1] border-l mix-blend-difference ${tick === 0 ? "z-[2] border-l-2 border-white/90" : "border-white/35"}`}
@@ -786,6 +870,7 @@ export function ExposureGraph({
             aria-hidden="true"
             className="absolute inset-y-0"
             data-band-width={index}
+            onPointerDown={() => { onSelect(index); focusBand(index) }}
             key={`width-${index}`}
             style={{
               backgroundColor: band.color,
@@ -795,33 +880,6 @@ export function ExposureGraph({
           />
         )
       })}
-      {!setup.fill_mode && setup.bands.map((band, index) => [-1, 1].map((side) => (
-          <button
-            aria-label={`Resize ${side < 0 ? "left" : "right"} edge of band ${index + 1}`}
-            aria-valuemin={0.1}
-            aria-valuenow={band.width}
-            aria-valuetext={`${Number((band.width * 2).toFixed(6))} ${preview.unit} total width`}
-            className={`absolute inset-y-0 z-20 w-3 -translate-x-1/2 cursor-ew-resize bg-transparent outline-none after:absolute after:inset-y-0 after:left-1/2 after:w-0.5 after:-translate-x-1/2 after:bg-white after:shadow hover:after:w-1 focus-visible:ring-2 focus-visible:ring-ring ${selectedBand === index ? "after:w-1" : ""}`}
-            key={`${bandId(band)}-${side}`}
-            role="slider"
-            style={{ left: `${position(band.stop + side * band.width)}%`, zIndex: selectedBand === index ? 30 : undefined }}
-            type="button"
-            onFocus={() => onSelect(index)}
-            onKeyDown={(event) => {
-              const direction = event.key === "ArrowRight" || event.key === "ArrowUp" ? 1 : event.key === "ArrowLeft" || event.key === "ArrowDown" ? -1 : 0
-              if (!direction) return
-              event.preventDefault()
-              onSelect(index)
-              onWidthChange(index, Math.max(0.1, Number((band.width + direction * side * 0.1).toFixed(6))))
-            }}
-            onPointerDown={(event) => {
-              onEditStart?.()
-              onSelect(index)
-              event.currentTarget.setPointerCapture(event.pointerId)
-            }}
-            onPointerMove={(event) => handleWidthPointerMove(event, index)}
-          />
-      )))}
       {!setup.fill_mode && selected && (
         <span aria-hidden="true" className="pointer-events-none absolute inset-y-0 z-[2] border-2 border-dashed border-white outline outline-1 outline-black"
           style={{ left: `${position(selected.stop - selected.width)}%`, width: `${position(selected.stop + selected.width) - position(selected.stop - selected.width)}%` }} />
@@ -831,42 +889,71 @@ export function ExposureGraph({
         const below = band.stop < preview.minimum
         const above = band.stop > preview.maximum
         const edge = below || above
-        if (edge && selectedBand !== index) return null
         return (
-          <button
-            key={`handle-${bandId(band)}`}
-            type="button"
-            className={setup.fill_mode
-              ? `absolute inset-y-0 z-10 w-6 -translate-x-1/2 bg-transparent after:absolute after:inset-y-0 after:left-1/2 after:w-1 after:-translate-x-1/2 after:bg-background after:shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${selectedBand === index ? "ring-2 ring-ring" : ""}`
-              : `absolute z-10 rounded-full border-2 border-background px-2 py-1 text-xs font-semibold shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${selectedBand === index ? "ring-2 ring-ring ring-offset-2" : ""}`}
-            style={{
-              left: `${position(band.stop)}%`,
-              zIndex: selectedBand === index ? 40 : undefined,
-              ...(setup.fill_mode ? {} : {
-                backgroundColor: band.color,
-                color: contrastTextColor(band.color),
-                top: edge ? "70%" : "50%",
-                transform: edge
-                  ? `translate(${below ? "0" : "-100%"}, -50%)`
-                  : "translate(-50%, -50%)",
-              }),
-            }}
-            aria-label={setup.fill_mode
-              ? `Boundary between colors ${index + 1} and ${index + 2}, ${band.stop} ${preview.unit}`
-              : `Band ${index + 1}, ${band.stop} ${preview.unit}${edge ? ", outside visible range" : ""}`}
-            title={edge ? `${band.stop} ${preview.unit} is outside the visible range` : undefined}
-            onClick={() => onSelect(index)}
-            onFocus={() => onSelect(index)}
-            onKeyDown={(event) => handleKeyDown(event, index)}
-            onPointerDown={(event) => {
-              onEditStart?.()
-              onSelect(index)
-              event.currentTarget.setPointerCapture(event.pointerId)
-            }}
-            onPointerMove={(event) => handlePointerMove(event, index)}
-          >
-            {!setup.fill_mode && <>{below ? "← " : ""}{index + 1}: {band.stop}{above ? " →" : ""}</>}
-          </button>
+          <Fragment key={bandId(band)}>
+            {!setup.fill_mode && [-1, 1].map((side) => (
+                <button
+                  aria-label={`Resize ${side < 0 ? "left" : "right"} edge of band ${index + 1}`}
+                  aria-valuemin={0.1}
+                  aria-valuenow={band.width}
+                  aria-valuetext={`${Number((band.width * 2).toFixed(6))} ${preview.unit} total width`}
+                  className={`absolute inset-y-0 z-20 w-3 -translate-x-1/2 cursor-ew-resize bg-transparent outline-none after:absolute after:inset-y-0 after:left-1/2 after:w-0.5 after:-translate-x-1/2 after:bg-white after:shadow hover:after:w-1 focus-visible:ring-2 focus-visible:ring-ring ${selectedBand === index ? "after:w-1" : ""}`}
+                  key={`${bandId(band)}-${side}`}
+                  role="slider"
+                  style={{ left: `${position(band.stop + side * band.width)}%`, zIndex: selectedBand === index ? 30 : undefined }}
+                  type="button"
+                  onFocus={() => onSelect(index)}
+                  onKeyDown={(event) => {
+                    if (event.altKey || event.ctrlKey || event.metaKey || event.nativeEvent.isComposing) return
+                    const direction = event.key === "ArrowRight" || event.key === "ArrowUp" ? 1 : event.key === "ArrowLeft" || event.key === "ArrowDown" ? -1 : 0
+                    if (!direction) return
+                    event.preventDefault()
+                    onSelect(index)
+                    onWidthChange(index, Math.max(0.1, Number((band.width + direction * side * (event.shiftKey ? 1 : 0.1)).toFixed(6))))
+                  }}
+                  onPointerDown={(event) => {
+                    onEditStart?.()
+                    onSelect(index)
+                    event.currentTarget.setPointerCapture(event.pointerId)
+                  }}
+                  onPointerMove={(event) => handleWidthPointerMove(event, index)}
+                />
+            ))}
+            {(!edge || selectedBand === index) && <button
+              key={`handle-${bandId(band)}`}
+              data-band-center={index}
+              type="button"
+              className={setup.fill_mode
+                  ? `absolute inset-y-0 z-10 w-6 -translate-x-1/2 cursor-ew-resize bg-transparent after:absolute after:inset-y-0 after:left-1/2 after:w-0.5 after:-translate-x-1/2 after:bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${selectedBand === index ? "after:w-1" : ""}`
+                  : `absolute z-10 size-4 cursor-ew-resize rounded-full border-2 border-background shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${selectedBand === index ? "ring-2 ring-ring ring-offset-2" : ""}`}
+              style={{
+                left: `${position(band.stop)}%`,
+                zIndex: selectedBand === index ? 40 : undefined,
+                ...(setup.fill_mode ? {} : {
+                  backgroundColor: band.color,
+                  color: contrastTextColor(band.color),
+                  top: edge ? "70%" : "50%",
+                  transform: edge
+                    ? `translate(${below ? "0" : "-100%"}, -50%)`
+                    : "translate(-50%, -50%)",
+                }),
+              }}
+              aria-label={setup.fill_mode
+                ? `Boundary between colors ${index + 1} and ${index + 2}, ${band.stop} ${preview.unit}`
+                : `Band ${index + 1}, ${band.stop} ${preview.unit}${edge ? ", outside visible range" : ""}`}
+                title={`${band.stop} ${preview.unit}${edge ? " · outside visible range" : " · drag to move"}`}
+              onClick={() => onSelect(index)}
+              onFocus={() => onSelect(index)}
+              onKeyDown={(event) => handleKeyDown(event, index)}
+              onPointerDown={(event) => {
+                onEditStart?.()
+                onSelect(index)
+                event.currentTarget.setPointerCapture(event.pointerId)
+              }}
+              onPointerMove={(event) => handlePointerMove(event, index)}
+            >
+            </button>}
+          </Fragment>
         )
       })}
     </div>
@@ -916,20 +1003,22 @@ export function App() {
   const [presetName, setPresetName] = useState("")
   const [selectedPreset, setSelectedPreset] = useState("")
   const [stopIncrement, setStopIncrement] = useState<1 | 0.5 | 0.25>(0.25)
+  const [graphRange, setGraphRange] = useState(7)
   const [fillPreset, setFillPreset] = useState<FillPreset>("standard")
   const [bandPreset, setBandPreset] = useState<BandPreset>("standard")
   const [removingBandIndex, setRemovingBandIndex] = useState<number | null>(null)
   const importInput = useRef<HTMLInputElement>(null)
+  const colorTriggers = useRef(new Map<number, HTMLButtonElement>())
+  const [palettePreview, setPalettePreview] = useState<PalettePreview | null>(null)
+  const applyPalette = useCallback((next: Setup) => dispatch({ type: "edit", edit: () => next }), [])
   const mode: Mode = setup.fill_mode ? "fill" : setup.band_mode
-  const graphMinimum = setup.band_mode === "ire" ? 0 : -7
-  const graphMaximum = setup.band_mode === "ire" ? 100 : 7
-  const graphPreview = browserOnly ? {
+  const graphMinimum = setup.band_mode === "ire" ? 0 : -graphRange
+  const graphMaximum = setup.band_mode === "ire" ? 100 : graphRange
+  const graphPreview = {
     minimum: graphMinimum,
     maximum: graphMaximum,
     unit: setup.band_mode === "ire" ? "IRE" : "stops",
-    colors: Array.from({ length: 281 }, (_, index) =>
-      overlayForExposure(setup, graphMinimum + index / 280 * (graphMaximum - graphMinimum)) ?? "transparent"),
-  } : preview
+  }
   const movementIncrement = mode === "ire" ? 1 : stopIncrement
   const selectBand = (index: number) => {
     dispatch({ type: "select", selection: index })
@@ -997,7 +1086,7 @@ export function App() {
         const url = URL.createObjectURL(new Blob([outcome.success], { type: "text/plain;charset=utf-8" }))
         const link = document.createElement("a")
         link.href = url
-        link.download = cubeFilename(setup.output)
+        link.download = outputFilename(setup)
         link.click()
         window.setTimeout(() => URL.revokeObjectURL(url), 1000)
         setStatus("LUT downloaded. Calculations stayed on this device.")
@@ -1012,7 +1101,7 @@ export function App() {
               "Content-Type": "application/json",
               "X-LUT-Builder-Token": window.LUT_BUILDER_TOKEN,
             },
-            body: JSON.stringify({ version: 1, ...setup }),
+            body: JSON.stringify({ version: 1, ...setup, output: outputFilename(setup) }),
           })
           if (!next.ok) {
             const result = Schema.decodeUnknownSync(ErrorResponseSchema)(await next.json())
@@ -1063,7 +1152,7 @@ export function App() {
     link.href = URL.createObjectURL(
       new Blob([exportSetup(setup)], { type: "application/json" }),
     )
-    link.download = `${setup.output.replace(/\.cube$/i, "") || "lut-setup"}.json`
+    link.download = outputFilename(setup).replace(/\.cube$/i, ".json")
     link.click()
     URL.revokeObjectURL(link.href)
     setStatus("Version-1 configuration exported.")
@@ -1099,24 +1188,32 @@ export function App() {
   }
 
   return (
-    <main className="mx-auto flex min-h-svh w-full max-w-[100rem] flex-col gap-6 p-4 py-8 sm:p-8">
-      <header>
-        <h1 className="font-heading text-4xl font-semibold tracking-tight">LUT Builder</h1>
+    <main className="mx-auto flex min-h-svh w-full max-w-[100rem] flex-col gap-6 p-4 py-6 sm:p-8">
+      <header className="flex flex-wrap items-start justify-between gap-4 border-b pb-6">
+        <div className="grid gap-1">
+        <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">Exposure workbench</p>
+        <h1 className="font-heading text-3xl font-semibold tracking-tight">LUT Builder</h1>
         <p className="text-muted-foreground">{browserOnly ? "Browser-based diagnostic scene-exposure LUT editor" : "Local diagnostic scene-exposure LUT editor"}</p>
-        {browserOnly && <p className="mt-2 max-w-3xl text-sm text-muted-foreground">Generation runs on this device. Saved named setups stay in this browser and may be cleared by private browsing or storage cleanup; export JSON to back up or transfer them. They do not sync across devices.</p>}
+        </div>
+        <nav aria-label="Workbench sections" className="flex flex-wrap gap-4 text-sm font-medium">
+          <KeyboardHelp canUndo={Boolean(undo)} onUndo={undoEdit} />
+          <a className="underline-offset-4 hover:underline" href="#configuration">01 Configure</a>
+          <a className="underline-offset-4 hover:underline" href="#exposure-bands">02 Edit bands</a>
+          <a className="underline-offset-4 hover:underline" href="#export">03 Download</a>
+        </nav>
       </header>
 
       <section className="@container grid gap-6">
-        <Card>
+        <Card id="configuration" className="scroll-mt-6">
           <CardHeader>
-            <CardTitle>Configuration</CardTitle>
-            <CardDescription>Choose the camera-to-display transform before editing exposure bands.</CardDescription>
+            <CardTitle><h2>Configuration</h2></CardTitle>
+            <CardDescription>Match your recording and monitor.</CardDescription>
           </CardHeader>
-          <CardContent className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,14rem),1fr))] gap-4">
+          <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <label className="grid gap-1 text-sm font-medium">
-              Camera
+              Camera recording
               <select className={fieldClass} value={setup.profile} onChange={(e) => patchSetup({ profile: e.target.value })}>
-                {catalog.profiles.map((profile) => <option key={profile}>{profile}</option>)}
+                {catalog.profiles.map((profile) => <option key={profile} value={profile}>{profile} · {browserInterpretations[profile]?.gamut ?? "Profile gamut"}</option>)}
               </select>
             </label>
             <label className="grid gap-1 text-sm font-medium">
@@ -1125,18 +1222,13 @@ export function App() {
                 {catalog.targets.map((target) => <option key={target}>{target}</option>)}
               </select>
             </label>
+            <details className="sm:col-span-2 rounded-lg border p-3 text-sm">
+              <summary className="cursor-pointer font-medium">Output settings · {setup.cube_size}³ · {setup.legal_range ? "Legal range" : "Full range"}</summary>
+              <div className="mt-4 grid gap-4 sm:grid-cols-2">
             <label className="grid gap-1 text-sm font-medium">
               <span className="flex items-center gap-1.5">Cube size <InfoTooltip text="Higher cube sizes sample the transform more precisely but produce larger LUT files and take longer to generate." /></span>
               <select className={fieldClass} value={setup.cube_size} onChange={(e) => patchSetup({ cube_size: Number(e.target.value) })}>
                 {[17, 33, 65].map((size) => <option key={size} value={size}>{size}³</option>)}
-              </select>
-            </label>
-            <label className="grid gap-1 text-sm font-medium">
-              Band mode
-              <select className={fieldClass} value={mode} onChange={(e) => editSetup((current) => changeMode(current, e.target.value as Mode, catalog.palette))}>
-                <option value="stops">Stops</option>
-                <option value="ire">IRE</option>
-                <option value="fill">Fill</option>
               </select>
             </label>
             <label className="flex items-center gap-2 text-sm font-medium">
@@ -1147,25 +1239,56 @@ export function App() {
               <input type="checkbox" checked={setup.legal_range} onChange={(e) => patchSetup({ legal_range: e.target.checked })} />
               <span className="flex items-center gap-1.5">Legal/video range (off = Full range) <InfoTooltip text="Encodes output in video/legal range instead of full data range. Enable only when the monitoring pipeline expects legal-range levels." /></span>
             </label>
-            <label className="grid gap-1 text-sm font-medium">
-              Output filename
-              <input className={fieldClass} value={setup.output} onChange={(e) => patchSetup({ output: e.target.value })} />
-            </label>
+            <details className="text-sm sm:col-span-2">
+              <summary className="cursor-pointer font-medium">Customize output filename</summary>
+            <div className="mt-3 grid max-w-2xl gap-2">
+              <label className="grid gap-1 font-medium">Output filename template
+                <input aria-label="Output filename template" className={fieldClass} value={setup.output} onChange={(e) => patchSetup({ output: e.target.value })} />
+              </label>
+              <p className="text-xs text-muted-foreground">Use %inputgamma%, %targetgamma%, and %id%, or type a fixed name. The ID changes with your setup.</p>
+              <Button type="button" size="sm" variant="outline" className="justify-self-start" onClick={() => patchSetup({ output: defaultFilenameTemplate })}>Use automatic filename</Button>
+            </div>
+            </details>
+              </div>
+            </details>
           </CardContent>
         </Card>
 
         <div className="grid min-w-0 items-start gap-6 @min-[64rem]:grid-cols-[minmax(0,1fr)_minmax(22rem,0.65fr)]">
         <div className="grid min-w-0 gap-6">
-        <Card className="min-w-0 overflow-hidden">
+        <Card id="exposure-bands" className="min-w-0 scroll-mt-6 overflow-visible">
+          <ExposurePreview setup={setup} preview={palettePreview} minimum={graphMinimum} maximum={graphMaximum} unit={graphPreview.unit} />
           <CardHeader className="grid gap-4">
             <div>
-              <CardTitle className="text-lg font-semibold">Exposure bands</CardTitle>
-              <CardDescription>{setup.fill_mode ? "Drag a separator or edit its boundary. Every value is filled by a color zone." : "Drag a marker or edit its row. Higher bands win overlaps."}</CardDescription>
+              <CardTitle className="text-lg font-semibold"><h2>Exposure bands</h2></CardTitle>
+              <CardDescription>{setup.fill_mode ? "Drag dividers to resize zones. Double-click a zone to recolor it." : "Drag bands to move them. Edit colors below."}</CardDescription>
             </div>
+            <fieldset className="grid grid-cols-3 gap-2" aria-label="Band mode">
+              <legend className="sr-only">Band mode</legend>
+              {([
+                ["stops", "Stops", "Mark exposure", "−3   0   +3"],
+                ["ire", "IRE", "Mark brightness", "0   50   100"],
+                ["fill", "Fill", "Color every zone", "Low → High"],
+              ] as const).map(([value, title, description, scale]) => <label key={value} className={`relative grid min-w-0 cursor-pointer gap-2 rounded-lg border p-2.5 has-focus-visible:ring-2 has-focus-visible:ring-ring ${mode === value ? "border-foreground bg-muted" : "hover:bg-muted/50"}`}>
+                <input className="sr-only" type="radio" name="band-mode" value={value} checked={mode === value} onChange={() => editSetup((current) => changeMode(current, value, catalog.palette))} />
+                <span aria-hidden="true" className="flex h-8 overflow-hidden rounded border bg-background">
+                  {(value === "fill" ? ["#5b21b6", "#2563eb", "#22c55e", "#facc15", "#dc2626"] : ["transparent", "#2563eb", "transparent", "#22c55e", "transparent", "#dc2626", "transparent"]).map((color, index) => <span key={index} className="flex-1" style={{ backgroundColor: color }} />)}
+                </span>
+                <span aria-hidden="true" className="flex justify-between text-[10px] tabular-nums text-muted-foreground"><span>{scale}</span><span>{mode === value ? "✓" : ""}</span></span>
+                <span className="text-sm font-semibold">{title}</span>
+                <span className="text-xs text-muted-foreground">{description}</span>
+              </label>)}
+            </fieldset>
+            <div className="flex items-center justify-between gap-2">
+              <Button type="button" variant="outline" onClick={addBand}>+ Add band</Button>
+              <Button type="button" variant="ghost" disabled={!undo} aria-keyshortcuts="Control+z Meta+z" onClick={undoEdit}>Undo last band edit</Button>
+            </div>
+            <details className="rounded-lg border p-3">
+              <summary className="cursor-pointer text-sm font-medium">Band setup &amp; graph settings</summary>
             <div className="grid min-w-0 gap-5">
               <div className="flex flex-wrap items-end gap-5">
                 <div className="grid gap-1">
-                <span className="text-sm font-semibold">Arrangement</span>
+                <span className="mt-4 text-sm font-semibold">Replace arrangement</span>
                 <div className="flex flex-wrap items-end gap-2">
                 {!setup.fill_mode && (
                   <>
@@ -1179,7 +1302,7 @@ export function App() {
                   </>
                 )}
                 {!setup.fill_mode && (
-                <label className="grid w-40 max-w-full gap-1 text-xs font-medium">All total widths ({mode === "ire" ? "IRE" : "stops"})
+                <label className="grid w-40 max-w-full gap-1 text-xs font-medium">Band width ({mode === "ire" ? "IRE" : "stops"})
                   <BandNumberInput
                     aria-label="All total widths"
                     className={fieldClass}
@@ -1193,7 +1316,7 @@ export function App() {
                 </label>
                 )}
                 {mode === "stops" && (
-                  <label className="grid gap-1 text-xs font-medium">Movement increment
+                  <label className="grid gap-1 text-xs font-medium">Drag step
                     <select className={fieldClass} value={stopIncrement} onChange={(event) => setStopIncrement(Number(event.target.value) as 1 | 0.5 | 0.25)}>
                       <option value="1">1 stop</option><option value="0.5">½ stop</option><option value="0.25">¼ stop</option>
                     </select>
@@ -1213,20 +1336,30 @@ export function App() {
                 )}
                 </div>
                 </div>
-                <Button type="button" size="lg" onClick={addBand}>Add band</Button>
               </div>
+              <p className="text-xs text-muted-foreground">Applying a preset replaces band positions and colors. Undo restores them.</p>
+              {setup.band_mode === "stops" && <label className="flex flex-wrap items-center gap-2 text-sm">Visible range · ±
+                <BandNumberInput aria-label="Graph range in stops" className={`${fieldClass} !w-20`} value={graphRange} min={1} max={100} step={1} onChange={setGraphRange} /> stops
+                <span className="text-xs text-muted-foreground">View only</span>
+              </label>}
             </div>
+            </details>
           </CardHeader>
           <CardContent className="grid gap-4">
             {graphPreview ? (
               <>
-                <Button type="button" variant="outline" disabled={!undo} onClick={undoEdit}>Undo last band edit</Button>
                 <ExposureGraph
                   setup={setup}
                   preview={graphPreview}
                   increment={movementIncrement}
                   selectedBand={selectedBand}
                   onSelect={selectBand}
+                  onRemove={(index) => {
+                    editSetup((current) => removeBand(current, index))
+                    setRemovingBandIndex(null)
+                    setStatus(`Removed band ${index + 1}. Undo last band edit restores it.`)
+                  }}
+                  onEditColor={(index) => { selectBand(index); colorTriggers.current.get(bandId(setup.bands[index]))?.click() }}
                   onEditStart={() => dispatch({ type: "begin" })}
                   onEditEnd={() => dispatch({ type: "end" })}
                   onChange={(index, stop) => editSetup((current) => setup.fill_mode
@@ -1235,12 +1368,12 @@ export function App() {
                   onWidthChange={(index, width) => editSetup((current) => updateBand(current, index, { width }), index)}
                 />
                 <div className="relative overflow-x-auto rounded-lg border">
-                  <table className="w-full table-fixed min-w-[38rem] text-sm">
-                    <thead className="bg-muted/50 text-left text-xs text-muted-foreground"><tr><th className="w-20 px-3 py-2">Band</th><th className="w-1/5 px-3 py-2">Color</th><th className="px-3 py-2">{setup.fill_mode ? "Boundary to next color" : mode === "ire" ? "Position (IRE)" : "Position (stops)"}</th><th className="px-3 py-2">{setup.fill_mode ? "Coverage" : `Total width (${mode === "ire" ? "IRE" : "stops"})`}</th><th className="w-32 px-3 py-2"><span className="sr-only">Actions</span></th></tr></thead>
+                  <table className="w-full table-fixed min-w-[42rem] text-sm">
+                    <thead className="bg-muted/50 text-left text-xs text-muted-foreground"><tr><th className="w-20 px-3 py-2">Band</th><th className="w-44 px-3 py-2">Color</th><th className="px-3 py-2">{setup.fill_mode ? "Boundary to next color" : mode === "ire" ? "Position (IRE)" : "Position (stops)"}</th><th className="px-3 py-2">{setup.fill_mode ? "Coverage" : `Total width (${mode === "ire" ? "IRE" : "stops"})`}</th><th className="w-32 px-3 py-2"><span className="sr-only">Actions</span></th></tr></thead>
                     <tbody>{setup.bands.map((band, index) => (
                       <tr className={`border-t ${selectedBand === index ? "bg-accent/60" : ""}`} key={bandId(band)} onFocus={() => selectBand(index)} onClick={() => selectBand(index)}>
                         <th className="p-3 text-left font-medium" scope="row">{setup.fill_mode ? "Color" : "Band"} {index + 1}{selectedBand === index && <span className="block text-xs">Selected</span>}</th>
-                        <td className="p-2"><ColorPicker hideLabel label={`Band ${index + 1} color`} value={band.color} palette={catalog.palette} onChange={(color) => editSetup((current) => updateBand(current, index, { color }), index)} /></td>
+                        <td className="p-2"><ColorPicker hideLabel triggerRef={(element) => { if (element) colorTriggers.current.set(bandId(band), element); else colorTriggers.current.delete(bandId(band)) }} label={`Band ${index + 1} color`} value={band.color} onChange={(color) => editSetup((current) => updateBand(current, index, { color }), index)} /></td>
                         <td className="p-2">{setup.fill_mode && index === setup.bands.length - 1
                           ? <span className="text-muted-foreground">—</span>
                           : <BandNumberInput aria-label={setup.fill_mode ? `Boundary after color ${index + 1}` : `Band ${index + 1} ${mode === "ire" ? "IRE" : "stops"}`} className={fieldClass} step={movementIncrement} min={mode === "ire" ? 0 : undefined} max={mode === "ire" ? 100 : undefined} value={band.stop} onChange={(stop) => editSetup((current) => setup.fill_mode ? updateFillBoundary(current, index, stop, movementIncrement) : updateBand(current, index, { stop }), index)} />}</td>
@@ -1262,13 +1395,13 @@ export function App() {
                       </tr>
                     ))}</tbody>
                   </table>
-                  {setup.bands.length === 0 && <p className="p-4 text-sm text-muted-foreground">No bands yet.</p>}
+                  {setup.bands.length === 0 && <p className="p-4 text-sm text-muted-foreground">No bands yet. Choose Add band to start, or apply a preset above.</p>}
                 </div>
                 {preview?.warnings.map((warning) => <p className="text-sm text-amber-700 dark:text-amber-300" key={warning}>{warning}</p>)}
               </>
             ) : <p className="text-sm text-muted-foreground">{browserOnly ? "The browser build creates LUTs locally; exposure preview is not included in this release." : "Preparing preview…"}</p>}
             {validationError && <p className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive" role="alert">{validationError}</p>}
-            <PaletteEditor setup={setup} palette={catalog.palette} onApply={(next) => editSetup(() => next)} />
+            <PaletteEditor setup={setup} palette={catalog.palette} onApply={applyPalette} onPreview={setPalettePreview} />
           </CardContent>
         </Card>
 
@@ -1289,14 +1422,14 @@ export function App() {
                   <input type="checkbox" checked={setup.low_signal_warning} onChange={(e) => patchSetup({ low_signal_warning: e.target.checked })} />
                   Low recorded-signal warning
                 </label>
-                <ColorPicker label="Low-limit indicator color" value={setup.low_signal_hex} palette={catalog.palette} disabled={!setup.low_signal_warning} onChange={(low_signal_hex) => patchSetup({ low_signal_hex })} />
+                <ColorPicker label="Low-limit indicator color" value={setup.low_signal_hex} disabled={!setup.low_signal_warning} onChange={(low_signal_hex) => patchSetup({ low_signal_hex })} />
               </div>
               <div className="grid gap-3">
                 <label className="flex items-center gap-2 text-sm font-medium">
                   <input type="checkbox" checked={setup.high_signal_warning} onChange={(e) => patchSetup({ high_signal_warning: e.target.checked })} />
                   High recorded-signal warning
                 </label>
-                <ColorPicker label="High-limit indicator color" value={setup.high_signal_hex} palette={catalog.palette} disabled={!setup.high_signal_warning} onChange={(high_signal_hex) => patchSetup({ high_signal_hex })} />
+                <ColorPicker label="High-limit indicator color" value={setup.high_signal_hex} disabled={!setup.high_signal_warning} onChange={(high_signal_hex) => patchSetup({ high_signal_hex })} />
               </div>
             </CardContent>
         </Card>
@@ -1324,13 +1457,21 @@ export function App() {
           </CardContent>
         </Card>}
 
-        <Card>
+        </div>
+        <aside className="grid min-w-0 gap-6 @min-[64rem]:sticky @min-[64rem]:top-6" aria-label="Output and preview">
+        <Card id="export" className="scroll-mt-6">
           <CardHeader>
-            <CardTitle>Generate LUT</CardTitle>
+            <CardTitle><h2>Generate LUT</h2></CardTitle>
             <CardDescription>Build the final {setup.profile} to {setup.target} transformation.</CardDescription>
           </CardHeader>
+          <CardContent className="grid gap-2">
+            <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Output · {setup.cube_size}³ .cube</span>
+            <output className="break-all font-mono text-sm" aria-label="Output filename preview">{outputFilename(setup)}</output>
+            {palettePreview && <p className="text-xs text-muted-foreground" role="status">Your palette preview is not applied. This download uses the current band colors. <a href="#exposure-bands" className="underline">Return to palette preview</a>.</p>}
+            {browserOnly && <p className="text-xs text-muted-foreground">Generated on this device. Export JSON to back up your setup; browser storage does not sync and may be cleared.</p>}
+          </CardContent>
           <CardFooter className="flex flex-wrap gap-3">
-            <Button size="lg" disabled={isGenerating || Boolean(validationError)} onClick={generate}>
+            <Button size="lg" className="w-full" disabled={isGenerating || Boolean(validationError)} onClick={generate}>
               {isGenerating && <Spinner data-icon="inline-start" />}
               {isGenerating ? "Generating…" : "Generate LUT"}
             </Button>
@@ -1344,8 +1485,8 @@ export function App() {
           </CardFooter>
         </Card>
 
-        </div>
-        <WorkbenchPreview preview={preview} setup={setup} catalog={catalog} browserOnly={browserOnly} />
+        <WorkbenchPreview preview={preview} setup={{ ...setup, output: outputFilename(setup) }} catalog={catalog} browserOnly={browserOnly} />
+        </aside>
         </div>
       </section>
     </main>

@@ -9,6 +9,7 @@ import { displayRgb, type Interpretation } from "./verificationMath"
 import type { VideoInfo } from "./browserMedia"
 import type { BrowserResult } from "./browserVerificationWorker"
 import type { Setup } from "./editor"
+import { isTypingTarget } from "./keyboard"
 
 const field = "h-9 min-w-0 w-full rounded-md border border-input bg-transparent px-3 text-sm focus-visible:ring-2 focus-visible:ring-ring"
 const emptyInterpretation: Interpretation = { transfer: "", gamut: "", matrix: "", signalRange: "", chroma: "", confirmed: false }
@@ -88,7 +89,19 @@ export function BrowserVerification({ setup }: { setup: Setup }) {
   const frame = video?.frames[frameIndex]
   const videoReady = kind !== "Video" || (video && frame && ordinal !== "" && Number.isInteger(frameIndex) && interpretation.matrix && interpretation.signalRange && interpretation.chroma && depth === String(video.bitDepth))
   const ready = file && !busy && interpretation.confirmed && !mismatch && videoReady && (kind === "Video" || rangeConfirmed)
-  return <Card className="min-w-0 self-start" aria-label="Browser camera verification">
+  function stepFrame(direction: number, count = 1) {
+    if (busy || !video || !Number.isInteger(frameIndex) || !frame) return
+    const next = Math.max(0, Math.min(video.frames.length - 1, frameIndex + direction * count))
+    if (next !== frameIndex) { setOrdinal(String(next)); change("confirmed", false) }
+  }
+  return <Card tabIndex={0} className="min-w-0 self-start" aria-label="Browser camera verification" onKeyDown={(event) => {
+    if (event.defaultPrevented || event.nativeEvent.isComposing || isTypingTarget(event.target) || event.altKey || event.ctrlKey || event.metaKey || event.repeat ||
+      (event.target instanceof Element && event.target.closest('dialog, [aria-label="Verified image preview"]'))) return
+    if (kind === "Video" && video && (event.key === "ArrowLeft" || event.key === "ArrowRight")) {
+      event.preventDefault()
+      stepFrame(event.key === "ArrowLeft" ? -1 : 1, event.shiftKey ? 10 : 1)
+    }
+  }}>
     <CardHeader><CardTitle>Preview and camera verification</CardTitle><CardDescription>Apply the exact exported LUT to your camera still or selected video frame, entirely on this device.</CardDescription></CardHeader>
     <CardContent className="grid min-w-0 gap-3">
       <p className="text-xs text-muted-foreground">The decoder downloads from this site when used (about 31 MB). Media and LUTs stay on your device. Verification can take several minutes; Cancel releases its worker and memory.</p>
@@ -98,6 +111,7 @@ export function BrowserVerification({ setup }: { setup: Setup }) {
       <p className="text-xs text-muted-foreground">{kind === "Still" ? "Untagged, non-interlaced 16-bit RGB PNG without alpha, or float32 RGB PFM; up to 48 MiB plus header. Export unchanged camera RGB without a viewing transform. JPEG and RAW are unsupported." : "H.264, HEVC, ProRes 422 or FFV1; planar 4:2:0 8/10-bit or 4:2:2 10-bit, progressive square pixels. Up to 512 MiB and five minutes. Inspect a one-second interval, then choose a frame from it. No rotation or dynamic HDR."} Maximum 4,194,304 pixels.</p>
       {kind === "Video" && <><label className="grid gap-1 text-sm">Seek time (seconds from stream start)<input className={field} type="number" min="0" max="300" step="0.1" value={seconds} onChange={(event) => { clear(); setSeconds(event.target.value); setVideo(null); setOrdinal("0"); change("confirmed", false) }} /></label><Button variant="outline" disabled={!file || busy || seconds === "" || !Number.isFinite(Number(seconds)) || Number(seconds) < 0 || Number(seconds) > 300} onClick={() => void run(true)}>Inspect video</Button></>}
       {video && kind === "Video" && <>
+        <div className="flex flex-wrap gap-2"><Button variant="outline" disabled={busy || !frame || frameIndex <= 0} onClick={() => stepFrame(-1)}>Previous frame</Button><Button variant="outline" disabled={busy || !frame || frameIndex >= video.frames.length - 1} onClick={() => stepFrame(1)}>Next frame</Button></div>
         <label className="grid gap-1 text-sm">Frame in inspected interval (from 0)<input className={field} type="number" min="0" max={video.frames.length - 1} step="1" value={ordinal} onChange={(event) => { setOrdinal(event.target.value); change("confirmed", false) }} /></label>
         <p className="text-xs">{video.frames.length} frames in this interval · {video.stream.width} × {video.stream.height} · {video.stream.codec_name} · {video.stream.pix_fmt}</p>
         {frame && <p className="text-xs">Selected interval frame {ordinal} · PTS {frame.pts} · time base {video.stream.time_base} · stream start PTS {video.stream.start_pts}. Frame metadata takes precedence; suggestions remain unconfirmed.</p>}
