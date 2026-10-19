@@ -66,8 +66,10 @@ busy states and confirmation invalidation.
 
 The consolidated release passes ESLint, all 64 frontend tests, and the
 TypeScript/Vite production build. Browser-only Chromium checks cover desktop,
-mobile, and tablet layouts. Python formatting, lint, and type checks pass.
+mobile, and tablet layouts. Static-site acceptance also passes Firefox and WebKit
+at those widths. Python formatting, lint, and type checks pass.
 The full Python suite is checked separately from these keyboard acceptance tests.
 
-Not checked: Safari, Firefox, screen-reader speech, or a physical Mac keyboard.
+The keyboard-only walkthrough was not repeated in Safari or Firefox.
+Screen-reader speech and a physical Mac keyboard remain unchecked.
 Cmd+Z is covered by a synthetic event; Ctrl+Z is exercised in real Chromium.

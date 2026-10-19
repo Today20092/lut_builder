@@ -34,6 +34,15 @@ tested at that time; it does not establish physical phone support for this updat
 
 ## Camera verification acceptance, October 18, 2026
 
+The consolidated October 19 release also passes 64 frontend tests, 158 Python
+tests, and the complete browser/Python LUT-node comparison. Static-site
+acceptance passes Chromium, Firefox, and WebKit at desktop, 390-pixel phone,
+and 820-pixel tablet widths. Chromium's connected Workbench and keyboard checks
+pass, including PFM and variable-frame-rate video verification, checked-cube
+identity, setup persistence, import/export, narrow layouts, and enlarged text.
+These are desktop browser and emulated viewport checks, not physical phone or
+camera/monitor certification.
+
 The production browser build inspected and verified a selected frame from a local
 10-bit HEVC 4:2:0, 2048×1080 Lumix proxy. The selected frame's native YUV bytes
 matched an independent FFmpeg decode exactly, and an original-resolution RGB
