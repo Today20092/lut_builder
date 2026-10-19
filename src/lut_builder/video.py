@@ -168,7 +168,7 @@ class VideoSession:
                             ],
                             stdout=subprocess.DEVNULL,
                             stderr=subprocess.DEVNULL,
-                            creationflags=subprocess.CREATE_NO_WINDOW,
+                            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
                             timeout=5,
                         )
                         if terminated.returncode:
@@ -194,7 +194,7 @@ class VideoSession:
                             ],
                             stdout=subprocess.DEVNULL,
                             stderr=subprocess.DEVNULL,
-                            creationflags=subprocess.CREATE_NO_WINDOW,
+                            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
                             timeout=5,
                         )
                     except (OSError, subprocess.TimeoutExpired):
