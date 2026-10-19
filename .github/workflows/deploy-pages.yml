@@ -15,6 +15,9 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  python:
+    uses: ./.github/workflows/python.yml
+
   build:
     runs-on: ubuntu-latest
     defaults:
@@ -36,13 +39,32 @@ jobs:
       - run: pnpm build
         env:
           LUT_BUILDER_PAGES: "true"
+      - name: Install browser acceptance tools
+        run: |
+          npm install --prefix "$RUNNER_TEMP/browser-check" --no-save playwright@1.61.1
+          node "$RUNNER_TEMP/browser-check/node_modules/playwright/cli.js" install --with-deps chromium firefox webkit
+      - name: Check static browser workflows
+        env:
+          LUT_BUILDER_PAGES: "true"
+        run: |
+          pnpm exec vite preview --host 127.0.0.1 --port 4173 --strictPort &
+          server_pid=$!
+          trap 'kill "$server_pid"' EXIT
+          for attempt in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:4173/lut_builder/ > /dev/null; then break; fi
+            sleep 1
+          done
+          export PLAYWRIGHT_MODULE="$RUNNER_TEMP/browser-check/node_modules/playwright/index.mjs"
+          for browser in chromium firefox webkit; do
+            BROWSER="$browser" node tests/browser-only.mjs
+          done
       - uses: actions/upload-pages-artifact@v5
         with:
           path: src/lut_builder/static
 
   deploy:
     if: github.event_name != 'pull_request'
-    needs: build
+    needs: [build, python]
     runs-on: ubuntu-latest
     permissions:
       pages: write

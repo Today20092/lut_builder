@@ -1,40 +1,90 @@
 import { useEffect, useRef, useState } from "react"
+import { Data, Effect, Schema } from "effect"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import type { Setup } from "@/editor"
 import type { VideoFrame } from "@/App"
 
 export type SourceInterpretations = Record<string, { transfer: string; gamut: string }>
-type CheckedStill = {
-  request_id: string
-  width: number
-  height: number
-  image: string
-  provenance: {
-    source: { name: string; sha256: string; storage: string; decoding: string }
-    cube_sha256: string
-    settings_sha256: string
-    interpolation: string
-    viewing_policy: string
-    comparison_unavailable: string
-    warnings: string[]
-    output: { target: string; transfer: string; gamut: string; range: string }
-  }
-}
-type Pixel = { x: number; y: number; source_rgb: number[]; output_rgb: number[]; display_rgb: number[] }
+const CheckedStillSchema = Schema.Struct({
+  request_id: Schema.String,
+  width: Schema.Finite,
+  height: Schema.Finite,
+  image: Schema.String,
+  provenance: Schema.StructWithRest(
+    Schema.Struct({ comparison_unavailable: Schema.String, warnings: Schema.Array(Schema.String) }),
+    [Schema.Record(Schema.String, Schema.Unknown)],
+  ),
+})
+type CheckedStill = typeof CheckedStillSchema.Type
+const RgbSchema = Schema.Tuple([Schema.Finite, Schema.Finite, Schema.Finite])
+const PixelSchema = Schema.Struct({ x: Schema.Finite, y: Schema.Finite, source_rgb: RgbSchema, output_rgb: RgbSchema, display_rgb: RgbSchema })
+type Pixel = typeof PixelSchema.Type
+const ErrorResponseSchema = Schema.Struct({ error: Schema.optional(Schema.String) })
 const field = "h-9 min-w-0 w-full rounded-md border border-input bg-transparent px-3 text-sm focus-visible:ring-2 focus-visible:ring-ring"
 
-async function request(path: string, payload: object, signal?: AbortSignal) {
-  const response = await fetch(path, {
-    method: "POST", signal,
-    headers: { "Content-Type": "application/json", "X-LUT-Builder-Token": window.LUT_BUILDER_TOKEN },
-    body: JSON.stringify(payload),
+class VerificationRequestError extends Data.TaggedError("VerificationRequestError")<{
+  readonly message: string
+  readonly cause: unknown
+}> {}
+
+function request(path: string, payload: object, signal?: AbortSignal): Promise<Response> {
+  const operation = Effect.tryPromise({
+    try: async (requestSignal) => {
+      const response = await fetch(path, {
+        method: "POST", signal: requestSignal,
+        headers: { "Content-Type": "application/json", "X-LUT-Builder-Token": window.LUT_BUILDER_TOKEN },
+        body: JSON.stringify(payload),
+      })
+      if (!response.ok) {
+        const failure = Schema.decodeUnknownSync(ErrorResponseSchema)(await response.json())
+        throw new Error(failure.error || "Verification request failed. Try again.")
+      }
+      return response
+    },
+    catch: (cause) => new VerificationRequestError({
+      message: cause instanceof Error ? cause.message : "Verification request failed. Try again.",
+      cause,
+    }),
   })
-  if (!response.ok) {
-    const failure = await response.json()
-    throw new Error(failure.error || "Verification request failed. Try again.")
-  }
-  return response
+  return Effect.runPromise(operation, { signal })
+}
+
+class StillReadError extends Data.TaggedError("StillReadError")<{
+  readonly message: string
+  readonly cause?: unknown
+}> {}
+
+function readStill(file: File): Effect.Effect<string, StillReadError> {
+  return Effect.callback((resume, signal) => {
+    const reader = new FileReader()
+    const abort = () => reader.abort()
+    const cleanup = () => {
+      signal.removeEventListener("abort", abort)
+      reader.onload = null
+      reader.onerror = null
+      reader.onabort = null
+    }
+    reader.onload = () => {
+      const value = String(reader.result)
+      cleanup()
+      resume(Effect.succeed(value))
+    }
+    reader.onerror = () => {
+      cleanup()
+      resume(Effect.fail(new StillReadError({ message: "Could not read this still. Select the file again.", cause: reader.error })))
+    }
+    reader.onabort = () => {
+      cleanup()
+      resume(Effect.fail(new StillReadError({ message: "Still reading was cancelled." })))
+    }
+    signal.addEventListener("abort", abort, { once: true })
+    reader.readAsDataURL(file)
+    return Effect.sync(() => {
+      cleanup()
+      if (reader.readyState === FileReader.LOADING) reader.abort()
+    })
+  })
 }
 
 function CheckedImage({ result }: { result: CheckedStill }) {
@@ -57,7 +107,7 @@ function CheckedImage({ result }: { result: CheckedStill }) {
     setError("")
     try {
       const response = await request("/verify-pixel", { request_id: result.request_id, x: Number(x), y: Number(y) }, controller.signal)
-      const next = await response.json() as Pixel
+      const next = Schema.decodeUnknownSync(PixelSchema)(await response.json())
       if (sequence === sampleRequest.current) setPixel(next)
     } catch (failure) {
       if (!controller.signal.aborted) setError(String(failure))
@@ -133,7 +183,7 @@ export function CameraVerification({ setup, interpretations, video }: { setup: S
   const [busyKey, setBusyKey] = useState<string | null>(null)
   const pending = useRef<{ id: string; controller: AbortController } | null>(null)
   const fileSequence = useRef(0)
-  const reader = useRef<FileReader | null>(null)
+  const readController = useRef<AbortController | null>(null)
   const key = JSON.stringify([setup, source?.id, video?.frame, transfer, gamut, range, confirmed, matrix, signalRange, chroma, bitDepth])
   const expected = interpretations[setup.profile]
   const mismatch = Boolean(transfer && gamut && (transfer !== expected?.transfer || gamut !== expected?.gamut))
@@ -154,7 +204,7 @@ export function CameraVerification({ setup, interpretations, video }: { setup: S
       void request("/verify-cancel", { request_id: job.id }).catch(() => {})
     }
   }, [key])
-  useEffect(() => () => { fileSequence.current++; reader.current?.abort() }, [])
+  useEffect(() => () => { fileSequence.current++; readController.current?.abort() }, [])
   useEffect(() => {
     const completed = current?.request_id
     return () => {
@@ -164,7 +214,7 @@ export function CameraVerification({ setup, interpretations, video }: { setup: S
 
   function choose(file: File) {
     const id = ++fileSequence.current
-    reader.current?.abort()
+    readController.current?.abort()
     setSource(null)
     setConfirmed(false)
     setFileError("")
@@ -174,15 +224,18 @@ export function CameraVerification({ setup, interpretations, video }: { setup: S
       return
     }
     setReading(true)
-    const input = new FileReader()
-    reader.current = input
-    input.onload = () => {
+    const controller = new AbortController()
+    readController.current = controller
+    void Effect.runPromise(readStill(file), { signal: controller.signal }).then((data) => {
       if (id !== fileSequence.current) return
       setReading(false)
-      setSource({ name: file.name, data: String(input.result).split(",", 2)[1], id })
-    }
-    input.onerror = () => { if (id === fileSequence.current) { setReading(false); setFileError("Could not read this still. Select the file again.") } }
-    input.readAsDataURL(file)
+      setSource({ name: file.name, data: data.split(",", 2)[1], id })
+    }).catch((error: unknown) => {
+      if (id === fileSequence.current && !controller.signal.aborted) {
+        setReading(false)
+        setFileError(error instanceof Error ? error.message : "Could not read this still. Select the file again.")
+      }
+    })
   }
 
   function cancel() {
@@ -209,7 +262,7 @@ export function CameraVerification({ setup, interpretations, video }: { setup: S
         request_id: id, ...(video ? { source_id: video.source_id, frame: video.frame, name: video.name } : { source: { name: source!.name, data: source!.data } }), setup,
         interpretation: { transfer, gamut, range: video ? "camera-code-values" : range, confirmed, decoding: "RGB; no color transform or range scaling", ...(video ? { matrix, signal_range: signalRange, chroma_location: chroma, bit_depth: Number(bitDepth) } : {}) },
       }, controller.signal)
-      const next = await response.json() as CheckedStill
+      const next = Schema.decodeUnknownSync(CheckedStillSchema)(await response.json())
       if (pending.current?.id !== id || controller.signal.aborted) return
       if (next.request_id !== id) throw new Error("Verification response does not match this request. Verify again.")
       setResult({ key, value: next })

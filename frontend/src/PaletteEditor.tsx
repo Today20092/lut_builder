@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { Data, Effect, Result, Schema } from "effect"
 import { Button } from "@/components/ui/button"
 import { applyColorPreset, applyLightnessProfile, hexToOklch, isHexColor, oklchToHex, sampleOklabRamp, vividRampAnchors, type LightnessProfile, type PaletteColor, type Setup } from "./editor"
 
@@ -6,6 +7,12 @@ type Draft = { colors: string[]; brightness: LightnessProfile; intensity: number
 type SavedPalette = Draft & { name: string }
 const storageKey = "lut-builder.palettes.v1"
 const fieldClass = "h-9 w-full min-w-0 rounded-md border border-input bg-transparent px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+const SavedPaletteSchema = Schema.Struct({
+  name: Schema.String,
+  colors: Schema.Array(Schema.String),
+  brightness: Schema.Literals(["custom", "ascending", "even"]),
+  intensity: Schema.Finite,
+})
 
 function validDraft(value: unknown): value is Draft {
   if (!value || typeof value !== "object") return false
@@ -16,23 +23,38 @@ function validDraft(value: unknown): value is Draft {
     typeof draft.intensity === "number" && Number.isFinite(draft.intensity) && draft.intensity >= 0 && draft.intensity <= 200
 }
 
-function loadPalettes(): { palettes: SavedPalette[]; message: string } {
-  try {
-    const value: unknown = JSON.parse(window.localStorage.getItem(storageKey) ?? "[]")
-    if (!Array.isArray(value) || value.length > 100 || !value.every((item) => validDraft(item) && "name" in item &&
-      typeof item.name === "string" && item.name.trim() === item.name && item.name.length > 0 && item.name.length <= 80) ||
-      new Set(value.map((item) => item.name.toLowerCase())).size !== value.length) throw new Error()
-    return { palettes: value, message: "" }
-  } catch {
-    return { palettes: [], message: "Saved palettes could not be read. Your active setup is unchanged. You can keep editing and retry saving." }
-  }
+class PaletteStorageError extends Data.TaggedError("PaletteStorageError")<{
+  readonly message: string
+  readonly cause: unknown
+}> {}
+
+function loadPalettes(): Effect.Effect<{ palettes: SavedPalette[] }, PaletteStorageError> {
+  return Effect.try({
+    try: () => {
+      const value = Schema.decodeUnknownSync(Schema.Array(SavedPaletteSchema))(JSON.parse(window.localStorage.getItem(storageKey) ?? "[]"))
+      if (value.length > 100 || !value.every((item) => validDraft(item) && item.name.trim() === item.name && item.name.length > 0 && item.name.length <= 80) ||
+        new Set(value.map((item) => item.name.toLowerCase())).size !== value.length) throw new Error("Invalid saved palette data")
+      return { palettes: value.map((item) => ({ ...item, colors: [...item.colors] })) }
+    },
+    catch: (cause) => new PaletteStorageError({ message: "Saved palettes could not be read. Your active setup is unchanged. You can keep editing and retry saving.", cause }),
+  })
+}
+
+function persistPalettes(palettes: SavedPalette[]): Effect.Effect<void, PaletteStorageError> {
+  return Effect.try({
+    try: () => window.localStorage.setItem(storageKey, JSON.stringify(palettes)),
+    catch: (cause) => new PaletteStorageError({ message: "Could not save palettes in this browser. Your draft and active setup are unchanged. Check browser storage and retry.", cause }),
+  })
 }
 
 export function PaletteEditor({ setup, palette, onApply }: { setup: Setup; palette: PaletteColor[]; onApply: (next: Setup) => void }) {
   const presetColors = vividRampAnchors(palette).map(oklchToHex)
   const colors = presetColors.length >= 2 ? presetColors : ["#2563eb", "#dc2626"]
   const [draft, setDraft] = useState<Draft>({ colors, brightness: "custom", intensity: 100 })
-  const [library, setLibrary] = useState(loadPalettes)
+  const [loadedPalettes] = useState(() => Effect.runSync(Effect.result(loadPalettes())))
+  const [library, setLibrary] = useState(() => Result.isSuccess(loadedPalettes)
+    ? { ...loadedPalettes.success, message: "" }
+    : { palettes: [], message: loadedPalettes.failure.message })
   const [selected, setSelected] = useState("")
   const [name, setName] = useState("")
   const [applied, setApplied] = useState<{ draft: string; colors: string } | null>(null)
@@ -57,13 +79,10 @@ export function PaletteEditor({ setup, palette, onApply }: { setup: Setup; palet
       action === "delete" ? library.palettes.filter((item) => item.name !== selected) :
         library.palettes.map((item) => item.name !== selected ? item : { ...(action === "rename" ? item : draft), name: trimmedName })
     if (next.length > 100) { setLibrary({ ...library, message: "Up to 100 palettes can be saved. Delete one before saving another." }); return }
-    try {
-      window.localStorage.setItem(storageKey, JSON.stringify(next))
+    void Effect.runPromise(persistPalettes(next)).then(() => {
       setLibrary({ palettes: next, message: action === "delete" ? "Palette deleted from this browser." : "Palette saved in this browser." })
       setSelected(action === "delete" ? "" : trimmedName)
-    } catch {
-      setLibrary({ ...library, message: "Could not save palettes in this browser. Your draft and active setup are unchanged. Check browser storage and retry." })
-    }
+    }).catch((error: unknown) => setLibrary({ ...library, message: error instanceof Error ? error.message : "Could not save palettes in this browser." }))
   }
 
   function move(index: number, offset: number) {

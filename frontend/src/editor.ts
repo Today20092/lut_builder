@@ -521,5 +521,6 @@ export async function importSetup(
   const setup = Object.fromEntries(
     Object.entries(candidate).filter(([key]) => key !== "version"),
   ) as Setup
-  return validate({ ...setup, bands: orderBands(setup.bands) })
+  const validated = await validate(setup)
+  return { ...validated, bands: orderBands(validated.bands) }
 }

@@ -37,6 +37,15 @@ pnpm build
 The build checks TypeScript and regenerates `src/lut_builder/static/`; include the
 rebuilt assets with frontend changes. Edit browser source in `frontend/`.
 
+Use Effect 4.0.5 as the standard for maintained TypeScript application code in
+`frontend/src/`. Use `Schema` at untrusted JSON boundaries, `Data.TaggedError` for
+failures shown to users, `Effect.tryPromise` for Promise APIs, and `Effect.callback`
+for callback APIs such as workers and `FileReader`. Run effects at the React/browser
+boundary and connect cancellation with `AbortSignal`. Keep `editor.ts` state
+transitions, LUT/color calculations and data, and presentational components as plain
+TypeScript; they stay pure or describe React/DOM rendering. Consult current Effect 4
+documentation before using its APIs; do not copy Effect 3 patterns.
+
 For workspace behavior or browser acceptance checks, read
 [integration verification](docs/testing/integration.md) for launch commands,
 browser prerequisites, and persistent-palette behavior. For still or video

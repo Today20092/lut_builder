@@ -1,3 +1,4 @@
+import { Data, Effect } from "effect"
 import { generateCube } from "./lutEngine.ts"
 import type { Setup } from "./editor.ts"
 
@@ -6,6 +7,11 @@ type Response =
   | { type: "progress"; id: string; progress: number }
   | { type: "complete"; id: string; bytes: ArrayBuffer }
   | { type: "error"; id: string; error: string }
+
+class WorkerGenerationError extends Data.TaggedError("WorkerGenerationError")<{
+  readonly message: string
+  readonly cause: unknown
+}> {}
 
 const scope = globalThis as unknown as {
   onmessage: ((event: MessageEvent<Request>) => void) | null
@@ -21,14 +27,20 @@ scope.onmessage = async ({ data }) => {
   const controller = new AbortController()
   jobs.set(data.id, controller)
   try {
-    const cube = await generateCube(data.setup, {
-      signal: controller.signal,
-      onProgress: (progress) => scope.postMessage({ type: "progress", id: data.id, progress }),
-    })
+      const cube = await Effect.runPromise(Effect.tryPromise({
+        try: (signal) => generateCube(data.setup, {
+          signal,
+          onProgress: (progress) => scope.postMessage({ type: "progress", id: data.id, progress }),
+        }),
+        catch: (cause) => new WorkerGenerationError({
+          message: cause instanceof Error ? cause.message : "Generation failed.",
+          cause,
+        }),
+      }), { signal: controller.signal })
     const bytes = new TextEncoder().encode(cube)
     scope.postMessage({ type: "complete", id: data.id, bytes: bytes.buffer }, [bytes.buffer])
   } catch (error) {
-    scope.postMessage({ type: "error", id: data.id, error: error instanceof Error ? error.message : "Generation failed" })
+      scope.postMessage({ type: "error", id: data.id, error: controller.signal.aborted ? "Generation cancelled." : error instanceof Error ? error.message : "Generation failed" })
   } finally {
     jobs.delete(data.id)
   }

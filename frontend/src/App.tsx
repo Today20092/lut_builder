@@ -8,6 +8,7 @@ import {
   type PointerEvent,
 } from "react"
 import { Popover } from "@base-ui/react/popover"
+import { Data, Effect, Result, Schema } from "effect"
 
 import { Button } from "@/components/ui/button"
 import { PaletteEditor } from "./PaletteEditor"
@@ -25,8 +26,10 @@ import { Spinner } from "@/components/ui/spinner"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import referenceImage from "@/assets/lut-preview-reference.jpg"
 import { CameraVerification, type SourceInterpretations } from "@/CameraVerification"
-import { browserProfiles, browserTargets, cubeFilename, validateBrowserSetup } from "@/lutEngine"
+import { browserProfiles, browserTargets, cubeFilename } from "@/lutEngine"
 import { deleteSetupPreset, readSetupPresets, saveSetupPreset, type SetupPreset } from "@/setupPresets"
+import { decodeSetup, SetupSchema, SetupValidationError } from "@/setupSchema"
+import { generateInWorker } from "@/lutWorkerClient"
 import {
   applyBandPreset,
   applyFillPreset,
@@ -62,51 +65,96 @@ type Catalog = {
   palette: PaletteColor[]
 }
 
-type Preview = {
-  minimum: number
-  maximum: number
-  unit: string
-  colors: string[]
-  overlays: (string | null)[]
-  input_overlays: (string | null)[]
-  input_exposure: number[]
-  legend: { kind: string; color: string; label: string }[]
-  warnings: string[]
-  setup: Setup
-}
+const PreviewSchema = Schema.Struct({
+  minimum: Schema.Finite,
+  maximum: Schema.Finite,
+  unit: Schema.String,
+  colors: Schema.Array(Schema.String),
+  overlays: Schema.Array(Schema.NullOr(Schema.String)),
+  input_overlays: Schema.Array(Schema.NullOr(Schema.String)),
+  input_exposure: Schema.Array(Schema.Finite),
+  legend: Schema.Array(Schema.Struct({ kind: Schema.String, color: Schema.String, label: Schema.String })),
+  warnings: Schema.Array(Schema.String),
+  setup: SetupSchema,
+})
+type Preview = typeof PreviewSchema.Type
+const ErrorResponseSchema = Schema.Struct({ error: Schema.optional(Schema.String) })
 
 function srgbToLinear(value: number) {
   return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4
 }
 
-export type VideoFrame = {
-  name?: string
-  source_id: string
-  display: string
-  frame: { index: number; pts: string; time_base: string; first_pts: string; relative_time: string; seconds: number; count: number }
-  facts: { stream: Record<string, unknown>; frame: Record<string, unknown> }
-  source: { precision_bits: number; pixel_format: string }
-  provenance: { matrix: string; range: string; chroma_location: string; view: string }
+const VideoFrameSchema = Schema.Struct({
+  name: Schema.optional(Schema.String),
+  source_id: Schema.String,
+  display: Schema.String,
+  frame: Schema.Struct({ source_id: Schema.optional(Schema.String), index: Schema.Finite, pts: Schema.String, time_base: Schema.String, first_pts: Schema.String, relative_time: Schema.String, seconds: Schema.Finite, count: Schema.Finite }),
+  facts: Schema.Struct({ stream: Schema.Record(Schema.String, Schema.Unknown), frame: Schema.Record(Schema.String, Schema.Unknown) }),
+  source: Schema.Struct({ precision_bits: Schema.Finite, pixel_format: Schema.String }),
+  provenance: Schema.Struct({ matrix: Schema.String, range: Schema.String, chroma_location: Schema.String, view: Schema.String }),
+})
+export type VideoFrame = typeof VideoFrameSchema.Type
+
+class WorkspaceRequestError extends Data.TaggedError("WorkspaceRequestError")<{
+  readonly message: string
+  readonly cause: unknown
+}> {}
+
+function videoRequest<T>(path: string, body: object | File, decode: (input: unknown) => T, signal?: AbortSignal): Promise<T> {
+  const operation = Effect.tryPromise({
+    try: async (requestSignal) => {
+      const response = await fetch(`/video/${path}`, {
+        method: "POST",
+        headers: { "Content-Type": body instanceof File ? "application/octet-stream" : "application/json", "X-LUT-Builder-Token": window.LUT_BUILDER_TOKEN },
+        body: body instanceof File ? body : JSON.stringify(body),
+        signal: requestSignal,
+      })
+      const result = await response.json()
+      if (!response.ok) throw new Error(Schema.decodeUnknownSync(ErrorResponseSchema)(result).error || "Video request failed")
+      return decode(result)
+    },
+    catch: (cause) => new WorkspaceRequestError({ message: cause instanceof Error ? cause.message : "Video request failed", cause }),
+  })
+  return Effect.runPromise(operation, { signal })
 }
 
-async function videoRequest<T>(path: string, body: object | File, signal?: AbortSignal): Promise<T> {
-  const response = await fetch(`/video/${path}`, {
-    method: "POST",
-    headers: { "Content-Type": body instanceof File ? "application/octet-stream" : "application/json", "X-LUT-Builder-Token": window.LUT_BUILDER_TOKEN },
-    body: body instanceof File ? body : JSON.stringify(body),
-    signal,
+function readImage(file: File): Effect.Effect<string, WorkspaceRequestError> {
+  return Effect.callback((resume, signal) => {
+    const reader = new FileReader()
+    const abort = () => reader.abort()
+    const cleanup = () => {
+      signal.removeEventListener("abort", abort)
+      reader.onload = null
+      reader.onerror = null
+      reader.onabort = null
+    }
+    reader.onload = () => {
+      const data = String(reader.result)
+      cleanup()
+      resume(Effect.succeed(data))
+    }
+    reader.onerror = () => {
+      cleanup()
+      resume(Effect.fail(new WorkspaceRequestError({ message: "Could not read this image. Try a PNG, JPEG, or WebP file.", cause: reader.error })))
+    }
+    signal.addEventListener("abort", abort, { once: true })
+    reader.readAsDataURL(file)
+    return Effect.sync(() => {
+      cleanup()
+      if (reader.readyState === FileReader.LOADING) reader.abort()
+    })
   })
-  const result = await response.json()
-  if (!response.ok) throw new Error(result.error || "Video request failed")
-  return result as T
 }
 
 function releaseVideo(source_id: string) {
-  void fetch("/video/cancel", {
-    method: "POST", keepalive: true,
-    headers: { "Content-Type": "application/json", "X-LUT-Builder-Token": window.LUT_BUILDER_TOKEN },
-    body: JSON.stringify({ source_id }),
-  }).catch(() => {}) // Server expiry also cleans up if the page has disconnected.
+  void Effect.runPromise(Effect.tryPromise({
+    try: (signal) => fetch("/video/cancel", {
+      method: "POST", keepalive: true, signal,
+      headers: { "Content-Type": "application/json", "X-LUT-Builder-Token": window.LUT_BUILDER_TOKEN },
+      body: JSON.stringify({ source_id }),
+    }),
+    catch: (cause) => new WorkspaceRequestError({ message: "Video cancellation failed.", cause }),
+  })).catch(() => {}) // Server expiry also cleans up if the page has disconnected.
 }
 
 export function LutImagePreview({ preview, camera }: { preview: Preview | null; camera?: { setup: Setup; interpretations: SourceInterpretations } }) {
@@ -122,6 +170,7 @@ export function LutImagePreview({ preview, camera }: { preview: Preview | null; 
   const [expanded, setExpanded] = useState(false)
   const [opacity, setOpacity] = useState(100)
   const videoInput = useRef<HTMLInputElement>(null)
+  const imageRead = useRef<AbortController | null>(null)
   const videoSource = useRef("")
   const videoAbort = useRef<AbortController | null>(null)
   const [video, setVideo] = useState<VideoFrame | null>(null)
@@ -161,10 +210,10 @@ export function LutImagePreview({ preview, camera }: { preview: Preview | null; 
     const controller = new AbortController()
     videoAbort.current = controller
     try {
-      const { source_id } = await videoRequest<{ source_id: string }>("start", {})
+      const { source_id } = await videoRequest("start", {}, Schema.decodeUnknownSync(Schema.Struct({ source_id: Schema.String })))
       if (request !== selection.current) { releaseVideo(source_id); return }
       videoSource.current = source_id
-      const result = await videoRequest<VideoFrame>(`upload?source_id=${encodeURIComponent(source_id)}`, file, controller.signal)
+      const result = await videoRequest(`upload?source_id=${encodeURIComponent(source_id)}`, file, Schema.decodeUnknownSync(VideoFrameSchema), controller.signal)
       if (request !== selection.current) return
       setVideo({ ...result, name: file.name })
       setVideoTime("0")
@@ -189,7 +238,7 @@ export function LutImagePreview({ preview, camera }: { preview: Preview | null; 
     const controller = new AbortController()
     videoAbort.current = controller
     try {
-      const result = await videoRequest<VideoFrame>("frame", { source_id: videoSource.current, ...position }, controller.signal)
+      const result = await videoRequest("frame", { source_id: videoSource.current, ...position }, Schema.decodeUnknownSync(VideoFrameSchema), controller.signal)
       if (request !== selection.current) return
       setVideo({ ...result, name: video?.name })
       setImageUrl(result.display)
@@ -249,30 +298,36 @@ export function LutImagePreview({ preview, camera }: { preview: Preview | null; 
     return () => { image.onload = null; image.onerror = null }
   }, [imageUrl, comparison, opacity, preview, expanded])
 
+  useEffect(() => () => imageRead.current?.abort(), [])
+
   function chooseImage(file: File) {
     stopVideo()
     const request = ++selection.current
+    imageRead.current?.abort()
     setImageError("")
     if (!file.type.startsWith("image/") || file.size > 25 * 1024 * 1024) {
       setImageError("Choose a still image up to 25 MB. The previous image is unchanged.")
       return
     }
-    const reader = new FileReader()
-    const fail = () => {
-      if (request === selection.current) setImageError("Could not read this image. Try a PNG, JPEG, or WebP file. The previous image is unchanged.")
-    }
-    reader.onerror = fail
-    reader.onload = () => {
+    const controller = new AbortController()
+    imageRead.current = controller
+    void Effect.runPromise(readImage(file), { signal: controller.signal }).then((data) => {
+      if (request !== selection.current) return
       const candidate = new Image()
-      candidate.onerror = fail
+      candidate.onerror = () => {
+        if (request === selection.current) setImageError("Could not read this image. Try a PNG, JPEG, or WebP file. The previous image is unchanged.")
+      }
       candidate.onload = () => {
         if (request !== selection.current) return
-        setImageUrl(String(reader.result))
+        setImageUrl(data)
         setImageName(file.name)
       }
-      candidate.src = String(reader.result)
-    }
-    reader.readAsDataURL(file)
+      candidate.src = data
+    }).catch((error: unknown) => {
+      if (request === selection.current && !controller.signal.aborted) {
+        setImageError(`${error instanceof Error ? error.message : "Could not read this image."} The previous image is unchanged.`)
+      }
+    })
   }
 
   const content = <div className="grid min-w-0 gap-3">
@@ -417,20 +472,30 @@ const browserSetup: Setup = {
 const fieldClass =
   "h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 disabled:cursor-not-allowed disabled:opacity-50"
 
-async function postJson<T>(path: string, setup: Setup): Promise<T> {
-  const response = await fetch(path, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-LUT-Builder-Token": window.LUT_BUILDER_TOKEN,
+function postJson(path: string, setup: Setup, signal?: AbortSignal): Promise<Preview> {
+  const request = Effect.tryPromise({
+    try: async (requestSignal) => {
+      const response = await fetch(path, {
+        method: "POST",
+        signal: requestSignal,
+        headers: {
+          "Content-Type": "application/json",
+          "X-LUT-Builder-Token": window.LUT_BUILDER_TOKEN,
+        },
+        body: JSON.stringify({ version: 1, ...setup }),
+      })
+      if (!response.ok) {
+        const result = Schema.decodeUnknownSync(ErrorResponseSchema)(await response.json())
+        throw new Error(result.error || "Request failed")
+      }
+      return Schema.decodeUnknownSync(PreviewSchema)(await response.json())
     },
-    body: JSON.stringify({ version: 1, ...setup }),
+    catch: (cause) => new WorkspaceRequestError({
+      message: cause instanceof Error ? cause.message : "Request failed",
+      cause,
+    }),
   })
-  if (!response.ok) {
-    const result = (await response.json()) as { error?: string }
-    throw new Error(result.error || "Request failed")
-  }
-  return response.json() as Promise<T>
+  return Effect.runPromise(request, { signal })
 }
 
 export function ColorPicker({
@@ -574,7 +639,7 @@ export function ExposureGraph({
   onEditEnd,
 }: {
   setup: Setup
-  preview: Preview
+  preview: Pick<Preview, "minimum" | "maximum" | "unit" | "colors">
   increment: number
   selectedBand: number
   onSelect: (index: number) => void
@@ -840,13 +905,13 @@ export function App() {
   const [{ setup, selection: selectedBand, undo }, dispatch] = useReducer(reduceEditor, window.LUT_BUILDER_SETUP ?? browserSetup, createEditorState)
   const [preview, setPreview] = useState<Preview | null>(null)
   const [validationError, setValidationError] = useState("")
-  const [status, setStatus] = useState("")
+  const [presetRead] = useState(() => browserOnly
+    ? Effect.runSync(Effect.result(readSetupPresets(() => window.localStorage)))
+    : Result.succeed([]))
+  const [status, setStatus] = useState(() => Result.isFailure(presetRead) ? presetRead.failure.message : "")
   const [isGenerating, setIsGenerating] = useState(false)
-  const workerRef = useRef<{ worker: Worker; id: string } | null>(null)
-  const [setupPresets, setSetupPresets] = useState<SetupPreset[]>(() => {
-    if (!browserOnly) return []
-    try { return readSetupPresets(window.localStorage) } catch { return [] }
-  })
+  const workerRef = useRef<AbortController | null>(null)
+  const [setupPresets, setSetupPresets] = useState<SetupPreset[]>(() => Result.isSuccess(presetRead) ? presetRead.success : [])
   const [presetName, setPresetName] = useState("")
   const [selectedPreset, setSelectedPreset] = useState("")
   const [stopIncrement, setStopIncrement] = useState<1 | 0.5 | 0.25>(0.25)
@@ -855,6 +920,15 @@ export function App() {
   const [removingBandIndex, setRemovingBandIndex] = useState<number | null>(null)
   const importInput = useRef<HTMLInputElement>(null)
   const mode: Mode = setup.fill_mode ? "fill" : setup.band_mode
+  const graphMinimum = setup.band_mode === "ire" ? 0 : -7
+  const graphMaximum = setup.band_mode === "ire" ? 100 : 7
+  const graphPreview = browserOnly ? {
+    minimum: graphMinimum,
+    maximum: graphMaximum,
+    unit: setup.band_mode === "ire" ? "IRE" : "stops",
+    colors: Array.from({ length: 281 }, (_, index) =>
+      overlayForExposure(setup, graphMinimum + index / 280 * (graphMaximum - graphMinimum)) ?? "transparent"),
+  } : preview
   const movementIncrement = mode === "ire" ? 1 : stopIncrement
   const selectBand = (index: number) => {
     dispatch({ type: "select", selection: index })
@@ -866,7 +940,7 @@ export function App() {
     const controller = new AbortController()
     const timer = window.setTimeout(async () => {
       try {
-        const next = await postJson<Preview>("/preview", setup)
+        const next = await postJson("/preview", setup, controller.signal)
         if (!controller.signal.aborted) {
           setPreview(next)
           setValidationError("")
@@ -908,56 +982,45 @@ export function App() {
   async function generate() {
     setIsGenerating(true)
     setStatus(`Generating ${setup.cube_size}³ LUT…`)
+    const controller = browserOnly ? new AbortController() : null
+    if (controller) workerRef.current = controller
     try {
       if (browserOnly) {
-        const worker = new Worker(new URL("./lutWorker.ts", import.meta.url), { type: "module" })
-        const id = `${Date.now()}-${Math.random()}`
-        workerRef.current = { worker, id }
-        await new Promise<void>((resolve, reject) => {
-          const finish = () => {
-            worker.terminate()
-            if (workerRef.current?.worker === worker) workerRef.current = null
-          }
-          worker.onmessage = (event: MessageEvent<{ type: string; id: string; progress?: number; bytes?: ArrayBuffer; error?: string }>) => {
-            const result = event.data
-            if (result.id !== id) return
-            if (result.type === "progress") {
-              setStatus(`Generating ${setup.cube_size}³ LUT… ${Math.round((result.progress ?? 0) * 100)}%`)
-            } else if (result.type === "error") {
-              finish()
-              reject(new Error(result.error || "Generation failed"))
-            } else if (result.type === "complete" && result.bytes) {
-              const url = URL.createObjectURL(new Blob([result.bytes], { type: "text/plain;charset=utf-8" }))
-              const link = document.createElement("a")
-              link.href = url
-              link.download = cubeFilename(setup.output)
-              link.click()
-              window.setTimeout(() => URL.revokeObjectURL(url), 1000)
-              finish()
-              setStatus("LUT downloaded. Calculations stayed on this device.")
-              resolve()
-            }
-          }
-          worker.onerror = () => {
-            finish()
-            reject(new Error("Browser LUT generation failed."))
-          }
-          worker.postMessage({ type: "generate", id, setup })
-        })
+        const outcome = await Effect.runPromise(
+          Effect.result(generateInWorker(setup, (progress) => {
+            setStatus(`Generating ${setup.cube_size}³ LUT… ${Math.round(progress * 100)}%`)
+          })),
+          { signal: controller!.signal },
+        )
+        if (Result.isFailure(outcome)) throw outcome.failure
+        const url = URL.createObjectURL(new Blob([outcome.success], { type: "text/plain;charset=utf-8" }))
+        const link = document.createElement("a")
+        link.href = url
+        link.download = cubeFilename(setup.output)
+        link.click()
+        window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+        setStatus("LUT downloaded. Calculations stayed on this device.")
         return
       }
-      const response = await fetch("/generate", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-LUT-Builder-Token": window.LUT_BUILDER_TOKEN,
+      const response = await Effect.runPromise(Effect.tryPromise({
+        try: async (signal) => {
+          const next = await fetch("/generate", {
+            method: "POST",
+            signal,
+            headers: {
+              "Content-Type": "application/json",
+              "X-LUT-Builder-Token": window.LUT_BUILDER_TOKEN,
+            },
+            body: JSON.stringify({ version: 1, ...setup }),
+          })
+          if (!next.ok) {
+            const result = Schema.decodeUnknownSync(ErrorResponseSchema)(await next.json())
+            throw new Error(result.error || "Generation failed")
+          }
+          return next
         },
-        body: JSON.stringify({ version: 1, ...setup }),
-      })
-      if (!response.ok) {
-        const result = (await response.json()) as { error?: string }
-        throw new Error(result.error || "Generation failed")
-      }
+        catch: (cause) => new WorkspaceRequestError({ message: cause instanceof Error ? cause.message : "Generation failed", cause }),
+      }))
       const link = document.createElement("a")
       link.href = URL.createObjectURL(await response.blob())
       link.download =
@@ -968,17 +1031,23 @@ export function App() {
       URL.revokeObjectURL(link.href)
       setStatus("LUT downloaded.")
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Generation failed")
+      setStatus(controller?.signal.aborted ? "Generation cancelled." : error instanceof Error ? error.message : "Generation failed")
     } finally {
+      if (workerRef.current === controller) workerRef.current = null
       setIsGenerating(false)
     }
   }
 
   async function importFile(file: File) {
     try {
-      const imported = await importSetup(await file.text(), async (candidate) => {
-        if (browserOnly) return validateBrowserSetup(candidate)
-        const result = await postJson<Preview>("/preview", candidate)
+      const text = await Effect.runPromise(Effect.tryPromise({
+        try: () => file.text(),
+        catch: (cause) => new SetupValidationError({ message: "Could not read this setup file.", cause }),
+      }))
+      const imported = await importSetup(text, async (candidate) => {
+        const validated = await Effect.runPromise(decodeSetup(candidate))
+        if (browserOnly) return validated
+        const result = await postJson("/preview", validated)
         return result.setup
       })
       dispatch({ type: "import", setup: imported })
@@ -1000,20 +1069,19 @@ export function App() {
   }
 
   function saveCurrentPreset() {
-    try {
-      setSetupPresets(saveSetupPreset(window.localStorage, setupPresets, presetName, setup))
+    void Effect.runPromise(saveSetupPreset(() => window.localStorage, setupPresets, presetName, setup)).then((next) => {
+      setSetupPresets(next)
       setPresetName("")
       setStatus("Named LUT setup saved in this browser.")
-    } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Could not save this preset. Browser storage may be unavailable.")
-    }
+    }).catch((error: unknown) => setStatus(error instanceof Error ? error.message : "Could not save this preset."))
   }
 
   async function loadPreset() {
     const preset = setupPresets.find((item) => item.name === selectedPreset)
     if (!preset) return
     try {
-      const next = browserOnly ? validateBrowserSetup(preset.setup) : (await postJson<Preview>("/preview", preset.setup)).setup
+      const validated = await Effect.runPromise(decodeSetup(preset.setup))
+      const next = browserOnly ? validated : (await postJson("/preview", validated)).setup
       dispatch({ type: "import", setup: next })
       setStatus(`Loaded ${preset.name}.`)
     } catch (error) {
@@ -1022,13 +1090,11 @@ export function App() {
   }
 
   function removePreset() {
-    try {
-      setSetupPresets(deleteSetupPreset(window.localStorage, setupPresets, selectedPreset))
+    void Effect.runPromise(deleteSetupPreset(() => window.localStorage, setupPresets, selectedPreset)).then((next) => {
+      setSetupPresets(next)
       setSelectedPreset("")
       setStatus("Named LUT setup deleted from this browser.")
-    } catch {
-      setStatus("Could not update browser storage. Export your setup as JSON to keep a copy.")
-    }
+    }).catch((error: unknown) => setStatus(error instanceof Error ? error.message : "Could not update browser storage. Export your setup as JSON to keep a copy."))
   }
 
   return (
@@ -1151,12 +1217,12 @@ export function App() {
             </div>
           </CardHeader>
           <CardContent className="grid gap-4">
-            {preview ? (
+            {graphPreview ? (
               <>
                 <Button type="button" variant="outline" disabled={!undo} onClick={undoEdit}>Undo last band edit</Button>
                 <ExposureGraph
                   setup={setup}
-                  preview={preview}
+                  preview={graphPreview}
                   increment={movementIncrement}
                   selectedBand={selectedBand}
                   onSelect={selectBand}
@@ -1197,7 +1263,7 @@ export function App() {
                   </table>
                   {setup.bands.length === 0 && <p className="p-4 text-sm text-muted-foreground">No bands yet.</p>}
                 </div>
-                {preview.warnings.map((warning) => <p className="text-sm text-amber-700 dark:text-amber-300" key={warning}>{warning}</p>)}
+                {preview?.warnings.map((warning) => <p className="text-sm text-amber-700 dark:text-amber-300" key={warning}>{warning}</p>)}
               </>
             ) : <p className="text-sm text-muted-foreground">{browserOnly ? "The browser build creates LUTs locally; exposure preview is not included in this release." : "Preparing preview…"}</p>}
             {validationError && <p className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive" role="alert">{validationError}</p>}
@@ -1267,7 +1333,7 @@ export function App() {
               {isGenerating && <Spinner data-icon="inline-start" />}
               {isGenerating ? "Generating…" : "Generate LUT"}
             </Button>
-            {browserOnly && isGenerating && <Button type="button" variant="outline" onClick={() => { const active = workerRef.current; if (active) active.worker.postMessage({ type: "cancel", id: active.id }) }}>Cancel</Button>}
+            {browserOnly && isGenerating && <Button type="button" variant="outline" onClick={() => workerRef.current?.abort()}>Cancel</Button>}
             <div className="flex flex-wrap gap-2">
               <Button type="button" variant="outline" onClick={() => importInput.current?.click()}>Import JSON</Button>
               <Button type="button" variant="outline" onClick={downloadConfig}>Export JSON</Button>
