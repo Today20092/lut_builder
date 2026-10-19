@@ -11,7 +11,7 @@ import {
   type Ref,
 } from "react"
 import { Popover } from "@base-ui/react/popover"
-import { Data, Effect, Result, Schema } from "effect"
+import { Effect, Result } from "effect"
 
 import { Button } from "@/components/ui/button"
 import { PaletteEditor, type PalettePreview } from "./PaletteEditor"
@@ -79,16 +79,9 @@ type Catalog = {
   palette: PaletteColor[]
 }
 
-const ErrorResponseSchema = Schema.Struct({ error: Schema.optional(Schema.String) })
-
 function srgbToLinear(value: number) {
   return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4
 }
-
-class WorkspaceRequestError extends Data.TaggedError("WorkspaceRequestError")<{
-  readonly message: string
-  readonly cause: unknown
-}> {}
 
 export function LutImagePreview({ preview, camera }: { preview: Preview | null; camera?: { setup: Setup; interpretations: SourceInterpretations } }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
