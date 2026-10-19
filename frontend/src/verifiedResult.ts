@@ -8,6 +8,7 @@ export const CheckedStillSchema = Schema.Struct({
   width: Schema.Finite,
   height: Schema.Finite,
   image: Schema.String,
+  look_image: Schema.optional(Schema.String),
   provenance: Schema.StructWithRest(
     Schema.Struct({ comparison_unavailable: Schema.String, warnings: Schema.Array(Schema.String) }),
     [Schema.Record(Schema.String, Schema.Unknown)],
@@ -16,7 +17,7 @@ export const CheckedStillSchema = Schema.Struct({
 const RgbSchema = Schema.Tuple([Schema.Finite, Schema.Finite, Schema.Finite])
 const PixelSchema = Schema.Struct({ x: Schema.Finite, y: Schema.Finite, source_rgb: RgbSchema, output_rgb: RgbSchema, display_rgb: RgbSchema })
 export type VerifiedPixel = typeof PixelSchema.Type
-type Metadata = Pick<typeof CheckedStillSchema.Type, "width" | "height" | "image" | "provenance">
+type Metadata = Pick<typeof CheckedStillSchema.Type, "width" | "height" | "image" | "look_image" | "provenance">
 export type VerifiedResult = Metadata & {
   inspect: (x: number, y: number) => Effect.Effect<VerifiedPixel, VerifiedResultError>
   cube: () => Effect.Effect<Blob, VerifiedResultError>
@@ -59,9 +60,9 @@ export function localVerifiedResult(result: typeof CheckedStillSchema.Type, requ
   )
 }
 
-export function browserVerifiedResult(result: Omit<BrowserResult, "rgba">, setup: Pick<Setup, "target" | "legal_range">, image: string): VerifiedResult {
-  const view = { target: setup.target, legal_range: setup.legal_range }
-  return verifiedResult({ width: result.width, height: result.height, image, provenance: result.provenance },
+export function browserVerifiedResult(result: Omit<BrowserResult, "rgba">, setup: Pick<Setup, "target" | "legal_range" | "imported_lut">, image: string, look_image?: string): VerifiedResult {
+  const view = { target: setup.target, legal_range: setup.legal_range, imported_lut: setup.imported_lut }
+  return verifiedResult({ width: result.width, height: result.height, image, look_image, provenance: result.provenance },
     async (x, y) => {
       const i = (y * result.width + x) * 3
       const output = result.output.subarray(i, i + 3)

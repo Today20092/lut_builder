@@ -36,6 +36,7 @@ class VerificationResult:
     display_rgb: np.ndarray
     cube: bytes
     provenance: dict
+    look_display_rgb: np.ndarray | None = None
 
 
 def decode_still(data: bytes) -> tuple[np.ndarray, dict]:
@@ -200,8 +201,13 @@ def sdr_view(rgb: np.ndarray, setup: LutSetup) -> np.ndarray:
     signal = np.asarray(rgb, dtype=np.float64)
     if setup.legal_range:
         signal = (signal - 64 / 1023) / ((940 - 64) / 1023)
-    # BT.1886 with ideal black and unit white is V**2.4. No tone mapping.
-    linear = colour.models.eotf_BT1886(np.clip(signal, 0, 1), L_B=0, L_W=1)
+    # Imported output is already encoded; invert its confirmed transfer only.
+    if setup.imported_lut is not None:
+        from .imported_lut import decode_output
+
+        linear = decode_output(signal, setup.imported_lut["output_transfer"])
+    else:
+        linear = colour.models.eotf_BT1886(np.clip(signal, 0, 1), L_B=0, L_W=1)
     # BT.709 and sRGB share primaries/white. Avoid approximate matrix round trips.
     if setup.target_name != "Rec.709":
         linear = colour.RGB_to_RGB(
@@ -265,6 +271,10 @@ def verify_rgb(
             "Source contains NaN or infinity. Export finite camera RGB samples."
         )
     settings = setup.to_config()
+    if setup.imported_lut is not None:
+        settings["imported_lut"] = {
+            k: v for k, v in setup.imported_lut.items() if k != "cube"
+        }
     settings_json = json.dumps(settings, sort_keys=True, allow_nan=False)
     check_cancelled()
     cube = serialize_lut(setup)
@@ -273,6 +283,12 @@ def verify_rgb(
         path = Path(directory) / "checked.cube"
         path.write_bytes(cube)
         lut = colour.read_LUT(str(path))
+        look_lut = None
+        if setup.imported_lut is not None:
+            look_cube = serialize_lut(setup, diagnostics=False)
+            check_cancelled()
+            path.write_bytes(look_cube)
+            look_lut = colour.read_LUT(str(path))
     if not isinstance(lut, colour.LUT3D) or not np.array_equal(
         lut.domain, [[0, 0, 0], [1, 1, 1]]
     ):
@@ -281,6 +297,9 @@ def verify_rgb(
     flat = source.reshape(-1, 3)
     output = np.empty(flat.shape, dtype=np.float64)
     display = np.empty(flat.shape, dtype=np.float64)
+    look_display = (
+        np.empty(flat.shape, dtype=np.float64) if look_lut is not None else None
+    )
     # ponytail: one bounded CPU job; chunking bounds interpolation scratch memory.
     for start in range(0, len(flat), 65_536):
         check_cancelled()
@@ -290,6 +309,14 @@ def verify_rgb(
             interpolator=colour.algebra.table_interpolation_tetrahedral,
         )
         display[start:stop] = sdr_view(output[start:stop], setup)
+        if look_lut is not None and look_display is not None:
+            look_display[start:stop] = sdr_view(
+                look_lut.apply(
+                    np.clip(flat[start:stop], 0, 1),
+                    interpolator=colour.algebra.table_interpolation_tetrahedral,
+                ),
+                setup,
+            )
     check_cancelled()
     if not np.isfinite(output).all() or not np.isfinite(display).all():
         raise ValueError(
@@ -309,12 +336,21 @@ def verify_rgb(
         },
         "output": {
             "target": setup.target_name,
-            "transfer": PROFILE_CATALOG.target(setup.target_name).transfer,
+            "transfer": setup.imported_lut["output_transfer"]
+            if setup.imported_lut
+            else PROFILE_CATALOG.target(setup.target_name).transfer,
             "gamut": SDR_TARGETS[setup.target_name],
             "range": "legal 64-940 / 1023" if setup.legal_range else "full 0-1",
         },
-        "viewing_policy": VIEW_POLICY,
-        "comparison_unavailable": COMPARISON_UNAVAILABLE,
+        "viewing_policy": f"Confirmed {setup.imported_lut['output_transfer']} inverse; target primaries to sRGB; display gamut clipped"
+        if setup.imported_lut
+        else VIEW_POLICY,
+        "comparison_unavailable": "" if setup.imported_lut else COMPARISON_UNAVAILABLE,
+        **(
+            {"look_cube_sha256": hashlib.sha256(look_cube).hexdigest()}
+            if setup.imported_lut
+            else {}
+        ),
         "versions": {"colour": colour.__version__, "numpy": np.__version__},
         "warnings": (
             [
@@ -330,4 +366,5 @@ def verify_rgb(
         display.reshape(source.shape),
         cube,
         provenance,
+        look_display.reshape(source.shape) if look_display is not None else None,
     )

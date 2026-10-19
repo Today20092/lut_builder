@@ -11,6 +11,7 @@ import type { VideoInfo } from "./browserMedia"
 import type { BrowserResult } from "./browserVerificationWorker"
 import type { Setup } from "./editor"
 import { isTypingTarget } from "./keyboard"
+import { setupIdentity } from "./importedLut"
 
 const field = "h-9 min-w-0 w-full rounded-md border border-input bg-transparent px-3 text-sm focus-visible:ring-2 focus-visible:ring-ring"
 const emptyInterpretation: Interpretation = { transfer: "", gamut: "", matrix: "", signalRange: "", chroma: "", confirmed: false }
@@ -22,7 +23,13 @@ function checkedBrowserResult(result: BrowserResult, setup: Setup): VerifiedResu
   if (!context) throw new Error("Could not prepare the SDR display image. Verify again.")
   // Canvas receives only the final SDR view, never camera samples.
   context.putImageData(new ImageData(new Uint8ClampedArray(result.rgba), result.width, result.height), 0, 0)
-  return browserVerifiedResult(result, setup, canvas.toDataURL("image/png"))
+  const image = canvas.toDataURL("image/png")
+  let lookImage: string | undefined
+  if (result.lookRgba) {
+    context.putImageData(new ImageData(new Uint8ClampedArray(result.lookRgba),result.width,result.height),0,0)
+    lookImage = canvas.toDataURL("image/png")
+  }
+  return browserVerifiedResult(result, setup, image, lookImage)
 }
 
 export function BrowserVerification({ setup }: { setup: Setup }) {
@@ -39,7 +46,7 @@ export function BrowserVerification({ setup }: { setup: Setup }) {
   const [busy, setBusy] = useState(false)
   const [inputKey, setInputKey] = useState("")
   const pending = useRef<AbortController | null>(null)
-  const key = JSON.stringify([setup, kind, ordinal, seconds, interpretation, depth, rangeConfirmed])
+  const key = JSON.stringify([setupIdentity(setup), kind, ordinal, seconds, interpretation, depth, rangeConfirmed])
   const current = result?.key === key ? result.value : null
   if (result && !current) setResult(null)
   if (inputKey !== key) { setInputKey(key); setBusy(false); setStatus("") }

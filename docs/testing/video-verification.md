@@ -12,6 +12,13 @@ The result uses the existing still viewer, original-resolution pixel inspector, 
 
 ## Processing and lifetime
 
+Imported-look mode now provides a Look / Look + diagnostics comparison on the
+original decoded camera RGB, using its confirmed output transfer. This is viewing
+only; numerical inspection and checked-cube downloads retain diagnostics. See
+[composition contracts](../imported-lut-composition.md). The no-import policy remains
+unchanged. JSON setup requests are bounded to accommodate a 16 MiB embedded LUT
+plus worst-case JSON escaping, rather than the historical 1 MB limit.
+
 `POST /verify-video` uses the existing launch token and verification job lock. It accepts `request_id`, `source_id`, the exact selected `frame` object, optional source `name`, `setup` and `interpretation`. Interpretation includes `transfer`, `gamut`, `range="camera-code-values"`, `confirmed=true`, `matrix`, `signal_range`, `chroma_location` and integer `bit_depth`.
 
 The server holds `VideoSession.operation()` while validating frame identity, decoding and verifying. The shared bounded FFmpeg runner reads `source.raw`, explicitly resolves matrix/range/chroma with zscale and outputs planar float32 GBR. Bilinear chroma reconstruction is explicit, matching the [documented zscale default](https://ffmpeg.org/ffmpeg-filters.html#zscale). Planes become top-left RGB without clipping or an intermediate PNG. Transfer and gamut conversion are not performed by this decode. Confirmed settings are passed to `verification.verify_rgb`; its existing serialized-cube interpolation and SDR rendering remain unchanged. The demonstration float file and PNG are not verification inputs.

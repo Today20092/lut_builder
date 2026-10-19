@@ -12,10 +12,19 @@ from .data import (
     hex_to_rgb,
 )
 from .setup import LutSetup, map_exposure
+from .imported_lut import parse_cube, overlay_in_output
 
 
-def serialize_lut(setup: LutSetup) -> bytes:
+def serialize_lut(setup: LutSetup, *, diagnostics: bool = True) -> bytes:
     """Return the ordinary export, including its header and sampled table."""
+    if not diagnostics:
+        setup = replace(
+            setup,
+            bands=[],
+            fill_mode=False,
+            low_signal_warning=False,
+            high_signal_warning=False,
+        )
     with tempfile.TemporaryDirectory(prefix="lut-builder-") as directory:
         output = generate_lut(
             replace(setup, output_filename=str(Path(directory) / "export.cube"))
@@ -128,6 +137,10 @@ def generate_lut(setup: LutSetup) -> Path:
         final_data = colour.models.log_encoding(
             rgb_linear_tgt, function=target.transfer
         )
+    if setup.imported_lut is not None:
+        final_data = parse_cube(setup.imported_lut["cube"]).apply(
+            samples, interpolator=colour.algebra.table_interpolation_tetrahedral
+        )
 
     # ------------------------------------------------------------------
     # 6b. Compute IRE values (only when band_mode == "ire")
@@ -187,8 +200,10 @@ def generate_lut(setup: LutSetup) -> Path:
         [band["color"] for band in bands] + [low_signal_hex, high_signal_hex]
     ):
         if color:
-            final_data[overlay_colors == color] = _srgb_overlay_to_target(
-                color, target, tgt_cs
+            final_data[overlay_colors == color] = (
+                overlay_in_output(color, setup.imported_lut)
+                if setup.imported_lut is not None
+                else _srgb_overlay_to_target(color, target, tgt_cs)
             )
 
     # ------------------------------------------------------------------
@@ -220,7 +235,9 @@ def generate_lut(setup: LutSetup) -> Path:
         "",
         f"Target      : {target_name}",
         f"  Gamut     : {target.gamut}",
-        f"  Transfer  : {target.transfer} ({target.encoding.upper()})",
+        f"  Transfer  : {setup.imported_lut['output_transfer']} (confirmed imported output)"
+        if setup.imported_lut
+        else f"  Transfer  : {target.transfer} ({target.encoding.upper()})",
         "",
     ]
 
@@ -274,6 +291,16 @@ def generate_lut(setup: LutSetup) -> Path:
     else:
         comments.append("Encoded-Signal Warnings: none")
 
+    if setup.imported_lut is not None:
+        imported = setup.imported_lut
+        comments.extend(
+            [
+                f"Imported look: {imported['name']} SHA256 {imported['sha256']}",
+                f"Output transfer: {imported['output_transfer']}; primaries {imported['output_gamut']}; range {imported['output_range']}",
+                "Composition: source-camera exposure before look; tetrahedral imported sampling; original camera input required",
+                "Finite grid: markers have positive half-width; interpolated edges are not exact thresholds",
+            ]
+        )
     lut.comments = comments
 
     # ------------------------------------------------------------------
@@ -286,7 +313,7 @@ def generate_lut(setup: LutSetup) -> Path:
     # are also correctly scaled (a warning color at #ff0000 will
     # land at the legal-range equivalent, not full-range 1.0).
     # ------------------------------------------------------------------
-    if legal_range:
+    if legal_range and setup.imported_lut is None:
         # LUT3D stores float32 values, so use representable values inside
         # the nominal limits rather than rounding past them.
         legal_low = np.nextafter(np.float32(64 / 1023), np.float32(1)).item()
@@ -298,7 +325,7 @@ def generate_lut(setup: LutSetup) -> Path:
     # 11. Write .cube file
     # ------------------------------------------------------------------
     lut.table = (
-        np.clip(final_data, 0, 1)
+        (final_data if setup.imported_lut is not None else np.clip(final_data, 0, 1))
         .reshape(cube_size, cube_size, cube_size, 3)
         .astype(np.float32)
     )

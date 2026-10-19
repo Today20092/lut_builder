@@ -1,4 +1,5 @@
 import { cameraGray } from "./cameraReference.ts"
+import { setupIdentity, type ImportedLut } from "./importedLut.ts"
 
 export type Band = { stop: number; width: number; color: string }
 export type Mode = "stops" | "ire" | "fill"
@@ -18,6 +19,7 @@ export type Setup = {
   monochrome: boolean
   legal_range: boolean
   output: string
+  imported_lut?: ImportedLut
 }
 
 type BandEditSnapshot = { setup: Setup; selection: number }
@@ -70,7 +72,7 @@ export function reduceEditor(state: EditorState, action: EditorAction): EditorSt
     }
     case "edit": {
       const setup = action.edit(state.setup)
-      if (JSON.stringify(setup) === JSON.stringify(state.setup)) return state
+      if (JSON.stringify(setupIdentity(setup)) === JSON.stringify(setupIdentity(state.setup))) return state
       const selection = action.selection ?? state.selection
       const band = state.setup.bands[selection]
       const id = band && bandId(band)
@@ -586,7 +588,7 @@ export function filterPalette(palette: PaletteColor[], search: string) {
 }
 
 export function exportSetup(setup: Setup) {
-  return JSON.stringify({ version: 1, ...setup, bands: orderBands(setup.bands) }, null, 2)
+  return JSON.stringify({ version: setup.imported_lut ? 3 : 1, ...setup, bands: orderBands(setup.bands) }, null, 2)
 }
 
 export async function importSetup(
@@ -599,9 +601,11 @@ export async function importSetup(
   } catch {
     throw new Error("Import must be valid JSON.")
   }
-  if (!candidate || typeof candidate !== "object" || (candidate as { version?: number }).version !== 1) {
-    throw new Error("Import must be a version-1 LUT Builder configuration.")
+  if (!candidate || typeof candidate !== "object" || ![1,2,3].includes((candidate as { version: number }).version)) {
+    throw new Error("Import must be a supported version-1, version-2 or version-3 LUT Builder configuration.")
   }
+  if ((candidate as {version:number}).version === 3 && !(candidate as {imported_lut?:unknown}).imported_lut) throw new Error("Imported LUT is missing. Reattach the original .cube; no substitute was used.")
+  if ((candidate as {version:number}).version !== 3 && (candidate as {imported_lut?:unknown}).imported_lut) throw new Error("Imported LUT setups require version 3 to prevent older applications silently dropping the look.")
   const setup = Object.fromEntries(
     Object.entries(candidate).filter(([key]) => key !== "version"),
   ) as Setup

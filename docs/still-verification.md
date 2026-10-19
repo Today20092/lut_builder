@@ -27,6 +27,13 @@ Transfer and gamut must exactly match the selected LUT camera profile. The range
 
 ## Cube and display contracts
 
+Imported creative LUTs add an explicitly confirmed output transfer and an actual
+Look / Look + diagnostics comparison from preserved camera samples. This toggle
+changes viewing only; inspection and the checked download retain diagnostics.
+See [imported-LUT composition](imported-lut-composition.md) for the mathematical,
+portable-setup and finite-grid contracts. The legacy no-import display policy below
+remains unchanged.
+
 `engine.serialize_lut(setup)` calls the existing `generate_lut` export, then reads its bytes. Both normal download and verification use this helper. Verification writes those bytes to a temporary `.cube`, reads it with `colour.read_LUT`, and passes `colour.algebra.table_interpolation_tetrahedral` explicitly to `LUT3D.apply`. The default interpolator is not used. The **Download checked cube** action returns the exact checked bytes. Ordinary generation has a timestamped header, so a later export can have a different SHA-256 even if its numerical table is identical.
 
 Source channels outside `[0, 1]` remain intact in the source samples. They are clamped at the cube's declared `[0, 1]` input boundary, counted and reported. The pixel inspector shows the original source value as well as the numerical cube result. It never samples the resized display image.
