@@ -38,8 +38,8 @@ import { BrowserVerification } from "./BrowserVerification"
 import { browserInterpretations, browserProfiles, browserTargets } from "@/lutEngine"
 import { defaultFilenameTemplate, outputFilename } from "./outputFilename"
 import { deleteSetupPreset, readSetupPresets, saveSetupPreset, type SetupPreset } from "@/setupPresets"
-import { SetupValidationError } from "@/setupSchema"
 import { createWorkspaceRuntime, type Preview } from "./workspaceRuntime"
+import { createSetupReplacement, createSetupWorkspace, reduceSetupWorkspace } from "./setupReplacement"
 import {
   applyBandPreset,
   applyFillPreset,
@@ -48,17 +48,14 @@ import {
   changeMode,
   contrastTextColor,
   createBand,
-  createEditorState,
   exportSetup,
   exposureReferenceValue,
   filterPalette,
   hexToHsv,
   hsvToHex,
-  importSetup,
   isHexColor,
   resizeBandWidth,
   removeBand,
-  reduceEditor,
   snapBandValue,
   stepBandValue,
   updateBand,
@@ -955,19 +952,25 @@ export function App() {
   const [runtime] = useState(() => createWorkspaceRuntime(window.LUT_BUILDER_TOKEN))
   const { browserOnly } = runtime
   const catalog = window.LUT_BUILDER_CATALOG ?? browserCatalog
-  const [{ setup, selection: selectedBand, undo, revision }, dispatch] = useReducer(reduceEditor, window.LUT_BUILDER_SETUP ?? browserSetup, createEditorState)
+  const [presetRead] = useState(() => Effect.runSync(Effect.result(readSetupPresets(() => window.localStorage))))
+  const [{ setup, selection: selectedBand, undo, revision, previousSetup, isLoadingSetup, loadStatus, palettePreview, bandStatus }, dispatch] = useReducer(
+    reduceSetupWorkspace, undefined, () => createSetupWorkspace(window.LUT_BUILDER_SETUP ?? browserSetup, Result.isFailure(presetRead) ? presetRead.failure.message : ""),
+  )
+  const [setupReplacement] = useState(() => createSetupReplacement(runtime.normalize, dispatch))
+  const setupLoads = useRef<AbortController | null>(null)
+  useEffect(() => {
+    const controller = new AbortController()
+    setupLoads.current = controller
+    return () => controller.abort()
+  }, [])
   const [preview, setPreview] = useState<Preview | null>(null)
   const [validationError, setValidationError] = useState("")
-  const [presetRead] = useState(() => Effect.runSync(Effect.result(readSetupPresets(() => window.localStorage))))
   const [status, setStatus] = useState("")
-  const [loadStatus, setLoadStatus] = useState(() => Result.isFailure(presetRead) ? presetRead.failure.message : "")
   const [saveStatus, setSaveStatus] = useState("")
-  const [bandStatus, setBandStatus] = useState("")
-  const [previousSetup, setPreviousSetup] = useState<Setup | null>(null)
+  const setLoadStatus = (value: string) => dispatch({ type: "load-status", value })
+  const setBandStatus = (value: string) => dispatch({ type: "band-status", value })
   const [deletingPreset, setDeletingPreset] = useState(false)
   const [isGenerating, setIsGenerating] = useState(false)
-  const [isLoadingSetup, setIsLoadingSetup] = useState(false)
-  const loadRequest = useRef(0)
   const workerRef = useRef<AbortController | null>(null)
   const [setupPresets, setSetupPresets] = useState<SetupPreset[]>(() => Result.isSuccess(presetRead) ? presetRead.success : [])
   const [presetName, setPresetName] = useState("")
@@ -982,7 +985,7 @@ export function App() {
   const [removingBandIndex, setRemovingBandIndex] = useState<number | null>(null)
   const importInput = useRef<HTMLInputElement>(null)
   const colorTriggers = useRef(new Map<number, HTMLButtonElement>())
-  const [palettePreview, setPalettePreview] = useState<PalettePreview | null>(null)
+  const setPalettePreview = useCallback((value: PalettePreview | null) => dispatch({ type: "palette-preview", value }), [])
   const applyPalette = useCallback((next: Setup) => dispatch({ type: "edit", edit: () => next }), [])
   const mode: Mode = setup.fill_mode ? "fill" : setup.band_mode
   const graphMinimum = setup.band_mode === "ire" ? 0 : -graphRange
@@ -1072,25 +1075,7 @@ export function App() {
   }
 
   async function importFile(file: File) {
-    const request = ++loadRequest.current
-    setIsLoadingSetup(true)
-    try {
-      const text = await Effect.runPromise(Effect.tryPromise({
-        try: () => file.text(),
-        catch: (cause) => new SetupValidationError({ message: "Could not read this setup file.", cause }),
-      }))
-      const imported = await importSetup(text, (candidate) => Effect.runPromise(runtime.normalize(candidate)))
-      if (request !== loadRequest.current) return
-      setPreviousSetup(setup)
-      dispatch({ type: "import", setup: imported })
-      setPalettePreview(null)
-      setBandStatus("")
-      setLoadStatus(`Imported ${file.name}. You can restore the setup you were editing.`)
-    } catch (error) {
-      if (request === loadRequest.current) setLoadStatus(error instanceof Error ? error.message : "Import failed")
-    } finally {
-      if (request === loadRequest.current) setIsLoadingSetup(false)
-    }
+    await Effect.runPromise(setupReplacement.file(file), { signal: setupLoads.current?.signal }).catch(() => undefined)
   }
 
   function downloadConfig() {
@@ -1115,21 +1100,7 @@ export function App() {
   async function loadPreset() {
     const preset = setupPresets.find((item) => item.name === selectedPreset)
     if (!preset) return
-    const request = ++loadRequest.current
-    setIsLoadingSetup(true)
-    try {
-      const next = await Effect.runPromise(runtime.normalize(preset.setup))
-      if (request !== loadRequest.current) return
-      setPreviousSetup(setup)
-      dispatch({ type: "import", setup: next })
-      setPalettePreview(null)
-      setBandStatus("")
-      setLoadStatus(`Loaded ${preset.name}. You can restore the setup you were editing.`)
-    } catch (error) {
-      if (request === loadRequest.current) setLoadStatus(error instanceof Error ? error.message : "Could not load this preset.")
-    } finally {
-      if (request === loadRequest.current) setIsLoadingSetup(false)
-    }
+    await Effect.runPromise(setupReplacement.preset(preset), { signal: setupLoads.current?.signal }).catch(() => undefined)
   }
 
   function removePreset() {
@@ -1177,13 +1148,7 @@ export function App() {
         </details>
           <div className={loadStatus || isLoadingSetup || previousSetup ? undefined : "hidden"} aria-label="Setup loading feedback">
             <p role="status" className="text-sm">{isLoadingSetup ? "Loading setup…" : loadStatus}</p>
-            {previousSetup && <Button type="button" variant="outline" className="mt-2" onClick={() => {
-              dispatch({ type: "import", setup: previousSetup })
-              setPreviousSetup(null)
-              setPalettePreview(null)
-              setBandStatus("")
-              setLoadStatus("Previous setup restored.")
-            }}>Restore previous setup</Button>}
+            {previousSetup && <Button type="button" variant="outline" className="mt-2" onClick={setupReplacement.restore}>Restore previous setup</Button>}
           </div>
         <Card id="configuration" className="scroll-mt-6">
           <CardHeader>
