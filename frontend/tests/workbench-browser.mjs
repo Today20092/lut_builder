@@ -71,6 +71,10 @@ async function layout(name, width, text = 16) {
   await page.setViewportSize({ width, height: 1000 })
   await page.evaluate((size) => { document.documentElement.style.fontSize = `${size}px` }, text)
   await page.evaluate(() => window.scrollTo(0, 0))
+  await page.evaluate(async () => {
+    await document.fonts.ready
+    await Promise.all(document.getAnimations().map(animation => animation.finished.catch(() => {})))
+  })
   const metrics = await page.evaluate(() => ({ width: innerWidth, scroll: document.documentElement.scrollWidth }))
   assert.ok(metrics.scroll <= width + 1, `${name}: document overflow ${JSON.stringify(metrics)}`)
   await page.screenshot({ path: join(output, `${name}.png`), fullPage: true })
@@ -97,8 +101,13 @@ async function keyPanel(name) {
   assert.ok(index >= 0, name)
   await keyTo(page.getByRole("tab", { selected: true }))
   await page.keyboard.press("Home")
-  for (let step = 0; step < index; step++) await page.keyboard.press("ArrowRight")
+  await page.waitForFunction(label => document.activeElement?.textContent === label, names[0])
+  for (let step = 0; step < index; step++) {
+    await page.keyboard.press("ArrowRight")
+    await page.waitForFunction(label => document.activeElement?.textContent === label, names[step + 1])
+  }
   await page.keyboard.press("Enter")
+  await page.getByRole("tab", { name, exact: true, selected: true }).waitFor()
 }
 async function keyText(locator, value) {
   await keyTo(locator)
@@ -192,6 +201,7 @@ try {
   assert.deepEqual(roundtrip, applied)
   await panel("Palette")
   await disclosure("Save and reuse palettes")
+  await page.getByLabel("Reuse saved palette", { exact: true }).selectOption("Renamed acceptance")
   await button("Delete saved palette").click()
   assert.equal(await page.getByLabel("Reuse saved palette", { exact: true }).locator("option").count(), 1)
   console.log("PASS palette draft, geometry, undo, JSON, generation and same-browser server restart", geometry)
@@ -339,6 +349,8 @@ try {
   await page.keyboard.press("Space")
   let pendingDownload = page.waitForEvent("download")
   await keyPanel("Setups")
+  await keyTo(page.locator("summary").filter({ hasText: "Load setup" }))
+  await page.keyboard.press("Enter")
   await keyButton("Export setup file")
   await (await pendingDownload).saveAs(join(output, "keyboard.json"))
   let chooser = page.waitForEvent("filechooser")
