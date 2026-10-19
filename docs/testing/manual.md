@@ -1,5 +1,36 @@
 # Browser manual acceptance — issue #42
 
+## Visual documentation refresh, October 19, 2026
+
+All nine topics share the builder's neutral light/dark theme, system typography,
+table styling, section rules, blockquotes, and contextual notes. Three static
+Diagram Design figures explain the first-LUT workflow, warning precedence, and
+camera verification. Their captions preserve the essential paths as searchable
+text. Repository guides add comparison tables and a [documentation map](../README.md).
+The [design conventions](../design.md) record the scope and accessibility choices.
+
+| Check | Result |
+| --- | --- |
+| Locked frontend install | Passed; no dependency or lockfile change |
+| Frontend lint | Passed |
+| Frontend tests | 67 passed, none skipped |
+| Local and Pages production builds | Passed |
+| Local `/docs/` manual acceptance | Chromium, Firefox, WebKit passed at 1280px and 390px |
+| Pages `/lut_builder/docs/` acceptance | Chromium, Firefox, WebKit passed at 1280px and 390px |
+| Three Diagram Design self-checks | Passed accessible SVG, self-containment, and viewBox checks |
+| Repository guide links | Relative file destinations resolve in all eight edited guides |
+| Visual review | Chromium light/dark overview at desktop and phone widths |
+
+The browser acceptance script now fetches iframe assets, requires three named
+diagram embeds, and checks that narrow figures scroll by keyboard without making
+the containing page overflow. Lazy frames are scrolled into view before their
+content is checked. Figures contain no scripts or remote fonts. Their content is
+excluded from Pagefind so readers land on the explanatory manual pages.
+
+Physical-device behavior and camera/monitor calibration were not retested. Python
+implementation was unchanged; the standalone Python suite was not rerun for this
+documentation refresh. Historical results below retain their original scope.
+
 Checked October 19, 2026. The [manual source](../../frontend/manual/src/content/docs/index.md)
 contains nine complete user-facing topics, separate from the CLI/development guide.
 The workspace has a header Help / Manual link and contextual links for configuration,

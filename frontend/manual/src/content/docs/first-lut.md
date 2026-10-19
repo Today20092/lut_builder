@@ -7,6 +7,10 @@ Keep the builder open in another tab while following these steps. Your camera's 
 
 ## 1. Match the recording
 
+:::tip[Before you start]
+Have the recording's log curve and gamut, the receiving device's supported cube size, and a known gray reference ready. Keep both the `.cube` and the editable JSON at the end.
+:::
+
 In **Configuration**, choose **Camera recording**. For example, use **Sony S-Log3 · S-Gamut3.Cine** only when your source is S-Log3 with S-Gamut3.Cine. S-Gamut3, S-Log2, and already converted Rec.709 are different inputs.
 
 Choose **Target display** to match the destination. Use Rec.709 for an SDR Rec.709 monitoring path. Rec.2020 here is an SDR diagnostic output, not an HDR conversion.
@@ -35,7 +39,7 @@ For continuous color coverage, choose **Fill** instead. Fill uses boundaries bet
 
 Under **Recolor all bands**, choose a palette or customize a gradient. Review the draft in the exposure diagram, then choose **Use palette** to apply it. **Cancel preview** keeps your existing band colors. Applying a palette replaces individual swatch colors but preserves band geometry.
 
-A draft preview is not exported. If you want the exact three colors in the example above, keep them instead of applying a palette.
+> **Preview → apply → export.** A draft preview is not exported. If you want the exact three colors in the example above, keep them instead of applying a palette.
 
 ## 4. Understand the warnings
 

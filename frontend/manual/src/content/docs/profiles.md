@@ -3,6 +3,8 @@ title: Camera thresholds and sources
 description: Exact configured limits, input assumptions, evidence gaps, and worked examples for all six profiles.
 ---
 
+> **Match the whole profile.** Camera brand alone is insufficient: log curve, gamut, and the documented input-range convention must agree with the source. Threshold evidence is specific to each profile.
+
 These are the current **application constants**, not a table of measured sensor clipping points. Match the log curve and gamut together. The values are maintained in the [browser catalog](https://github.com/Today20092/lut_builder/blob/main/frontend/src/lutEngine.ts) and [Python catalog](https://github.com/Today20092/lut_builder/blob/main/src/lut_builder/data.py).
 
 | Profile | Required gamut | Low F | High C |

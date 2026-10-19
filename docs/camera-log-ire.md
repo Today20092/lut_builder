@@ -1,5 +1,15 @@
 # Camera-log IRE and exposure
 
+| Basis | Measures | Reference |
+| --- | --- | --- |
+| Stops | Decoded scene-linear CIE Y | 18% gray = 0 stops |
+| New camera-log IRE | Weighted encoded source RGB × 100 | Profile-specific encoded gray |
+| Legacy target IRE | Target-encoded luma before legal packing | Neutral target gray ≈ 40.9 |
+
+> **Check the basis before comparing numbers.** Encoded luma and scene-linear
+> luminance are different measurements. Neither IRE interpretation promises the
+> same reading as every external waveform.
+
 The measurement and the diagnostic output are separate. The source camera log
 is decoded to scene-linear RGB. Stops measures CIE Y using the source gamut's
 RGB-to-XYZ Y coefficients, relative to 18% gray: log2(Y / 0.18). Zero stops means

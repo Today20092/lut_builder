@@ -5,6 +5,16 @@ description: Recover from unexpected colors, invalid files, missing saves, and b
 
 ## Purple or red covers more than expected
 
+| Symptom | Check first | Next step |
+| --- | --- | --- |
+| Too much purple or red | Band color or warning indicator? | Review per-channel thresholds and cube tolerance |
+| All exposure colors look wrong | Camera log, gamut, and input range | Remove an unintended preceding viewing transform |
+| Download differs from preview | Unapplied palette draft? | Use palette, then regenerate or reverify |
+| Saved work is missing | Browser profile and site address | Import a setup JSON backup |
+| Verification cannot run | Source facts, format, and size | Read the nearby error and verification limits |
+
+> **Change one thing, then check again.** Keep a setup JSON before investigating. A warning toggle can isolate an overlay; it does not repair the source signal.
+
 Check whether that color belongs to an exposure band or an enabled recorded-signal warning. Any single low/high RGB channel can trigger a warning. Saturated colors can cross a limit even when overall brightness seems ordinary. The exporter also uses a half-grid tolerance and the host interpolates between nodes. Read [warning calculations](../signal-limits/) and the [profile's evidence limits](../profiles/).
 
 Do not infer sensor clipping from the color alone. Disabling the warning can help isolate which overlay you are seeing, but does not fix the source signal.
