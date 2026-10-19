@@ -3,6 +3,8 @@ import { readFile } from "node:fs/promises"
 import test from "node:test"
 
 import { cubeFilename, generateCube } from "../src/lutEngine.ts"
+import { cameraGray } from "../src/cameraReference.ts"
+import { sourceLumaWeights } from "../src/lutColorData.ts"
 
 const pythonReference = JSON.parse(await readFile(new URL("./fixtures/lut-engine-python-reference.json", import.meta.url), "utf8"))
 
@@ -100,5 +102,28 @@ test("browser engine emits supported cube sizes", async () => {
     const cube = await generateCube({ ...setup, cube_size: size })
     assert.match(cube, new RegExp(`^TITLE .*\\n(?:# .*\\n)*LUT_3D_SIZE ${size}\\n`))
     assert.equal(cubeRows(cube).length, size ** 3)
+  }
+})
+
+test("camera-log IRE bands measure encoded source luma independently of output settings", async () => {
+  for (const [profile, reference] of Object.entries(cameraGray)) {
+    for (const target of ["Rec.709", "Rec.2020"]) {
+      const current = { ...setup, profile, target, band_mode: "ire", ire_basis: "camera", monochrome: true, legal_range: target === "Rec.2020" }
+      const baseline = cubeRows(await generateCube(current))
+      const rows = cubeRows(await generateCube({ ...current, bands: [{ stop: reference, width: 3, color: "#ffffff" }] }))
+      const weights = sourceLumaWeights[profile]
+      const white = current.legal_range ? 940 / 1023 : 1
+      let covered = 0
+      for (let b = 0; b < 17; b++) for (let g = 0; g < 17; g++) for (let r = 0; r < 17; r++) {
+        const index = b * 289 + g * 17 + r
+        const value = (r * weights[0] + g * weights[1] + b * weights[2]) / 16 * 100
+        if (Math.abs(value - reference) <= 3) {
+          covered++
+          // The published sRGB-to-target matrices round white by up to 0.00003.
+          assert.ok(rows[index].split(/\s+/).map(Number).every((channel) => Math.abs(channel - white) < 3e-5))
+        } else assert.equal(rows[index], baseline[index])
+      }
+      assert.ok(covered > 0)
+    }
   }
 })

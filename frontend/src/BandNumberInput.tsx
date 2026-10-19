@@ -24,12 +24,14 @@ export function BandNumberInput({ value, onChange, step, min = -Infinity, max = 
     aria-invalid={draft !== null && !valid || undefined}
     onChange={(event) => setDraft(event.target.value)} onBlur={commit}
     onKeyDown={(event) => {
+      if (event.nativeEvent.isComposing) return
       if (event.key === "Enter") { event.preventDefault(); commit() }
-      if (event.key === "Escape") { event.preventDefault(); setDraft(null) }
+      if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); setDraft(null) }
       if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+        if (event.altKey || event.ctrlKey || event.metaKey) return
         event.preventDefault()
         const current = valid ? parsed : value === "" ? 0 : value
-        onChange(stepBandValue(current, event.key === "ArrowUp" ? 1 : -1, step, min, max))
+        onChange(stepBandValue(current, event.key === "ArrowUp" ? 1 : -1, step * (event.shiftKey ? 10 : 1), min, max))
         setDraft(null)
       }
     }} />

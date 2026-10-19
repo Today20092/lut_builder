@@ -14,6 +14,7 @@ export const SetupSchema = Schema.Struct({
   cube_size: Schema.Literals([17, 33, 65]),
   bands: Schema.mutable(Schema.Array(BandSchema)),
   band_mode: Schema.Literals(["stops", "ire"]),
+  ire_basis: Schema.optional(Schema.Literals(["camera", "target"])),
   fill_mode: Schema.Boolean,
   low_signal_warning: Schema.Boolean,
   low_signal_hex: Schema.String,

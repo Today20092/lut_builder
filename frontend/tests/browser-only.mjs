@@ -37,6 +37,8 @@ try {
     await page.getByLabel("Band 1 stops", { exact: true }).waitFor()
     const startupMs = performance.now() - started
     await page.getByRole("combobox", { name: /^Camera/ }).selectOption("Panasonic V-Log")
+    await page.locator("summary").filter({ hasText: "Output settings" }).click()
+    await page.locator("summary").filter({ hasText: "Customize output filename" }).click()
     await page.getByLabel("Output filename template", { exact: true }).fill("Browser acceptance.cube")
     await page.getByLabel("Band 1 stops", { exact: true }).fill("1.25")
     await page.getByLabel("Band 1 stops", { exact: true }).press("Enter")
@@ -45,6 +47,7 @@ try {
     const graph = page.getByLabel("Editable exposure graph from -7 to 7 stops", { exact: true })
     await graph.waitFor()
     const stopField = page.getByLabel("Band 1 stops", { exact: true })
+    await page.locator("summary").filter({ hasText: "Band setup & graph settings" }).click()
     const increment = page.getByRole("combobox", { name: /^Movement increment/ })
     for (const [step, expected] of [[1, 2.25], [0.5, 1.75], [0.25, 1.5]]) {
       await increment.selectOption(String(step))
@@ -101,6 +104,8 @@ try {
     const timings = {}
     const heapSamples = []
     for (const size of [17, 33, 65]) {
+      const outputSettings = page.locator("summary").filter({ hasText: "Output settings" })
+      if (!await outputSettings.evaluate((element) => element.parentElement.open)) await outputSettings.click()
       await page.getByRole("combobox", { name: /^Cube size/ }).selectOption(String(size))
       const start = performance.now()
       const cube = await download("Generate LUT")
@@ -116,7 +121,7 @@ try {
     await activate(button("Cancel"))
     await page.getByRole("status").filter({ hasText: "Generation cancelled" }).waitFor()
     assert.equal(await page.getByLabel("Band 1 stops", { exact: true }).inputValue(), "1.25")
-    await page.getByRole("combobox", { name: /^Band mode/ }).selectOption("ire")
+    await page.getByRole("radio", { name: /^IRE/ }).check()
     await page.getByLabel("Editable exposure graph from 0 to 100 IRE", { exact: true }).waitFor()
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), "no horizontal page overflow")
     assert.deepEqual(unexpectedRequests, [], "no uploads or remote calculation calls")

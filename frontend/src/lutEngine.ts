@@ -7,7 +7,7 @@ import {
   targetLumaWeights,
 } from "./lutColorData.ts"
 
-const sourceInfo = {
+export const sourceInfo = {
   "Sony S-Log3": { gamut: "S-Gamut3.Cine", log: "S-Log3", floor: 0.0929, ceiling: 0.94, sources: ["https://pro.sony/s3/cms-static-content/uploadfile/06/1237494271406.pdf"] },
   "Panasonic V-Log": { gamut: "V-Gamut", log: "V-Log", floor: 0.1251, ceiling: 0.8906, sources: ["https://pro-av.panasonic.net/en/cinema_camera_varicam_eva/support/pdf/VARICAM_V-Log_V-Gamut.pdf"] },
   "Canon Log 3": { gamut: "Cinema Gamut", log: "Canon Log 3", floor: 0.04, ceiling: 0.9, sources: ["https://downloads.canon.com/nw/camera/products/cinema-eos/c300-mark-ii/white-papers/canon-c300-mk-ii-image-performance-wp.pdf"] },
@@ -80,7 +80,9 @@ function comments(setup: Setup, profile: (typeof sourceInfo)[keyof typeof source
     `Cube size   : ${setup.cube_size}x${setup.cube_size}x${setup.cube_size}`,
     `Monochrome  : ${setup.monochrome ? "yes" : "no"}`,
     `Output range: ${setup.legal_range ? "Legal (64-940)" : "Full (0-1023)"}`,
-    `IRE         : 0=code ${setup.legal_range ? "64" : "0"}, 100=code ${setup.legal_range ? "940" : "1023"} (${setup.legal_range ? "legal" : "full"}-range convention)`,
+    setup.ire_basis === "camera"
+      ? "IRE         : camera-log encoded luma; 0=code 0, 100=code 1023; independent of output range"
+      : `IRE         : 0=code ${setup.legal_range ? "64" : "0"}, 100=code ${setup.legal_range ? "940" : "1023"} (${setup.legal_range ? "legal" : "full"}-range convention)`,
     "Purpose     : diagnostic scene-exposure transform; not a finished viewing transform",
     "",
     `Source      : ${setup.profile}`,
@@ -160,7 +162,9 @@ export async function generateCube(
         }
         const encoded = encode(targetLinear)
         const value = setup.band_mode === "ire"
-          ? (encoded[0] * targetY[0] + encoded[1] * targetY[1] + encoded[2] * targetY[2]) * 100
+          ? setup.ire_basis === "camera"
+            ? (red * sourceY[0] + green * sourceY[1] + blue * sourceY[2]) * 100
+            : (encoded[0] * targetY[0] + encoded[1] * targetY[1] + encoded[2] * targetY[2]) * 100
           : stops
         const low = setup.low_signal_warning && Math.min(red, green, blue) <= profile.floor + tolerance
         const high = setup.high_signal_warning && Math.max(red, green, blue) >= profile.ceiling - tolerance
@@ -192,6 +196,7 @@ export function validateBrowserSetup(setup: Setup): Setup {
   if (!Object.hasOwn(targets, setup.target)) throw new Error(`unknown target: ${setup.target}`)
   if (!Array.isArray(setup.bands)) throw new Error("bands must be an array")
   if (setup.band_mode !== "stops" && setup.band_mode !== "ire") throw new Error("band_mode must be stops or ire")
+  if (setup.ire_basis !== undefined && setup.ire_basis !== "camera" && setup.ire_basis !== "target") throw new Error("ire_basis must be camera or target")
   if (typeof setup.fill_mode !== "boolean" || typeof setup.monochrome !== "boolean" || typeof setup.legal_range !== "boolean") throw new Error("setup options must be booleans")
   if (typeof setup.low_signal_warning !== "boolean" || typeof setup.high_signal_warning !== "boolean") throw new Error("warning options must be booleans")
   if (typeof setup.output !== "string") throw new Error("output must be a string")
@@ -214,4 +219,5 @@ export function cubeFilename(output: string) {
 }
 
 export const browserProfiles = Object.keys(sourceInfo)
+export const browserInterpretations = Object.fromEntries(Object.entries(sourceInfo).map(([name, info]) => [name, { transfer: info.log, gamut: info.gamut }]))
 export const browserTargets = Object.keys(targets)

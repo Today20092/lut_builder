@@ -132,25 +132,23 @@ def generate_lut(setup: LutSetup) -> Path:
     # ------------------------------------------------------------------
     # 6b. Compute IRE values (only when band_mode == "ire")
     #
-    # IRE is the display signal level as a percentage (0–100).
-    # We compute display-domain luma (Y') from the gamma-encoded output
-    # using the *target* colourspace's luminance coefficients — the
-    # second row of its RGB-to-XYZ matrix.
-    #
-    # For Rec.709 this gives [0.2126, 0.7152, 0.0722]; for Rec.2020
-    # it gives [0.2627, 0.6780, 0.0593] — always correct for the
-    # target in use without hardcoding.
+    # Camera IRE measures encoded input luma using the source gamut weights.
+    # Older setups retain target-encoded IRE. Neither depends on output packing.
     # ------------------------------------------------------------------
     if band_mode == "ire":
         tgt_luma_weights = tgt_cs.matrix_RGB_to_XYZ[1, :]
-        ire = np.dot(final_data, tgt_luma_weights) * 100.0
+        ire = (
+            np.dot(samples, src_cs.matrix_RGB_to_XYZ[1, :])
+            if setup.ire_basis == "camera"
+            else np.dot(final_data, tgt_luma_weights)
+        ) * 100.0
 
     # ------------------------------------------------------------------
     # 7. Apply false color bands (in order — last wins on overlap)
     #
     # In "stops" mode, bands are centered on a stop value relative to
     # 18% middle grey.  In "ire" mode, bands target a specific
-    # display signal level (0–100 IRE) on the final output curve.
+    # encoded signal level (0–100), on the chosen camera or legacy target basis.
     # ------------------------------------------------------------------
     band_values = ire if band_mode == "ire" else stops
 
@@ -206,7 +204,9 @@ def generate_lut(setup: LutSetup) -> Path:
         f"Monochrome  : {'yes' if monochrome else 'no'}",
         f"Output range: {'Legal (64-940)' if legal_range else 'Full (0-1023)'}",
         (
-            "IRE         : 0=code 64, 100=code 940 (legal-range convention)"
+            "IRE         : camera-log encoded luma; 0=code 0, 100=code 1023; independent of output range"
+            if setup.ire_basis == "camera"
+            else "IRE         : 0=code 64, 100=code 940 (legal-range convention)"
             if legal_range
             else "IRE         : 0=code 0, 100=code 1023 (full-range convention)"
         ),

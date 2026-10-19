@@ -8,6 +8,7 @@ export function outputFilename(setup: Setup) {
   let hash = 2166136261
   for (const character of JSON.stringify([
     setup.profile, setup.target, setup.cube_size, setup.band_mode, setup.fill_mode,
+    ...(setup.ire_basis === "camera" ? ["camera-log-ire"] : []),
     setup.bands.map(({ stop, width, color }) => [stop, width, color]),
     setup.low_signal_warning, setup.low_signal_hex, setup.high_signal_warning,
     setup.high_signal_hex, setup.monochrome, setup.legal_range,
