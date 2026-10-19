@@ -950,7 +950,7 @@ test("setup changes are recoverable, deletion is deliberate, and feedback stays 
     await act(() => field.dispatchEvent(new window.Event("change", { bubbles: true })))
   }
   try {
-    await act(() => root.render(React.createElement(App)))
+    await act(() => root.render(React.createElement(React.StrictMode, null, React.createElement(App))))
     const output = () => container.querySelector('[aria-label="LUT output"]').textContent
     await select("Interview")
     await click("Load setup")

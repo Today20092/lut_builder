@@ -67,6 +67,22 @@ test("newest load wins across file and preset adapters, including late failures"
   assert.match(workspaceState.state.loadStatus, /Loaded Interview/)
 })
 
+test("an older completion cannot commit or clear a newer loading indicator", async () => {
+  let finishFirst
+  let finishSecond
+  const workspaceState = workspace()
+  const first = Effect.runPromise(workspaceState.replacement.file({ name: "first.json", text: () => new Promise((resolve) => { finishFirst = resolve }) }))
+  const second = Effect.runPromise(workspaceState.replacement.file({ name: "second.json", text: () => new Promise((resolve) => { finishSecond = resolve }) }))
+  finishFirst(JSON.stringify({ version: 1, ...browserSetup, cube_size: 33 }))
+  await first
+  assert.equal(workspaceState.state.setup, browserSetup)
+  assert.equal(workspaceState.state.isLoadingSetup, true)
+  finishSecond(JSON.stringify({ version: 1, ...browserSetup, cube_size: 65 }))
+  await second
+  assert.equal(workspaceState.state.setup.cube_size, 65)
+  assert.equal(workspaceState.state.isLoadingSetup, false)
+})
+
 test("a failed winning load never lets an older success replace the working setup", async () => {
   let finish
   const workspaceState = workspace()
