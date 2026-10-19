@@ -11,6 +11,17 @@ verified preset for every camera or monitor.
 
 ## Decision tree
 
+| Destination requirement | Choice | Check separately |
+| --- | --- | --- |
+| Normalized 0–1 LUT output | Full / Data | Host input interpretation |
+| Explicit video-range values inside the LUT | Video / Legal | No second output packing |
+| Undocumented LUT domain | Retain Full provisionally | Destination instructions and a known ramp |
+| Legal-range LUT input as well as output | Output setting alone is insufficient | A documented input adapter |
+
+> **Range belongs to a stage.** Camera HDMI range, receiving input interpretation,
+> and values written by the LUT are separate settings. Changing output packing
+> does not repair an input mismatch.
+
 1. Identify where the LUT runs: camera, external monitor, or software.
 2. Check that destination's LUT instructions, including expected input and output
    domains. If it expects ordinary normalized 0–1 LUT output, choose Full.

@@ -11,6 +11,7 @@ export default defineConfig({
   integrations: [starlight({
     title: "LUT Builder manual",
     description: "Make and understand diagnostic false-color LUTs for your camera.",
+    customCss: ["./src/styles/manual.css"],
     components: { Sidebar: "./src/components/Sidebar.astro" },
     sidebar: [
       { label: "Start here", items: [

@@ -42,6 +42,10 @@ These are tests at **lattice nodes**. Between nodes, the camera, monitor, or edi
 
 ## Which color wins?
 
+<iframe class="manual-diagram" src="../diagrams/warning-priority.html" title="Warning overlays: high wins over low and exposure bands" loading="lazy"></iframe>
+
+*Later enabled overlays replace earlier colors only where their tests trigger. The order is base and bands → low warning → high warning.*
+
 The exporter first creates the base image and exposure bands or Fill zones. It then applies the enabled low warning, followed by the enabled high warning. Therefore:
 
 1. High warning wins when both warnings trigger.
@@ -57,6 +61,10 @@ The RGB values must already be in the domain expected by the log decoder. A 10-b
 The builder's **Video / Legal** output-range choice changes the final LUT **output** into the 64–940 interval. It does not reinterpret the input and does not fix a camera/profile mismatch. Blackmagic's profile has a specific expanded-input convention explained in its [profile reference](../profiles/#blackmagic-film-gen-5).
 
 ## What the warnings cannot establish
+
+:::caution[Signal boundary, not a sensor verdict]
+One encoded RGB channel can trigger a warning. The color alone does not establish physical sensor clipping or an unusable noise floor.
+:::
 
 A LUT sees processed RGB values. Sensor saturation, usable noise floor, exposure index, white balance, camera mode, highlight recovery, and the preceding processing chain can all affect the relationship between those values and the captured scene. The app does not calibrate the limits to your camera body or ISO.
 

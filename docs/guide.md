@@ -2,6 +2,13 @@
 
 [Back to the README](../README.md)
 
+| If you need… | Start here |
+| --- | --- |
+| A guided browser walkthrough | [First LUT](https://today20092.github.io/lut_builder/docs/first-lut/) |
+| The right output levels | [Range decisions](output-range-guide.md) |
+| Camera encoding and exposure math | [Camera-log IRE](camera-log-ire.md) |
+| Source evidence or acceptance results | [Documentation map](README.md) |
+
 Start with the [web editor](https://today20092.github.io/lut_builder/) to make a LUT without installing anything. Use this guide for exposure settings, phone transfer, optional local tools, and development.
 
 ## Browser workflow
@@ -13,6 +20,10 @@ Choose your recording's log/gamut pairing, then edit Stops, IRE, or Fill bands. 
 The starting palettes use cool colors below the reference, green at the reference, and warm colors above it. Select a palette to audition it, edit gradient colors, then choose **Use palette**. A preview remains visible while scrolling. Cancel preserves the applied colors. See [palette behavior](exposure-palettes.md) and [keyboard shortcuts](keyboard-shortcuts.md).
 
 Generate and download the `.cube`, then export JSON to back up your applied settings. Browser presets and named palettes do not sync. Clearing storage or changing browsers can remove access to them.
+
+> **Keep the pair.** The cube runs on your camera, monitor, or editor; JSON keeps
+> the applied settings editable in LUT Builder. A palette audition must be applied
+> before its colors reach the download.
 
 Browser still/video verification applies the serialized LUT on-device. It requires confirmed source interpretation and has format, size, and duration limits. Check the [browser support matrix](browser-support.md) before importing media. The exposure graph describes settings; it is not a camera verification result.
 

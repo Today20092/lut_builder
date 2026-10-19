@@ -1,0 +1,94 @@
+/* Match the editor's neutral surfaces and system typography. */
+:root {
+  --sl-font: ui-sans-serif, system-ui, sans-serif;
+  --sl-content-width: 52rem;
+  --sl-color-accent-low: #262626;
+  --sl-color-accent: #a3a3a3;
+  --sl-color-accent-high: #fafafa;
+  --sl-color-bg: #101010;
+  --sl-color-bg-nav: #171717;
+  --sl-color-bg-sidebar: #171717;
+  --manual-surface: #202020;
+  --manual-rule: #454545;
+}
+
+:root[data-theme="light"] {
+  --sl-color-accent-low: #f0f0f0;
+  --sl-color-accent: #525252;
+  --sl-color-accent-high: #171717;
+  --sl-color-bg: #f7f7f7;
+  --sl-color-bg-nav: #ffffff;
+  --sl-color-bg-sidebar: #ffffff;
+  --manual-surface: #ffffff;
+  --manual-rule: #d4d4d4;
+}
+
+.sl-markdown-content h2 {
+  letter-spacing: -0.025em;
+}
+
+.sl-markdown-content .sl-heading-wrapper.level-h2 {
+  width: 100%;
+  padding-block-start: 1rem;
+  border-block-start: 1px solid var(--manual-rule);
+}
+
+.sl-markdown-content :is(table, pre, .starlight-aside) {
+  border-radius: 0.5rem;
+}
+
+.sl-markdown-content table {
+  width: max-content;
+  max-width: 100%;
+  border: 1px solid var(--manual-rule);
+  background: var(--manual-surface);
+  font-size: 0.9rem;
+}
+
+.sl-markdown-content :is(th, td) {
+  padding: 0.75rem 1rem;
+  vertical-align: top;
+}
+
+.sl-markdown-content th {
+  background: var(--sl-color-accent-low);
+  color: var(--sl-color-white);
+}
+
+.sl-markdown-content tbody tr:nth-child(even) {
+  background: var(--sl-color-accent-low);
+}
+
+.sl-markdown-content blockquote {
+  margin-inline: 0;
+  padding: 1rem 1.25rem;
+  border-inline-start: 3px solid var(--sl-color-accent-high);
+  border-radius: 0 0.5rem 0.5rem 0;
+  background: var(--manual-surface);
+  color: var(--sl-color-text);
+}
+
+.sl-markdown-content blockquote > :first-child { margin-block-start: 0; }
+.sl-markdown-content blockquote > :last-child { margin-block-end: 0; }
+
+.sl-markdown-content iframe.manual-diagram {
+  display: block;
+  width: 100%;
+  height: auto;
+  min-height: 340px;
+  aspect-ratio: 720 / 324;
+  border: 1px solid var(--manual-rule);
+  border-radius: 0.5rem;
+  background: var(--manual-surface);
+  color-scheme: inherit;
+}
+
+.sl-markdown-content :is(a, iframe):focus-visible {
+  outline: 2px solid var(--sl-color-accent-high);
+  outline-offset: 4px;
+}
+
+@media print {
+  .sl-markdown-content iframe.manual-diagram { height: 340px; }
+  .sl-markdown-content :is(blockquote, tr, .starlight-aside) { break-inside: avoid; }
+}

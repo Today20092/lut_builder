@@ -1,5 +1,15 @@
 # Exposure-focused starting palettes
 
+| Action | Colors | Band geometry | Exported immediately? |
+| --- | --- | --- | --- |
+| Audition a palette | Draft preview | Preserved | No |
+| Use palette | Applied colors replaced | Preserved | Yes, on the next generation |
+| Cancel preview | Applied colors preserved | Preserved | Existing colors remain |
+| Apply an arrangement preset | Preset colors | Replaced | Yes, on the next generation |
+
+> **Green marks the chosen reference.** It is not a universal exposure target.
+> Warning colors and thresholds remain independent of the palette.
+
 The browser's Exposure zones and Reference emphasis palettes are editing aids,
 not manufacturer exposure recommendations. Both use cool colors below the
 reference, green at the reference, and warm colors above it. Reference emphasis

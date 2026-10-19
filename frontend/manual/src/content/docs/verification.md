@@ -9,6 +9,19 @@ The exposure diagram is different: it illustrates settings. The local Workbench'
 
 ## Browser stills
 
+<iframe class="manual-diagram" src="../diagrams/verification-path.html" title="Camera samples through the checked cube to the screen" loading="lazy"></iframe>
+
+*Confirm source facts first. Verification applies the serialized cube before the SDR display conversion; the checked download preserves that cube's identity.*
+
+| Source | Accepted browser input | Main limits |
+| --- | --- | --- |
+| Still | Untagged 16-bit RGB PNG without alpha, or float32 RGB PFM | 4,194,304 pixels; 48 MiB plus header |
+| Video | Supported H.264, HEVC, ProRes 422, or FFV1 layouts | 4,194,304 pixels; 512 MiB; five minutes |
+
+:::caution[Encoding must be known]
+A supported file does not prove its camera profile. Confirm the recording/export path; do not use a display-rendered screenshot as camera-log evidence.
+:::
+
 1. In **Preview and camera verification**, choose **Still** and **Choose camera still**.
 2. Use an untagged, non-interlaced 16-bit RGB PNG without alpha, or a float32 RGB PFM. Export unchanged camera RGB without a viewing transform. JPEG, RAW, and ordinary 8-bit screenshots are not suitable.
 3. Select the source transfer function and gamut to match both the file's known recording/export path and **Camera recording**. Confirm the range and source facts using the checkboxes shown. A file extension cannot establish these facts.
