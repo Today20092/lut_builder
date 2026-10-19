@@ -92,15 +92,16 @@ export function PaletteEditor({ setup, palette, onApply }: { setup: Setup; palet
   }
 
   return <section aria-label="Band colors" className="grid gap-3 border-t pt-4">
-    <h3 className="text-sm font-semibold">Band colors</h3>
+    <h3 className="text-sm font-semibold">Recolor all bands</h3>
+    <p className="text-sm text-muted-foreground">Change one band using its swatch in the table above. Here you can build a palette for all bands, from low to high exposure.</p>
     <fieldset className="flex flex-wrap gap-2">
-      <legend className="mb-2 text-sm font-medium">Palette choice</legend>
-      {(["Vivid", "Exposure"] as const).map((preset) => <Button key={preset} type="button" variant="outline" onClick={() => setDraft({ colors, brightness: preset === "Vivid" ? "custom" : "ascending", intensity: 100 })}>
-        <span aria-hidden="true" className="h-4 w-16 rounded-sm" style={{ background: `linear-gradient(to right, ${colors.join(",")})` }} />{preset}
+      <legend className="mb-2 text-sm font-medium">1. Choose a starting palette</legend>
+      {(["Vivid", "Exposure"] as const).map((preset) => <Button key={preset} type="button" variant="outline" aria-pressed={draft.intensity === 100 && draft.brightness === (preset === "Vivid" ? "custom" : "ascending") && JSON.stringify(draft.colors) === JSON.stringify(colors)} onClick={() => setDraft({ colors, brightness: preset === "Vivid" ? "custom" : "ascending", intensity: 100 })}>
+        <span aria-hidden="true" className="h-4 w-16 rounded-sm" style={{ background: `linear-gradient(to right, ${applyLightnessProfile(colors.map(hexToOklch), preset === "Vivid" ? "custom" : "ascending").map(oklchToHex).join(",")})` }} />{preset === "Exposure" ? "Dark to light" : preset}
       </Button>)}
     </fieldset>
     <details className="rounded-md border p-3">
-    <summary className="cursor-pointer text-sm font-medium">Edit custom colors · {draft.colors.length} anchors</summary>
+    <summary className="cursor-pointer text-sm font-medium">2. Customize palette (optional)</summary>
     <div className="mt-3 grid gap-3">
     <p className="text-xs text-muted-foreground">Edit ordered colors from low to high exposure. Brightness progression changes their relative lightness; color intensity changes their saturation.</p>
     <ol className="grid gap-2">
@@ -116,30 +117,35 @@ export function PaletteEditor({ setup, palette, onApply }: { setup: Setup; palet
     </ol>
     <Button type="button" variant="outline" className="justify-self-start" disabled={draft.colors.length >= 32} onClick={() => setDraft({ ...draft, colors: [...draft.colors, "#ffffff"] })}>Add color</Button>
     <p className="text-xs text-muted-foreground">Use 2 to 32 colors. Enter six-digit hex colors, such as #2563eb.</p>
-    </div>
-    </details>
     <fieldset className="flex flex-wrap gap-2">
       <legend className="mb-2 text-sm font-medium">Brightness progression</legend>
-      {([["custom", "Keep anchor brightness"], ["ascending", "Dark to light"], ["even", "Even brightness"]] as const).map(([value, label]) => <label key={value} className="flex min-h-9 items-center gap-2 rounded-md border px-3 text-sm has-focus-visible:ring-2 has-focus-visible:ring-ring">
+      {([["custom", "Keep original brightness"], ["ascending", "Dark to light"], ["even", "Even brightness"]] as const).map(([value, label]) => <label key={value} className="flex min-h-9 items-center gap-2 rounded-md border px-3 text-sm has-focus-visible:ring-2 has-focus-visible:ring-ring">
         <input type="radio" name="palette-brightness" value={value} checked={draft.brightness === value} onChange={() => setDraft({ ...draft, brightness: value })} />{label}
       </label>)}
     </fieldset>
     <label className="grid gap-2 text-sm font-medium">Color intensity · {draft.intensity}%
       <input aria-label="Color intensity" type="range" min="0" max="200" value={draft.intensity} onChange={(event) => setDraft({ ...draft, intensity: Number(event.target.value) })} />
     </label>
+    </div>
+    </details>
+    <h4 className="text-sm font-medium">3. Preview and apply</h4>
+    <div className="flex justify-between text-xs text-muted-foreground"><span>Low exposure</span><span>High exposure</span></div>
     {valid ? <div role="img" aria-label="Draft palette ramp from low to high exposure" className="h-6 rounded-md" style={{ background: `linear-gradient(to right, ${ramp.join(",")})` }} /> : <p role="alert" className="text-sm text-destructive">Correct the invalid anchor color before applying or saving.</p>}
-    <p className="text-xs text-muted-foreground">Draft colors only. Band positions and widths control coverage. Applying replaces all individual band-color overrides.</p>
+    <p className="text-xs text-muted-foreground">Apply colors replaces every band color and keeps positions and widths. Undo restores your previous colors.</p>
     <p role="status" className="text-sm">{pending ? applied && applied.colors !== bandColors ? "Band colors changed since application. Applying will replace manual overrides." : "Unapplied palette changes." : "Palette applied to bands."}</p>
     <Button type="button" variant="outline" className="justify-self-start" disabled={!valid || setup.bands.length === 0} onClick={() => {
       const next = applyColorPreset(setup, palette, "gradient", anchors, draft.brightness, false)
       onApply(next)
       setApplied({ draft: JSON.stringify(draft), colors: JSON.stringify(next.bands.map((band) => band.color)) })
     }}>Apply colors</Button>
-    <Button type="button" variant="ghost" className="justify-self-start" disabled={setup.bands.length === 0} onClick={() => {
+    <details className="rounded-md border p-3">
+    <summary className="cursor-pointer text-sm font-medium">Use standard exposure colors instead</summary>
+    <Button type="button" variant="outline" className="mt-3" disabled={setup.bands.length === 0} onClick={() => {
       onApply(applyColorPreset(setup, palette, "false-color"))
       setApplied(null)
     }}>Apply false color by exposure</Button>
     <p className="text-xs text-muted-foreground">False color by exposure uses the original exposure thresholds instead of this draft ramp. It also replaces individual overrides and supports undo.</p>
+    </details>
     <details className="rounded-md border p-3">
     <summary className="cursor-pointer text-sm font-medium">Save and reuse palettes · this browser</summary>
     <fieldset className="mt-3 grid gap-2">
