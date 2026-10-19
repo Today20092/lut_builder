@@ -101,6 +101,11 @@ exception only while its separate full-size **Add color** button is available.
 All other findings remain failures. Reassess this
 exception if graph operations or their equivalent controls change.
 
+Fill presets can likewise place separators closer than 24 pixels at narrow
+widths. Their equivalent numeric boundary fields and full-size band color-picker
+buttons are checked for visibility, enabled state, and minimum 24×24 size before
+accepting only those spatial-control findings under the same Equivalent exception.
+
 ## Why this setup
 
 The [research note](../research/ui-detail-quality-tools.md) compares alternatives.

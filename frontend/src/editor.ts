@@ -432,6 +432,22 @@ export function applyBandPreset(setup: Setup, palette: PaletteColor[], preset: B
   }, palette, "false-color")
 }
 
+export type ExposurePreset = "three-band" | "contrast-checker" | "camera-ire"
+
+export function applyExposurePreset(setup: Setup, palette: PaletteColor[], preset: ExposurePreset): Setup {
+  if (preset === "camera-ire") return applyBandPreset({ ...setup, band_mode: "ire", ire_basis: "camera", monochrome: true }, palette, "standard")
+  const contrast = preset === "contrast-checker"
+  return {
+    ...setup,
+    band_mode: "stops",
+    fill_mode: contrast,
+    monochrome: !contrast,
+    bands: contrast
+      ? ["#216638", "#78ff64", "#a6a6a6", "#f2d5e5", "#ff00b7"].map((color, index) => ({ stop: index - 1.5, width: 0, color }))
+      : [-2, 0, 2].map((stop, index) => ({ stop, width: 0.3, color: ["#2563eb", "#22c55e", "#f97316"][index] })),
+  }
+}
+
 const creationOrder = new WeakMap<Band, number>()
 let nextCreationOrder = 0
 

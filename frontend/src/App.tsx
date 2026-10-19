@@ -43,6 +43,7 @@ import { generateInWorker } from "@/lutWorkerClient"
 import {
   applyBandPreset,
   applyFillPreset,
+  applyExposurePreset,
   bandId,
   changeMode,
   contrastTextColor,
@@ -64,6 +65,7 @@ import {
   updateFillBoundary,
   type FillPreset,
   type BandPreset,
+  type ExposurePreset,
   type Mode,
   type PaletteColor,
   type Setup,
@@ -1013,6 +1015,8 @@ export function App() {
   const [graphRange, setGraphRange] = useState(7)
   const [fillPreset, setFillPreset] = useState<FillPreset>("standard")
   const [bandPreset, setBandPreset] = useState<BandPreset>("standard")
+  const [paletteRevision, setPaletteRevision] = useState(0)
+  const [exposurePreset, setExposurePreset] = useState<ExposurePreset>("contrast-checker")
   const [removingBandIndex, setRemovingBandIndex] = useState<number | null>(null)
   const importInput = useRef<HTMLInputElement>(null)
   const colorTriggers = useRef(new Map<number, HTMLButtonElement>())
@@ -1329,9 +1333,37 @@ export function App() {
           <CardHeader className="grid gap-4">
             <div>
               <CardTitle className="text-lg font-semibold"><h2>Exposure bands</h2></CardTitle>
-              <CardDescription>{setup.fill_mode ? "Drag dividers to resize zones. Double-click a zone to recolor it." : "Drag bands to move them. Edit colors below."}</CardDescription>
-              <p className="text-xs text-muted-foreground">Stops measure scene exposure; new IRE setups measure camera-log levels; Fill colors every zone. <a className="underline" href={`${import.meta.env.BASE_URL}docs/controls/#exposure-bands`} target="_blank" rel="noreferrer">Bands and palette guide (new tab)</a></p>
             </div>
+            <section className="grid gap-2" aria-label="Exposure presets">
+              <div className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-2">
+                <label className="grid min-w-0 gap-1.5 text-sm font-medium">Start with a preset
+                  <select className={fieldClass} value={exposurePreset} onChange={(event) => setExposurePreset(event.target.value as ExposurePreset)}>
+                    <option value="contrast-checker">Contrast Checker · 5 fill zones</option>
+                    <option value="three-band">Three-band Exposure · Stops</option>
+                    <option value="camera-ire">Camera-log IRE · 7 bands</option>
+                  </select>
+                </label>
+                <Button type="button" variant="outline" onClick={() => {
+                  setPalettePreview(null)
+                  setPaletteRevision((value) => value + 1)
+                  setRemovingBandIndex(null)
+                  editSetup((current) => applyExposurePreset(current, catalog.palette, exposurePreset), 0)
+                  setBandStatus("Exposure preset applied. Undo last band edit restores your previous bands.")
+                }}>Use preset</Button>
+              </div>
+              <details className="text-xs text-muted-foreground">
+                <summary className="flex min-h-11 cursor-pointer items-center text-sm font-medium text-foreground">Details</summary>
+                <div className="grid gap-2 pb-2">
+              <p>{exposurePreset === "contrast-checker"
+                ? "Dark green → light green → gray → light pink → bright pink. Boundaries: −1.5, −0.5, +0.5, +1.5 stops from 18% gray. Compare face and scene contrast; colors do not establish a universal safe skin exposure."
+                : exposurePreset === "three-band" ? "Blue at −2, green at 0, orange at +2 stops. Each band is 0.6 stops wide on monochrome."
+                  : `Seven standard false-color bands on monochrome, anchored to ${setup.profile} camera-log levels.`}</p>
+              <p>Presets replace mode, positions, widths, and colors. Camera, output, and warning settings are preserved. Undo restores your bands.</p>
+              <p>{setup.fill_mode ? "Drag dividers to resize zones. Edit colors in the table." : "Drag bands to move them, or edit values in the table."}</p>
+              <p>Stops measure scene exposure; IRE measures camera-log levels; Fill colors every zone. <a className="underline" href={`${import.meta.env.BASE_URL}docs/controls/#exposure-bands`} target="_blank" rel="noreferrer">Bands and palette guide (new tab)</a></p>
+                </div>
+              </details>
+            </section>
             <fieldset className="grid grid-cols-3 gap-2" aria-label="Band mode">
               <legend className="sr-only">Band mode</legend>
               {([
@@ -1472,7 +1504,7 @@ export function App() {
               </>
             ) : <p className="text-sm text-muted-foreground">{browserOnly ? "The browser build creates LUTs locally; exposure preview is not included in this release." : "Preparing preview…"}</p>}
             {validationError && <p className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive" role="alert">{validationError}</p>}
-            <PaletteEditor key={revision} setup={setup} palette={catalog.palette} onApply={applyPalette} onPreview={setPalettePreview} />
+            <PaletteEditor key={`${revision}:${paletteRevision}`} setup={setup} palette={catalog.palette} onApply={applyPalette} onPreview={setPalettePreview} />
           </CardContent>
         </Card>
 

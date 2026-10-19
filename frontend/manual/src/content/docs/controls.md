@@ -60,7 +60,8 @@ Click a band or warning swatch. Use the saturation/value area and hue control, n
 
 | Control | Meaning |
 | --- | --- |
-| Choose a starting palette | Standard false color applies fixed exposure thresholds immediately and supports undo. Exposure zones and Reference emphasis create blended gradient drafts. |
+| Start with a preset | Sets band mode, positions, widths, and colors together. Three-band Exposure marks −2, 0, and +2 stops with 0.6-stop bands; Contrast Checker fills five zones split at −1.5, −0.5, +0.5, and +1.5 stops; Camera-log IRE creates seven profile-matched bands. Camera, output, and warning settings are preserved. Undo restores the previous bands and mode. |
+| Choose a starting palette | Recolors the current arrangement. Standard false color applies fixed exposure thresholds immediately and supports undo. Exposure zones and Reference emphasis create blended gradient drafts. |
 | Shape your gradient | Edit the gradient dots and blend controls. |
 | What does the reference mean? / legend | Explains the reference and the low-to-high exposure colors. Green is a chosen reference, not universally correct exposure. |
 | Gradient dots | Change the anchor colors and their positions. Add, select, move, or remove editable dots using the shown controls. The exposure reference remains fixed in position. |
