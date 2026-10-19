@@ -84,6 +84,7 @@ try {
   await page.keyboard.press("Enter")
   await page.getByRole("slider", { name: "Band 1 color hue", exact: true }).waitFor()
   await page.keyboard.press("Escape")
+  await page.waitForFunction(() => document.activeElement?.getAttribute("aria-label") === "Open Band 1 color picker")
   assert.equal(await button("Open Band 1 color picker").evaluate((node) => node === document.activeElement), true)
   await page.setViewportSize({ width: 390, height: 844 })
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth))
