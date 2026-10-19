@@ -1,3 +1,5 @@
+import { cameraGray } from "./cameraReference.ts"
+
 export type Band = { stop: number; width: number; color: string }
 export type Mode = "stops" | "ire" | "fill"
 
@@ -7,6 +9,7 @@ export type Setup = {
   cube_size: number
   bands: Band[]
   band_mode: "stops" | "ire"
+  ire_basis?: "camera" | "target"
   fill_mode: boolean
   low_signal_warning: boolean
   low_signal_hex: string
@@ -59,6 +62,7 @@ export function reduceEditor(state: EditorState, action: EditorAction): EditorSt
       const { setup, after, selection } = state.undo
       const changes: Partial<Setup> = { bands: setup.bands }
       if (setup.band_mode !== after.band_mode) changes.band_mode = setup.band_mode
+      if (setup.ire_basis !== after.ire_basis) changes.ire_basis = setup.ire_basis
       if (setup.fill_mode !== after.fill_mode) changes.fill_mode = setup.fill_mode
       if (setup.monochrome !== after.monochrome) changes.monochrome = setup.monochrome
       return { ...state, setup: { ...state.setup, ...changes }, selection, undo: null }
@@ -81,8 +85,24 @@ export function reduceEditor(state: EditorState, action: EditorAction): EditorSt
 }
 
 export type PaletteColor = { name: string; hex: string }
-export type OklchAnchor = { l: number; c: number; h: number }
+export type OklchAnchor = { l: number; c: number; h: number; position?: number }
 export type LightnessProfile = "ascending" | "even" | "custom"
+export type GradientBlend = "colorful" | "direct"
+export type HuePath = "shorter" | "longer"
+export type PaletteMapping = "band-range" | "exposure"
+
+export function exposureReferenceValue(setup: Pick<Setup, "band_mode"> & Partial<Pick<Setup, "profile" | "ire_basis">>) {
+  if (setup.band_mode === "ire" && setup.ire_basis === "camera") return cameraGray[setup.profile as keyof typeof cameraGray]
+  return setup.band_mode === "stops" ? 0 : (1.099 * 0.18 ** 0.45 - 0.099) * 100
+}
+
+export function exposurePaletteScale(setup: Pick<Setup, "band_mode"> & Partial<Pick<Setup, "profile" | "ire_basis">>) {
+  if (setup.band_mode === "ire" && setup.ire_basis === "camera") {
+    const reference = exposureReferenceValue(setup)
+    return [reference / 4, reference / 2, reference * 3 / 4, reference, reference + (100 - reference) / 4, reference + (100 - reference) / 2, reference + (100 - reference) * 0.8].map((value, index) => index === 3 ? value : Number(value.toFixed(1)))
+  }
+  return setup.band_mode === "stops" ? [-3, -2, -1, 0, 1, 2, 3] : [10, 25, 35, exposureReferenceValue(setup), 55, 65, 80]
+}
 export type FillPreset = "standard" | "detailed"
 export type BandPreset = "standard" | "detailed"
 
@@ -98,6 +118,12 @@ const FALSE_COLOR_NAMES = [
 
 const STOP_COLOR_LIMITS = [-3, -2, -1, -0.3, 0.3, 1, 2, 3]
 const IRE_COLOR_LIMITS = [10, 25, 35, 38, 46, 55, 65, 80]
+function ireColorLimits(setup: Setup) {
+  if (setup.ire_basis !== "camera") return IRE_COLOR_LIMITS
+  const scale = exposurePaletteScale(setup)
+  const reference = exposureReferenceValue(setup)
+  return [scale[0], scale[1], scale[2], reference - 2, reference + 2, scale[4], scale[5], scale[6]]
+}
 const STANDARD_FILL_COLOR_NAMES = ["blue-600", "sky-400", "lime-400", "yellow-400", "red-600"]
 
 const toLinear = (value: number) => value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4
@@ -130,8 +156,10 @@ function oklabToHex(lab: number[]) {
   let [, a, b] = lab
   for (let attempt = 0; attempt < 16; attempt += 1) {
     const rgb = oklabRgb([l, a, b])
-    if (rgb.every((channel) => channel >= 0 && channel <= 1)) {
-      return `#${rgb.map((value) => {
+    // Matrix round trips can put sRGB boundary colors just outside the gamut.
+    if (rgb.every((channel) => channel >= -1e-7 && channel <= 1 + 1e-7)) {
+      return `#${rgb.map((channel) => {
+        const value = Math.max(0, Math.min(1, channel))
         const srgb = value <= 0.0031308 ? 12.92 * value : 1.055 * value ** (1 / 2.4) - 0.055
         return Math.round(srgb * 255).toString(16).padStart(2, "0")
       }).join("")}`
@@ -221,12 +249,31 @@ export function vividRampAnchors(palette: PaletteColor[]) {
   return FALSE_COLOR_NAMES.map((name) => colors.get(name)).filter((color): color is string => Boolean(color)).map(hexToOklch)
 }
 
-export function sampleOklabRamp(anchors: OklchAnchor[], amount: number) {
+export function sampleOklabRamp(anchors: OklchAnchor[], amount: number, blend: GradientBlend = "direct", huePath: HuePath = "shorter") {
   if (anchors.length === 0) return "#000000"
   if (anchors.length === 1) return oklchToHex(anchors[0])
-  const position = Math.max(0, Math.min(1, amount)) * (anchors.length - 1)
-  const left = Math.min(Math.floor(position), anchors.length - 2)
-  const fraction = position - left
+  const positions = anchors.map((anchor, index) => anchor.position ?? index / (anchors.length - 1))
+  if (amount <= positions[0]) return oklchToHex(anchors[0])
+  if (amount >= positions.at(-1)!) return oklchToHex(anchors.at(-1)!)
+  const left = positions.findIndex((position, index) => index < positions.length - 1 && amount < positions[index + 1] && amount >= position)
+  const fraction = (amount - positions[left]) / (positions[left + 1] - positions[left])
+  if (blend === "colorful") {
+    const first = anchors[left]
+    const second = anchors[left + 1]
+    // Neutral colors have no meaningful hue; inherit the colored endpoint's hue.
+    const firstHue = first.c < 0.000004 ? second.h : first.h
+    const secondHue = second.c < 0.000004 ? firstHue : second.h
+    let difference = secondHue - firstHue
+    if (huePath === "shorter") {
+      if (difference > 180) difference -= 360
+      if (difference < -180) difference += 360
+    } else {
+      if (difference >= 0 && difference < 180) difference -= 360
+      else if (difference < 0 && difference > -180) difference += 360
+    }
+    if (first.c < 0.000004 || second.c < 0.000004) difference = 0
+    return oklchToHex({ l: first.l + (second.l - first.l) * fraction, c: first.c + (second.c - first.c) * fraction, h: firstHue + difference * fraction })
+  }
   const first = oklchToOklab(anchors[left])
   const second = oklchToOklab(anchors[left + 1])
   return oklabToHex(first.map((value, index) => value + (second[index] - value) * fraction))
@@ -313,18 +360,33 @@ export function applyColorPreset(
   rampAnchors = vividRampAnchors(palette),
   lightnessProfile: LightnessProfile = "custom",
   reserveEndpoints = true,
+  blend: GradientBlend = "direct",
+  huePath: HuePath = "shorter",
+  mapping: PaletteMapping = "band-range",
 ) {
   const colors = new Map(palette.map(({ name, hex }) => [name, hex]))
-  const limits = setup.band_mode === "ire" ? IRE_COLOR_LIMITS : STOP_COLOR_LIMITS
+  const limits = setup.band_mode === "ire" ? ireColorLimits(setup) : STOP_COLOR_LIMITS
   const gradient = activeRampAnchors(rampAnchors, lightnessProfile, setup.low_signal_warning, setup.high_signal_warning, reserveEndpoints)
   const minimum = Math.min(...setup.bands.map(({ stop }) => stop))
   const range = Math.max(1, Math.max(...setup.bands.map(({ stop }) => stop)) - minimum)
   return {
     ...setup,
-    bands: setup.bands.map((band) => {
+    bands: setup.bands.map((band, index) => {
       if (preset === "gradient") {
+        let amount = (band.stop - minimum) / range
+        if (mapping === "exposure") {
+          const reference = exposureReferenceValue(setup)
+          const low = index === 0 ? -Infinity : setup.bands[index - 1].stop
+          const high = index === setup.bands.length - 1 ? Infinity : band.stop
+          // Fill stops are boundaries, so sample inside each zone, including the reference zone.
+          const value = !setup.fill_mode ? Math.abs(band.stop - reference) <= band.width ? reference : band.stop : low <= reference && reference < high ? reference : !Number.isFinite(low) || !Number.isFinite(high) ? band.stop : (low + high) / 2
+          const scale = exposurePaletteScale(setup)
+          const upper = scale.findIndex((threshold) => value <= threshold)
+          amount = upper < 0 ? 1 : upper === 0 ? 0 : (upper - 1 + (value - scale[upper - 1]) / (scale[upper] - scale[upper - 1])) / 6
+          if (setup.fill_mode && !(low <= reference && reference < high) && (!Number.isFinite(low) || !Number.isFinite(high))) amount = high <= reference ? 0 : 1
+        }
         return gradient.length > 0
-          ? copyBand(band, { color: sampleOklabRamp(gradient, (band.stop - minimum) / range) })
+          ? copyBand(band, { color: sampleOklabRamp(gradient, amount, blend, huePath) })
           : band
       }
       const colorIndex = limits.findIndex((limit) => band.stop <= limit)
@@ -355,9 +417,13 @@ export function applyFillPreset(setup: Setup, palette: PaletteColor[], preset: F
 
 export function applyBandPreset(setup: Setup, palette: PaletteColor[], preset: BandPreset) {
   const detailed = preset === "detailed"
-  const centers = setup.band_mode === "ire"
+  let centers = setup.band_mode === "ire"
     ? detailed ? [10, 25, 35, 38, 46, 55, 65, 80, 95] : [10, 25, 40, 50, 60, 75, 90]
     : detailed ? [-4, -3, -2, -1, 0, 1, 2, 3, 4, 5] : [-3, -2, -1, 0, 1, 2, 3]
+  if (setup.band_mode === "ire" && setup.ire_basis === "camera") {
+    centers = exposurePaletteScale(setup)
+    if (detailed) centers = [...centers.slice(0, 3), centers[3] - 4, centers[3], centers[3] + 4, ...centers.slice(4)]
+  }
   return applyColorPreset({
     ...setup,
     fill_mode: false,
@@ -441,12 +507,13 @@ export function changeMode(setup: Setup, mode: Mode, palette?: PaletteColor[]): 
   const changed: Setup = {
     ...setup,
     band_mode: mode === "ire" ? "ire" : "stops",
+    ...(mode === "ire" ? { ire_basis: "camera" as const } : {}),
     fill_mode: mode === "fill",
     monochrome: mode === "fill" ? false : setup.monochrome,
   }
   if (!palette) return changed
   if (mode === "fill") return applyFillPreset(changed, palette, "standard")
-  return setup.band_mode === changed.band_mode && !setup.fill_mode
+  return setup.band_mode === changed.band_mode && setup.ire_basis === changed.ire_basis && !setup.fill_mode
     ? changed
     : applyBandPreset(changed, palette, "standard")
 }

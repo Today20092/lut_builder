@@ -14,6 +14,11 @@ import {
   filterPalette,
   hexToHsv,
   hsvToHex,
+  hexToOklch,
+  oklchToHex,
+  sampleOklabRamp,
+  exposureReferenceValue,
+  exposurePaletteScale,
   importSetup,
   resizeBandWidth,
   removeBand,
@@ -141,13 +146,89 @@ test("fill presets replace geometry and colors for stops and IRE", () => {
   assert.equal(detailed.bands.length, 9)
 })
 
+test("positioned gradient stops agree with applied colors and extend endpoint colors", () => {
+  const anchors = ["#2563eb", "#ff0000", "#22c55e"].map((color, index) => ({ ...hexToOklch(color), position: [0.1, 0.25, 0.9][index] }))
+  assert.equal(sampleOklabRamp(anchors, 0), "#2563eb")
+  assert.equal(sampleOklabRamp(anchors, 0.25), "#ff0000")
+  assert.equal(sampleOklabRamp(anchors, 1), "#22c55e")
+  const current = { ...setup, bands: [0, 1, 2, 4].map((stop) => ({ stop, width: 0.3, color: "#ffffff" })) }
+  const applied = applyColorPreset(current, [], "gradient", anchors, "custom", false)
+  assert.deepEqual(applied.bands.map(({ color }) => color), [0, 0.25, 0.5, 1].map((position) => sampleOklabRamp(anchors, position)))
+  assert.deepEqual(applied.bands.map(({ stop, width }) => ({ stop, width })), current.bands.map(({ stop, width }) => ({ stop, width })))
+})
+
+test("Colorful keeps chroma through complementary colors while Direct can pass through gray", () => {
+  const anchors = [{ l: 0.7, c: 0.1, h: 20 }, { l: 0.7, c: 0.1, h: 200 }]
+  const direct = hexToOklch(sampleOklabRamp(anchors, 0.5, "direct"))
+  const colorful = hexToOklch(sampleOklabRamp(anchors, 0.5, "colorful"))
+  assert.ok(direct.c < 0.002)
+  assert.ok(colorful.c > 0.08)
+  assert.equal(sampleOklabRamp(anchors, 0, "colorful"), oklchToHex(anchors[0]))
+  assert.equal(sampleOklabRamp(anchors, 1, "colorful", "longer"), oklchToHex(anchors[1]))
+})
+
+test("exposure palettes keep the reference green with asymmetric ranges, IRE, and Fill", () => {
+  const anchors = ["#5b21b6", "#2563eb", "#38bdf8", "#22c55e", "#facc15", "#f97316", "#dc2626"].map(hexToOklch)
+  const apply = (current) => applyColorPreset(current, [], "gradient", anchors, "custom", false, "colorful", "shorter", "exposure")
+  const current = { ...setup, bands: [-5, -2, 0, 1, 2].map((stop) => ({ stop, width: 0.1, color: "#ffffff" })) }
+  assert.equal(apply(current).bands[2].color, "#22c55e")
+  const extended = { ...current, bands: [{ stop: -20, width: 0.1, color: "#ffffff" }, ...current.bands, { stop: 10, width: 0.1, color: "#ffffff" }] }
+  assert.deepEqual(apply(extended).bands.slice(1, -1).map((band) => band.color), apply(current).bands.map((band) => band.color))
+  assert.deepEqual(apply(extended).bands.map(({ stop, width }) => ({ stop, width })), extended.bands.map(({ stop, width }) => ({ stop, width })))
+  const coveringReference = { ...setup, bands: [{ stop: 0.1, width: 0.3, color: "#ffffff" }] }
+  assert.equal(apply(coveringReference).bands[0].color, "#22c55e")
+  for (const target of ["Rec.709", "Rec.2020"]) for (const legal_range of [false, true]) {
+    const reference = exposureReferenceValue({ band_mode: "ire" })
+    assert.ok(Math.abs(reference - 40.900758) < 0.001)
+    const ire = { ...setup, target, legal_range, band_mode: "ire", bands: [10, reference, 80].map((stop) => ({ stop, width: 1, color: "#ffffff" })) }
+    assert.equal(apply(ire).bands[1].color, "#22c55e")
+    assert.equal(apply(ire).bands[2].color, "#dc2626")
+    const fill = { ...ire, fill_mode: true, bands: [10, 50, 60].map((stop) => ({ stop, width: 0, color: "#ffffff" })) }
+    assert.deepEqual(apply(fill).bands.map((band) => band.color), ["#5b21b6", "#22c55e", "#dc2626"])
+    fill.bands[2].stop = 95
+    assert.equal(apply(fill).bands[2].color, "#dc2626")
+  }
+  const fill = { ...setup, fill_mode: true, bands: [-1, 0.5, 4].map((stop) => ({ stop, width: 0, color: "#ffffff" })) }
+  assert.deepEqual(apply(fill).bands.map((band) => band.color), ["#5b21b6", "#22c55e", "#dc2626"])
+})
+
+test("camera-log IRE anchors follow each camera and undo preserves legacy interpretation", () => {
+  const expected = { "Sony S-Log3": 41.1, "Panasonic V-Log": 42.3, "Canon Log 3": 34.3, "ARRI LogC3": 39.1, "RED Log3G10": 33.3, "Blackmagic Film Gen 5": 38.4 }
+  for (const [profile, reference] of Object.entries(expected)) {
+    const camera = changeMode({ ...setup, profile }, "ire", palette)
+    assert.equal(Number(exposureReferenceValue(camera).toFixed(1)), reference)
+    assert.equal(camera.bands[3].stop, exposureReferenceValue(camera))
+    assert.equal(camera.bands[3].color, palette.find(({ name }) => name === "green-500").hex)
+  }
+  const legacy = { ...setup, band_mode: "ire" }
+  assert.equal(Number(exposureReferenceValue(legacy).toFixed(1)), 40.9)
+  const changed = reduceEditor(createEditorState(legacy), { type: "edit", edit: (current) => changeMode(current, "ire", palette) })
+  const restored = reduceEditor(changed, { type: "undo" }).setup
+  assert.equal(restored.ire_basis, undefined)
+  assert.deepEqual(restored.bands, legacy.bands)
+})
+
+test("Colorful hue paths wrap around zero and neutral endpoints inherit the colored hue", () => {
+  const anchors = [{ l: 0.7, c: 0.1, h: 350 }, { l: 0.7, c: 0.1, h: 10 }]
+  assert.equal(sampleOklabRamp(anchors, 0.5, "colorful", "shorter"), oklchToHex({ l: 0.7, c: 0.1, h: 0 }))
+  assert.equal(sampleOklabRamp(anchors, 0.5, "colorful", "longer"), oklchToHex({ l: 0.7, c: 0.1, h: 180 }))
+  assert.equal(sampleOklabRamp(anchors, 0.5, "direct", "shorter"), sampleOklabRamp(anchors, 0.5, "direct", "longer"))
+  const neutral = [{ l: 0.7, c: 0, h: 300 }, { l: 0.7, c: 0.1, h: 90 }]
+  for (const path of ["shorter", "longer"]) assert.equal(sampleOklabRamp(neutral, 0.5, "colorful", path), oklchToHex({ l: 0.7, c: 0.05, h: 90 }))
+  const current = { ...setup, bands: [0, 1, 2].map((stop) => ({ stop, width: 0.3, color: "#ffffff" })) }
+  for (const blend of ["direct", "colorful"]) for (const path of ["shorter", "longer"]) {
+    assert.equal(applyColorPreset(current, [], "gradient", anchors, "custom", false, blend, path).bands[1].color, sampleOklabRamp(anchors, 0.5, blend, path))
+  }
+})
+
 test("band presets provide useful stops and IRE defaults", () => {
   const stops = applyBandPreset(setup, palette, "standard")
   assert.deepEqual(stops.bands.map(({ stop }) => stop), [-3, -2, -1, 0, 1, 2, 3])
   assert.ok(stops.bands.every(({ width }) => width === 0.3))
 
   const ire = changeMode(setup, "ire", palette)
-  assert.deepEqual(ire.bands.map(({ stop }) => stop), [10, 25, 40, 50, 60, 75, 90])
+  assert.equal(ire.ire_basis, "camera")
+  assert.deepEqual(ire.bands.map(({ stop }) => stop), exposurePaletteScale(ire))
   assert.ok(ire.bands.every(({ width }) => width === 3))
 })
 

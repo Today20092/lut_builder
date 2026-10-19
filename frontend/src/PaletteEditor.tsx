@@ -1,15 +1,33 @@
-import { useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { Data, Effect, Result, Schema } from "effect"
 import { Button } from "@/components/ui/button"
-import { applyColorPreset, applyLightnessProfile, hexToOklch, isHexColor, oklchToHex, sampleOklabRamp, vividRampAnchors, type LightnessProfile, type PaletteColor, type Setup } from "./editor"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { GradientPicker } from "./GradientPicker"
+import { applyColorPreset, applyLightnessProfile, exposurePaletteScale, exposureReferenceValue, hexToOklch, isHexColor, sampleOklabRamp, type GradientBlend, type HuePath, type LightnessProfile, type PaletteColor, type PaletteMapping, type Setup } from "./editor"
 
-type Draft = { colors: string[]; brightness: LightnessProfile; intensity: number }
+type Draft = { colors: string[]; positions?: number[]; brightness: LightnessProfile; intensity: number; blend?: GradientBlend; huePath?: HuePath; mapping?: PaletteMapping }
 type SavedPalette = Draft & { name: string }
+export type PalettePreview = { setup: Setup; label: string; valid: boolean; apply: () => void; cancel: () => void }
 const storageKey = "lut-builder.palettes.v1"
 const fieldClass = "h-9 w-full min-w-0 rounded-md border border-input bg-transparent px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+const startingPalettes = [
+  { name: "Exposure zones", description: "Cool shadows · green reference · warm highlights", colors: ["#5b21b6", "#2563eb", "#38bdf8", "#22c55e", "#facc15", "#f97316", "#dc2626"] },
+  { name: "Reference emphasis", description: "Green reference stands out against quieter surrounding colors", colors: ["#334e68", "#3b6c8e", "#4c8b93", "#22c55e", "#a3a044", "#a66b35", "#a33a3a"] },
+]
+
+function PaletteHelp({ label, children }: { label: string; children: string }) {
+  return <Tooltip>
+    <TooltipTrigger render={<button type="button" />} aria-label={`About ${label}`} className="inline-flex size-6 shrink-0 items-center justify-center rounded-full border text-xs text-muted-foreground">?</TooltipTrigger>
+    <TooltipContent className="max-w-72">{children}</TooltipContent>
+  </Tooltip>
+}
 const SavedPaletteSchema = Schema.Struct({
   name: Schema.String,
   colors: Schema.Array(Schema.String),
+  positions: Schema.optional(Schema.Array(Schema.Finite)),
+  blend: Schema.optional(Schema.Literals(["colorful", "direct"])),
+  huePath: Schema.optional(Schema.Literals(["shorter", "longer"])),
+  mapping: Schema.optional(Schema.Literals(["band-range", "exposure"])),
   brightness: Schema.Literals(["custom", "ascending", "even"]),
   intensity: Schema.Finite,
 })
@@ -19,7 +37,11 @@ function validDraft(value: unknown): value is Draft {
   const draft = value as Draft
   return Array.isArray(draft.colors) && draft.colors.length >= 2 && draft.colors.length <= 32 &&
     draft.colors.every((color) => typeof color === "string" && isHexColor(color)) &&
+    (draft.positions === undefined || (Array.isArray(draft.positions) && draft.positions.length === draft.colors.length && draft.positions.every((position, index) => Number.isFinite(position) && position >= 0 && position <= 1 && (index === 0 || position > draft.positions![index - 1])))) &&
     ["custom", "ascending", "even"].includes(draft.brightness) &&
+    (draft.blend === undefined || ["colorful", "direct"].includes(draft.blend)) &&
+    (draft.huePath === undefined || ["shorter", "longer"].includes(draft.huePath)) &&
+    (draft.mapping === undefined || draft.mapping === "band-range" || (draft.mapping === "exposure" && draft.colors.some((_, index) => (draft.positions?.[index] ?? index / (draft.colors.length - 1)) === 0.5))) &&
     typeof draft.intensity === "number" && Number.isFinite(draft.intensity) && draft.intensity >= 0 && draft.intensity <= 200
 }
 
@@ -34,7 +56,7 @@ function loadPalettes(): Effect.Effect<{ palettes: SavedPalette[] }, PaletteStor
       const value = Schema.decodeUnknownSync(Schema.Array(SavedPaletteSchema))(JSON.parse(window.localStorage.getItem(storageKey) ?? "[]"))
       if (value.length > 100 || !value.every((item) => validDraft(item) && item.name.trim() === item.name && item.name.length > 0 && item.name.length <= 80) ||
         new Set(value.map((item) => item.name.toLowerCase())).size !== value.length) throw new Error("Invalid saved palette data")
-      return { palettes: value.map((item) => ({ ...item, colors: [...item.colors] })) }
+      return { palettes: value.map((item) => ({ ...item, colors: [...item.colors], positions: item.positions ? [...item.positions] : undefined })) }
     },
     catch: (cause) => new PaletteStorageError({ message: "Saved palettes could not be read. Your active setup is unchanged. You can keep editing and retry saving.", cause }),
   })
@@ -47,10 +69,15 @@ function persistPalettes(palettes: SavedPalette[]): Effect.Effect<void, PaletteS
   })
 }
 
-export function PaletteEditor({ setup, palette, onApply }: { setup: Setup; palette: PaletteColor[]; onApply: (next: Setup) => void }) {
-  const presetColors = vividRampAnchors(palette).map(oklchToHex)
-  const colors = presetColors.length >= 2 ? presetColors : ["#2563eb", "#dc2626"]
-  const [draft, setDraft] = useState<Draft>({ colors, brightness: "custom", intensity: 100 })
+export function PaletteEditor({ setup, palette, onApply, onPreview }: { setup: Setup; palette: PaletteColor[]; onApply: (next: Setup) => void; onPreview?: (preview: PalettePreview | null) => void }) {
+  const [draft, setDraftState] = useState<Draft>({ colors: startingPalettes[0].colors, brightness: "custom", intensity: 100, blend: "colorful", huePath: "shorter", mapping: "exposure" })
+  const [audition, setAudition] = useState(false)
+  const [draftLabel, setDraftLabel] = useState("Custom gradient")
+  function setDraft(next: Draft, label = "Custom gradient") {
+    setDraftState(next)
+    setDraftLabel(label)
+    setAudition(true)
+  }
   const [loadedPalettes] = useState(() => Effect.runSync(Effect.result(loadPalettes())))
   const [library, setLibrary] = useState(() => Result.isSuccess(loadedPalettes)
     ? { ...loadedPalettes.success, message: "" }
@@ -59,8 +86,22 @@ export function PaletteEditor({ setup, palette, onApply }: { setup: Setup; palet
   const [name, setName] = useState("")
   const [applied, setApplied] = useState<{ draft: string; colors: string } | null>(null)
   const valid = validDraft(draft)
-  const anchors = valid ? draft.colors.map(hexToOklch).map((anchor) => ({ ...anchor, c: anchor.c * draft.intensity / 100 })) : []
-  const ramp = Array.from({ length: 25 }, (_, index) => sampleOklabRamp(applyLightnessProfile(anchors, draft.brightness), index / 24))
+  const blend = draft.blend ?? "direct"
+  const huePath = draft.huePath ?? "shorter"
+  const mapping = draft.mapping ?? "band-range"
+  const positions = draft.positions ?? draft.colors.map((_, index) => index / (draft.colors.length - 1))
+  const anchors = useMemo(() => valid ? draft.colors.map(hexToOklch).map((anchor, index) => ({ ...anchor, c: anchor.c * draft.intensity / 100, position: draft.positions?.[index] ?? index / (draft.colors.length - 1) })) : [], [valid, draft])
+  const nextSetup = useMemo(() => valid ? applyColorPreset(setup, palette, "gradient", anchors, draft.brightness, false, blend, huePath, mapping) : setup, [valid, setup, palette, anchors, draft.brightness, blend, huePath, mapping])
+  const apply = useCallback(() => {
+    if (!valid || setup.bands.length === 0) return
+    onApply(nextSetup)
+    setApplied({ draft: JSON.stringify(draft), colors: JSON.stringify(nextSetup.bands.map((band) => band.color)) })
+    setAudition(false)
+  }, [valid, setup.bands.length, onApply, nextSetup, draft])
+  useEffect(() => {
+    onPreview?.(audition ? { setup: nextSetup, label: draftLabel, valid: valid && setup.bands.length > 0, apply, cancel: () => setAudition(false) } : null)
+  }, [audition, nextSetup, draftLabel, valid, setup.bands.length, apply, onPreview])
+  const ramp = Array.from({ length: 65 }, (_, index) => sampleOklabRamp(applyLightnessProfile(anchors, draft.brightness), index / 64, blend, huePath))
   const bandColors = JSON.stringify(setup.bands.map((band) => band.color))
   const pending = !applied || applied.draft !== JSON.stringify(draft) || applied.colors !== bandColors
   const trimmedName = name.trim()
@@ -85,47 +126,63 @@ export function PaletteEditor({ setup, palette, onApply }: { setup: Setup; palet
     }).catch((error: unknown) => setLibrary({ ...library, message: error instanceof Error ? error.message : "Could not save palettes in this browser." }))
   }
 
-  function move(index: number, offset: number) {
-    const next = [...draft.colors]
-    ;[next[index], next[index + offset]] = [next[index + offset], next[index]]
-    setDraft({ ...draft, colors: next })
-  }
-
   return <section aria-label="Band colors" className="grid gap-3 border-t pt-4">
     <h3 className="text-sm font-semibold">Recolor all bands</h3>
     <p className="text-sm text-muted-foreground">Change one band using its swatch in the table above. Here you can build a palette for all bands, from low to high exposure.</p>
-    <fieldset className="flex flex-wrap gap-2">
+    <fieldset className="grid grid-cols-1 gap-2 sm:grid-cols-2">
       <legend className="mb-2 text-sm font-medium">1. Choose a starting palette</legend>
-      {(["Vivid", "Exposure"] as const).map((preset) => <Button key={preset} type="button" variant="outline" aria-pressed={draft.intensity === 100 && draft.brightness === (preset === "Vivid" ? "custom" : "ascending") && JSON.stringify(draft.colors) === JSON.stringify(colors)} onClick={() => setDraft({ colors, brightness: preset === "Vivid" ? "custom" : "ascending", intensity: 100 })}>
-        <span aria-hidden="true" className="h-4 w-16 rounded-sm" style={{ background: `linear-gradient(to right, ${applyLightnessProfile(colors.map(hexToOklch), preset === "Vivid" ? "custom" : "ascending").map(oklchToHex).join(",")})` }} />{preset === "Exposure" ? "Dark to light" : preset}
-      </Button>)}
+      {startingPalettes.map((preset) => {
+        const presetAnchors = preset.colors.map(hexToOklch)
+        const preview = Array.from({ length: 65 }, (_, index) => sampleOklabRamp(presetAnchors, index / 64, "colorful", "shorter"))
+        const active = mapping === "exposure" && draft.intensity === 100 && draft.brightness === "custom" && blend === "colorful" && huePath === "shorter" && JSON.stringify(draft.colors) === JSON.stringify(preset.colors) && positions.every((position, index) => position === index / (positions.length - 1))
+        return <Button key={preset.name} type="button" variant="outline" aria-label={`Start with ${preset.name}`} aria-pressed={active} className="h-auto min-w-0 flex-col items-stretch gap-2 whitespace-normal p-3 text-left" onClick={() => setDraft({ colors: [...preset.colors], brightness: "custom", intensity: 100, blend: "colorful", huePath: "shorter", mapping: "exposure" }, preset.name)}>
+          <span aria-hidden="true" className="h-5 w-full rounded-sm" style={{ background: `linear-gradient(to right, ${preview.join(",")})` }} />
+          <span className="flex items-center justify-between gap-2"><span>{preset.name}</span>{active && <span className="text-xs text-muted-foreground">{audition ? "Previewing" : pending ? "Starting point" : "Applied"}</span>}</span>
+          <span className="text-xs font-normal text-muted-foreground">{preset.description}</span>
+        </Button>
+      })}
     </fieldset>
+    <p className="text-xs text-muted-foreground">Tap a palette to preview it on your bands above. Use palette commits the colors; Cancel returns to your current bands. Positions and widths stay unchanged.</p>
+    {mapping === "exposure" ? <div className="grid gap-1 text-xs text-muted-foreground">
+      <p>18% gray reference: <strong className="text-foreground">{exposureReferenceValue(setup).toFixed(setup.band_mode === "stops" ? 0 : 1)} {setup.band_mode === "stops" ? "stops" : "IRE"}</strong>{setup.band_mode === "ire" ? ` · ${setup.ire_basis === "camera" ? setup.profile : "Legacy target-display signal"}` : " · scene-linear exposure"}.</p>
+      <details><summary className="cursor-pointer">What does the reference mean?</summary><p className="mt-2">Green marks 18% scene gray, not a universal correct exposure for every subject. {setup.band_mode === "ire" && setup.ire_basis === "camera" ? "Camera-log IRE measures encoded input luma using the source gamut weights, on a full-code-range scale (0–1023). Match your monitor's signal range; legal-range waveform readings may differ. Stops measures scene-linear luminance and is preferable for exposure comparisons of colored subjects." : "Stops measures scene-linear luminance; older IRE setups measure the target-display signal."} Cool colors are below reference; warm colors are above. Red does not establish sensor clipping.</p></details>
+      {setup.fill_mode && <p>Fill colors cover entire existing zones: the zone containing the reference uses its color, and the outer zones use the end colors.</p>}
+      <p className="mt-2 font-medium">{setup.band_mode === "stops" ? "Stops from reference" : "Signal level · IRE"}</p>
+      <ul className="grid grid-cols-7 items-start gap-1.5" aria-label="Exposure palette legend">{["Deep shadows", "Shadows", "Below reference", "Reference", "Above reference", "Highlights", "Very high"].map((label, index) => <li key={label} className="grid min-w-0 grid-rows-[1rem_1rem_auto] gap-1"><span aria-hidden="true" className="h-4 rounded border" style={{ backgroundColor: ramp[Math.round(index / 6 * 64)] }} /><span className="whitespace-nowrap text-center text-[11px] font-medium tabular-nums text-foreground sm:text-xs">{setup.band_mode === "stops" && index > 3 ? "+" : ""}{Number(exposurePaletteScale(setup)[index].toFixed(1))}<span className="sr-only"> {setup.band_mode === "stops" ? "stops" : "IRE"}</span></span><span className="sr-only sm:not-sr-only sm:text-center">{label}</span></li>)}</ul>
+      <div aria-hidden="true" className="flex justify-between text-[11px] sm:hidden"><span>Shadows</span><span>Reference</span><span>Highlights</span></div>
+    </div> : <p className="text-xs text-muted-foreground">Saved custom gradient: colors span your current band range. Its middle color is not anchored to the exposure reference.</p>}
+    <h4 className="text-sm font-medium">2. Shape your gradient</h4>
+    <div className="grid grid-cols-1 items-end gap-3 sm:grid-cols-2">
+      <label className="grid min-w-0 gap-1 text-sm font-medium">Blend
+        <select aria-label="Gradient blend" className={fieldClass} value={blend} onChange={(event) => setDraft({ ...draft, blend: event.target.value as GradientBlend })}>
+          <option value="colorful">Colorful · OKLCH</option><option value="direct">Direct · OKLab</option>
+        </select>
+      </label>
+      {blend === "colorful" && <label className="grid min-w-0 gap-1 text-sm font-medium">Hue path
+        <select aria-label="Hue path" className={fieldClass} value={huePath} onChange={(event) => setDraft({ ...draft, huePath: event.target.value as HuePath })}>
+          <option value="shorter">Shorter</option><option value="longer">Longer</option>
+        </select>
+      </label>}
+    </div>
+    <p className="text-xs text-muted-foreground">{blend === "colorful" ? "Colorful blends around the color wheel. Longer passes through more hues; colors are fitted to sRGB." : "Direct blends straight between colors and may pass through gray. Hue path does not affect this blend."}</p>
+    <GradientPicker colors={draft.colors} positions={positions} blend={blend} huePath={huePath} exposureScale={mapping === "exposure" ? exposurePaletteScale(setup) : undefined} exposureUnit={setup.band_mode === "stops" ? "stops" : "IRE"} onChange={(colors, positions) => setDraft({ ...draft, colors, positions })} />
     <details className="rounded-md border p-3">
-    <summary className="cursor-pointer text-sm font-medium">2. Customize palette (optional)</summary>
+    <summary className="cursor-pointer text-sm font-medium">Advanced: adjust all colors</summary>
     <div className="mt-3 grid gap-3">
-    <p className="text-xs text-muted-foreground">Edit ordered colors from low to high exposure. Brightness progression changes their relative lightness; color intensity changes their saturation.</p>
-    <ol className="grid gap-2">
-      {draft.colors.map((color, index) => <li key={index} className="flex flex-wrap items-center gap-2">
-        <label className="flex min-w-0 flex-1 items-center gap-2 text-sm">Color {index + 1}
-          <input type="color" aria-label={`Anchor ${index + 1} color picker`} className="h-9 w-10 shrink-0" value={isHexColor(color) ? color : "#000000"} onChange={(event) => setDraft({ ...draft, colors: draft.colors.map((item, i) => i === index ? event.target.value : item) })} />
-          <input aria-label={`Anchor ${index + 1} hex color`} className={`${fieldClass} max-w-32`} value={color} aria-invalid={!isHexColor(color)} onChange={(event) => setDraft({ ...draft, colors: draft.colors.map((item, i) => i === index ? event.target.value : item) })} />
-        </label>
-        <Button type="button" variant="outline" aria-label={`Move color ${index + 1} earlier`} disabled={index === 0} onClick={() => move(index, -1)}>Earlier</Button>
-        <Button type="button" variant="outline" aria-label={`Move color ${index + 1} later`} disabled={index === draft.colors.length - 1} onClick={() => move(index, 1)}>Later</Button>
-        <Button type="button" variant="ghost" aria-label={`Remove color ${index + 1}`} disabled={draft.colors.length <= 2} onClick={() => setDraft({ ...draft, colors: draft.colors.filter((_, i) => i !== index) })}>Remove</Button>
-      </li>)}
-    </ol>
-    <Button type="button" variant="outline" className="justify-self-start" disabled={draft.colors.length >= 32} onClick={() => setDraft({ ...draft, colors: [...draft.colors, "#ffffff"] })}>Add color</Button>
-    <p className="text-xs text-muted-foreground">Use 2 to 32 colors. Enter six-digit hex colors, such as #2563eb.</p>
+    <p className="text-xs text-muted-foreground">Optional finishing controls for the whole palette. They change the preview and applied colors, while your individual dots keep their chosen colors.</p>
     <fieldset className="flex flex-wrap gap-2">
-      <legend className="mb-2 text-sm font-medium">Brightness progression</legend>
-      {([["custom", "Keep original brightness"], ["ascending", "Dark to light"], ["even", "Even brightness"]] as const).map(([value, label]) => <label key={value} className="flex min-h-9 items-center gap-2 rounded-md border px-3 text-sm has-focus-visible:ring-2 has-focus-visible:ring-ring">
+      <legend className="mb-2 text-sm font-medium"><span className="inline-flex items-center gap-2">Lightness across the palette <PaletteHelp label="palette lightness">Keep chosen lightness uses the lightness you chose for each dot. Dark to light assigns increasing lightness from low to high exposure. Same lightness gives every dot their average lightness. Hue is retained; fitting to sRGB may reduce chroma.</PaletteHelp></span></legend>
+      {([["custom", "Keep chosen lightness"], ["ascending", "Dark to light"], ["even", "Same lightness"]] as const).map(([value, label]) => <label key={value} className="flex min-h-9 items-center gap-2 rounded-md border px-3 text-sm has-focus-visible:ring-2 has-focus-visible:ring-ring">
         <input type="radio" name="palette-brightness" value={value} checked={draft.brightness === value} onChange={() => setDraft({ ...draft, brightness: value })} />{label}
       </label>)}
     </fieldset>
-    <label className="grid gap-2 text-sm font-medium">Color intensity · {draft.intensity}%
-      <input aria-label="Color intensity" type="range" min="0" max="200" value={draft.intensity} onChange={(event) => setDraft({ ...draft, intensity: Number(event.target.value) })} />
+    <div className="flex items-center gap-2 text-sm font-medium"><label htmlFor="palette-intensity">Overall color strength · {draft.intensity}%</label><PaletteHelp label="overall color strength">Multiplies chroma for every dot before blending. 100% keeps the chosen strength, 0% produces gray, and 200% requests twice the chroma. Colors outside sRGB are reduced to fit, so more is not always visibly stronger.</PaletteHelp></div>
+    <label className="grid gap-2 text-sm font-medium">
+      <span className="sr-only">Overall color strength</span>
+      <input id="palette-intensity" aria-label="Color intensity" aria-describedby="palette-intensity-help" type="range" min="0" max="200" value={draft.intensity} onChange={(event) => setDraft({ ...draft, intensity: Number(event.target.value) })} />
     </label>
+    <p id="palette-intensity-help" className="text-xs text-muted-foreground">100% keeps your chosen color strength. 0% makes the palette gray.</p>
+    <Button type="button" variant="outline" size="sm" className="justify-self-start" disabled={draft.brightness === "custom" && draft.intensity === 100} onClick={() => setDraft({ ...draft, brightness: "custom", intensity: 100 })}>Reset adjustments</Button>
     </div>
     </details>
     <h4 className="text-sm font-medium">3. Preview and apply</h4>
@@ -133,16 +190,16 @@ export function PaletteEditor({ setup, palette, onApply }: { setup: Setup; palet
     {valid ? <div role="img" aria-label="Draft palette ramp from low to high exposure" className="h-6 rounded-md" style={{ background: `linear-gradient(to right, ${ramp.join(",")})` }} /> : <p role="alert" className="text-sm text-destructive">Correct the invalid anchor color before applying or saving.</p>}
     <p className="text-xs text-muted-foreground">Apply colors replaces every band color and keeps positions and widths. Undo restores your previous colors.</p>
     <p role="status" className="text-sm">{pending ? applied && applied.colors !== bandColors ? "Band colors changed since application. Applying will replace manual overrides." : "Unapplied palette changes." : "Palette applied to bands."}</p>
-    <Button type="button" variant="outline" className="justify-self-start" disabled={!valid || setup.bands.length === 0} onClick={() => {
-      const next = applyColorPreset(setup, palette, "gradient", anchors, draft.brightness, false)
-      onApply(next)
-      setApplied({ draft: JSON.stringify(draft), colors: JSON.stringify(next.bands.map((band) => band.color)) })
-    }}>Apply colors</Button>
+    <div className="flex flex-wrap gap-2">
+      <Button type="button" className="justify-self-start" disabled={!valid || setup.bands.length === 0} onClick={apply}>Use palette</Button>
+      {audition && <Button type="button" variant="outline" onClick={() => setAudition(false)}>Cancel preview</Button>}
+    </div>
     <details className="rounded-md border p-3">
     <summary className="cursor-pointer text-sm font-medium">Use standard exposure colors instead</summary>
     <Button type="button" variant="outline" className="mt-3" disabled={setup.bands.length === 0} onClick={() => {
       onApply(applyColorPreset(setup, palette, "false-color"))
       setApplied(null)
+      setAudition(false)
     }}>Apply false color by exposure</Button>
     <p className="text-xs text-muted-foreground">False color by exposure uses the original exposure thresholds instead of this draft ramp. It also replaces individual overrides and supports undo.</p>
     </details>
@@ -154,7 +211,7 @@ export function PaletteEditor({ setup, palette, onApply }: { setup: Setup; palet
         <select aria-label="Reuse saved palette" className={fieldClass} value={selected} onChange={(event) => {
           setSelected(event.target.value)
           const saved = library.palettes.find((item) => item.name === event.target.value)
-          if (saved) { setDraft({ colors: [...saved.colors], brightness: saved.brightness, intensity: saved.intensity }); setName(saved.name) }
+          if (saved) { setDraft({ colors: [...saved.colors], positions: saved.positions ? [...saved.positions] : undefined, brightness: saved.brightness, intensity: saved.intensity, blend: saved.blend ?? "direct", huePath: saved.huePath ?? "shorter", mapping: saved.mapping ?? "band-range" }, saved.name); setName(saved.name) }
         }}><option value="">Choose a saved palette</option>{library.palettes.map((item) => <option key={item.name}>{item.name}</option>)}</select>
       </label>
       <label className="grid gap-1 text-sm">Palette name<input aria-label="Palette name" className={fieldClass} value={name} maxLength={80} onChange={(event) => setName(event.target.value)} /></label>
