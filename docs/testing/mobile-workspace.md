@@ -61,3 +61,37 @@ Impeccable finish review and design documentation remain integration gates.
 No physical phone, iOS keyboard, browser storage eviction or calibrated monitor
 claim is made. Reduced-height Chromium emulation is evidence about reachable
 fields, not a substitute for those device checks.
+
+## Composition UI follow-up
+
+The imported-look settings are mounted in Configure; the actual serialized-camera
+comparison sits below band selection. Ordinary camera, target, output-range and
+monochrome controls are disabled while their interpretation belongs to a confirmed
+look. The compact summary includes its output transfer. On phones the actual
+sampled reference takes the analytical graph's place; the coverage strip and
+numeric edits remain available, so adding a look does not double the sticky
+preview height. Comparison details expand separately.
+
+Public Chromium acceptance uses an independently authored constant-color 2³ cube,
+then confirms V-Log metadata, edits a band, downloads an actual 17³ combined LUT,
+and checks that it contains both the literal imported base and diagnostic output.
+Look versus Look + diagnostics must produce identical exported nodes. Version-3
+portable export, browser-session reopen and explicit reimport preserve the exact
+embedded cube and resulting artifact. This flow and imported-panel accessibility
+passed at 390px/light, 320px/dark and 1280px/light. The canonical screenshot suite
+adds interpretation-draft and confirmed imported-workspace states in all six
+configured width/theme combinations; soft screenshot assertions collect every
+changed candidate while retaining strict zero-pixel tolerance and failed status.
+
+A matrix-discovered mobile removal defect was reproduced through the public App:
+refocusing a pending confirmation in the selected row cancelled it. Band selection
+now clears that confirmation only when the selected band actually changes. The
+failing focus regression passes after the shared fix, as does native 390px/dark
+removal with explicit confirmation refocus.
+
+Imported-look preset integration also covers all three exposure presets. They keep
+the confirmed color base and camera-IRE interpretation valid. Confirming or removing
+an imported asset invalidates band undo/gesture snapshots from the old interpretation,
+so undo cannot reintroduce monochrome or legacy target-IRE into the new pipeline.
+The public transition test first failed on Three-band Exposure restoring monochrome,
+then passed for all presets and setup validation after the shared editor correction.

@@ -1,5 +1,8 @@
 import assert from "node:assert/strict"
 import test from "node:test"
+import { Effect } from "effect"
+import { cubeSha256 } from "../src/importedLut.ts"
+import { decodeSetup } from "../src/setupSchema.ts"
 
 import {
   applyColorPreset,
@@ -37,6 +40,27 @@ const palette = [
   name,
   hex: ["#5b21b6", "#2563eb", "#38bdf8", "#2dd4bf", "#22c55e", "#a3e635", "#facc15", "#f97316", "#dc2626"][index],
 }))
+
+test("all exposure presets preserve a confirmed imported look and remain valid", async () => {
+  const cube = 'LUT_3D_SIZE 2\n' + Array(8).fill('0.125 0.25 0.5').join('\n')
+  const imported_lut = { version: 1, name: 'constant.cube', cube, sha256: await cubeSha256(cube), source_profile: setup.profile, output_gamut: setup.target, output_transfer: 'gamma2.2', output_range: 'full' }
+  const confirmed = { ...setup, monochrome: false, ire_basis: 'camera', imported_lut }
+  for (const preset of ['contrast-checker', 'three-band', 'camera-ire']) {
+    const next = applyExposurePreset(confirmed, palette, preset)
+    assert.equal(next.monochrome, false, preset)
+    assert.equal(next.ire_basis, 'camera', preset)
+    assert.equal(next.imported_lut, imported_lut)
+    await Effect.runPromise(decodeSetup(next))
+  }
+  let state = createEditorState(setup)
+  state = reduceEditor(state, { type: 'edit', edit: current => applyExposurePreset(current, palette, 'contrast-checker') })
+  assert.ok(state.undo)
+  state = reduceEditor(state, { type: 'patch', changes: { imported_lut, monochrome: false, ire_basis: 'camera' } })
+  assert.equal(state.undo, null, 'confirming a different interpretation invalidates older band snapshots')
+  state = reduceEditor(state, { type: 'undo' })
+  assert.equal(state.setup.monochrome, false)
+  assert.equal(state.setup.ire_basis, 'camera')
+})
 
 const setup = {
   profile: "Sony S-Log3",

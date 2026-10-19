@@ -1,5 +1,8 @@
 import { test, expect, type Page, type Locator } from '@playwright/test'
 import AxeBuilder from '@axe-core/playwright'
+import { readFile } from 'node:fs/promises'
+
+const constantLookCube = 'TITLE "Constant camera look"\nLUT_3D_SIZE 2\n' + Array(8).fill('0.125 0.25 0.5').join('\n') + '\n'
 
 test.beforeEach(async ({ page }) => {
   await page.goto('./')
@@ -145,6 +148,7 @@ test('band editor uses selected phone fields and a desktop table with inline rem
   await expect(position).toHaveValue('-3.5')
   const count = await table.locator('tbody tr').count()
   await page.getByRole('button', { name: 'Remove band 1', exact: true }).click()
+  await page.getByRole('button', { name: 'Confirm remove band 1', exact: true }).focus()
   await page.getByRole('button', { name: 'Confirm remove band 1', exact: true }).click()
   await expect(table.locator('tbody tr')).toHaveCount(count - 1)
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
@@ -275,7 +279,7 @@ async function snapshot(page: Page, region: Locator, name: string) {
   await page.evaluate(() => window.scrollTo(0, 0))
   const clip = await region.boundingBox()
   expect(clip).not.toBeNull()
-  await expect(page).toHaveScreenshot(name, { fullPage: true, clip: clip! })
+  await expect.soft(page).toHaveScreenshot(name, { fullPage: true, clip: clip! })
 }
 
 test('selected band, panels, session restore and keyboard remain usable @checks', async ({ page }) => {
@@ -335,9 +339,71 @@ test('corrupt sessions remain recoverable until explicit replacement @checks', a
   await expect(field).toHaveValue('1')
 })
 
+test('confirmed imported look edits, compares and exports portably without changing comparison bytes @checks', async ({ page }) => {
+  // A constant, deliberately non-gray creative transform is independent of the
+  // implementation's parser/math. Browser integration proves the actual download.
+  const cube = constantLookCube
+  await panel(page, 'Configure')
+  await page.locator('summary').filter({ hasText: 'Output settings' }).click()
+  await page.getByRole('combobox', { name: /^Cube size/ }).selectOption('17')
+  await page.getByLabel('Import .cube LUT', { exact: true }).setInputFiles({ name: 'constant-look.cube', mimeType: 'text/plain', buffer: Buffer.from(cube) })
+  await expect(page.getByRole('button', { name: 'Confirm and apply look', exact: true })).toBeVisible()
+  await page.getByRole('combobox', { name: /^LUT camera input/ }).selectOption('Panasonic V-Log')
+  await accessible(page)
+  await page.getByRole('button', { name: 'Confirm and apply look', exact: true }).click()
+  await expect(page.getByRole('combobox', { name: /^Camera recording/ })).toBeDisabled()
+  await expect(page.getByRole('combobox', { name: /^Target display/ })).toBeDisabled()
+  await expect(page.getByRole('radio', { name: 'Full / Data', exact: true })).toBeDisabled()
+  await expect(page.getByRole('checkbox', { name: 'Monochrome base', exact: true })).toBeDisabled()
+  const comparison = page.getByRole('region', { name: 'Imported look comparison', exact: true })
+  await expect(comparison.locator('[aria-label="Neutral camera patches at labeled stops"] > div')).toHaveCount(9)
+  await accessible(page)
+  await page.screenshot({ path: test.info().outputPath('imported-workspace.png'), fullPage: true })
+  await panel(page, 'Presets')
+  for (const preset of ['contrast-checker', 'camera-ire', 'three-band']) {
+    await page.getByRole('combobox', { name: /^Start with a preset/ }).selectOption(preset)
+    await page.getByRole('button', { name: 'Use preset', exact: true }).click()
+  }
+  await page.getByRole('button', { name: 'Select band 1', exact: true }).click()
+  await page.getByRole('textbox', { name: 'Band 1 total width', exact: true }).fill('4')
+  await page.getByRole('textbox', { name: 'Band 1 total width', exact: true }).press('Enter')
+  await expect(comparison.locator('[aria-label="Neutral camera patches at labeled stops"] > div')).toHaveCount(9)
+  const save = async (label: string) => {
+    const pending = page.waitForEvent('download')
+    await page.getByRole('button', { name: label, exact: true }).click()
+    const download = await pending
+    expect(await download.failure()).toBeNull()
+    return readFile((await download.path())!, 'utf8')
+  }
+  const rows = (text: string) => text.split('\n').filter(line => /^[-+\d.]/.test(line)).map(line => line.trim().split(/\s+/).map(Number))
+  await panel(page, 'Export')
+  const diagnostic = rows(await save('Generate LUT'))
+  expect(diagnostic).toHaveLength(17 ** 3)
+  expect(diagnostic.some(row => row.join(',') === '0.125,0.25,0.5')).toBe(true)
+  expect(diagnostic.some(row => row.join(',') !== '0.125,0.25,0.5')).toBe(true)
+  await comparison.getByRole('button', { name: 'Look', exact: true }).click()
+  expect(rows(await save('Generate LUT'))).toEqual(diagnostic)
+  await comparison.getByRole('button', { name: 'Look + diagnostics', exact: true }).click()
+  await panel(page, 'Setups')
+  const portable = await save('Export setup file')
+  const setup = JSON.parse(portable)
+  expect(setup.version).toBe(3)
+  expect(setup.imported_lut.cube).toBe(cube)
+  expect(setup.imported_lut.source_profile).toBe('Panasonic V-Log')
+  await expect(page.getByText(/^Session saved on this device/)).toBeVisible()
+  await page.reload()
+  await expect(page.getByRole('region', { name: 'Imported look comparison', exact: true })).toBeVisible()
+  await panel(page, 'Setups')
+  await page.getByLabel('Import setup JSON file').setInputFiles({ name: 'portable.json', mimeType: 'application/json', buffer: Buffer.from(portable) })
+  await expect(page.getByLabel('Setup loading feedback').getByRole('status')).toContainText('Imported portable.json')
+  await panel(page, 'Export')
+  expect(rows(await save('Generate LUT'))).toEqual(diagnostic)
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+})
+
 test('reviewed UI screenshots @visual', async ({ page }) => {
   test.skip(process.platform !== 'linux', 'Use pnpm test:ui:container for the canonical Linux screenshots; native checks still run.')
-  await expect(page).toHaveScreenshot('workspace.png', { fullPage: true })
+  await expect.soft(page).toHaveScreenshot('workspace.png', { fullPage: true })
   await panel(page, 'Configure')
   await snapshot(page, page.locator('#configuration'), 'configuration.png')
   const output = page.locator('summary').filter({ hasText: 'Output settings' })
@@ -351,4 +417,14 @@ test('reviewed UI screenshots @visual', async ({ page }) => {
   await snapshot(page, palette, 'gradient.png')
   await page.getByLabel('Color hue value', { exact: true }).fill('400')
   await snapshot(page, palette, 'gradient-invalid-focus.png')
+  await panel(page, 'Configure')
+  await output.click()
+  await page.getByRole('combobox', { name: /^Cube size/ }).selectOption('17')
+  await page.getByLabel('Import .cube LUT', { exact: true }).setInputFiles({ name: 'constant-look.cube', mimeType: 'text/plain', buffer: Buffer.from(constantLookCube) })
+  await page.getByRole('combobox', { name: /^LUT camera input/ }).selectOption('Panasonic V-Log')
+  await snapshot(page, page.locator('.workspace-import-settings'), 'imported-interpretation.png')
+  await page.getByRole('button', { name: 'Confirm and apply look', exact: true }).click()
+  await expect(page.locator('[aria-label="Neutral camera patches at labeled stops"] > div')).toHaveCount(9)
+  await page.evaluate(() => window.scrollTo(0, 0))
+  await expect.soft(page).toHaveScreenshot('imported-workspace.png', { fullPage: true })
 })

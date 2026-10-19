@@ -39,7 +39,7 @@ export function WorkspaceShell({ setup, stage, feedback, shortcuts, children, bu
       else bandsTab.current?.focus()
     })
   }
-  return <main className="workspace" onKeyDown={(event) => {
+  return <main className="workspace" data-imported={Boolean(setup.imported_lut)} onKeyDown={(event) => {
     if (event.key !== "Escape" || event.defaultPrevented || section === "bands") return
     if (event.target instanceof Element && event.target.closest('dialog, [role="dialog"], [data-slot="popover-content"]')) return
     event.preventDefault()
@@ -55,7 +55,7 @@ export function WorkspaceShell({ setup, stage, feedback, shortcuts, children, bu
       </div>
     </header>
     <div className="workspace-interpretation" aria-label="Active interpretation">
-      <span>{setup.profile}</span><span aria-hidden="true">→</span><span>{setup.target}</span>
+      <span>{setup.profile}</span><span aria-hidden="true">→</span><span>{setup.target}{setup.imported_lut ? ` / ${setup.imported_lut.output_transfer}` : ""}</span>
       <span>{setup.cube_size}³ · {setup.legal_range ? "Legal" : "Full"} range</span>
       <button type="button" onClick={() => open("configuration")} disabled={busy}>Change<span className="sr-only"> configuration</span></button>
     </div>

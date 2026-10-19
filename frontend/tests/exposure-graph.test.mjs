@@ -877,6 +877,8 @@ test("band editing preserves valid generation data, selection, and one-step reco
     await click(button("Undo last band edit"))
     assert.equal(field("Band 2 stops").value, "2.5")
     await click(field("Remove band 2"))
+    await act(() => field("Confirm remove band 2").dispatchEvent(new window.FocusEvent("focusin", { bubbles: true })))
+    assert.ok(field("Confirm remove band 2"), "refocusing the selected row keeps deliberate removal armed")
     await click(field("Confirm remove band 2"))
     assert.equal((await generate()).bands.length, 1)
     await click(button("Undo last band edit"))
