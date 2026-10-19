@@ -643,6 +643,18 @@ test("custom palettes draft, persist, reload, and reach generation without chang
     await type(field("Selected color hex"), "#000000")
     await type(field("Color hue"), "180")
     assert.equal(field("Color hue").value, "180")
+    await type(field("Color hue value"), "240")
+    await act(() => field("Color hue value").dispatchEvent(new window.KeyboardEvent("keydown", { bubbles: true, key: "Enter" })))
+    assert.equal(field("Color hue").value, "240")
+    await type(field("Color hue value"), "400")
+    assert.equal(field("Color hue value").getAttribute("aria-invalid"), "true")
+    await act(() => field("Color hue value").dispatchEvent(new window.KeyboardEvent("keydown", { bubbles: true, key: "Escape" })))
+    assert.equal(field("Color hue value").value, "240")
+    await click(field("Increase hue"))
+    assert.equal(field("Color hue").value, "241")
+    await type(field("Color lightness value"), "50")
+    await act(() => field("Color lightness value").dispatchEvent(new window.KeyboardEvent("keydown", { bubbles: true, key: "Enter" })))
+    assert.equal(field("Color lightness").value, "0.5")
     await click(field("Color stop 2"))
     await type(field("Selected color hex"), "#ffffff")
     await click(button("Add color"))
@@ -789,8 +801,8 @@ test("band editing preserves valid generation data, selection, and one-step reco
     await act(() => new Promise((resolve) => setTimeout(resolve, 300)))
     assert.equal(field("Band 1 total width").value, "0.6")
     const table = container.querySelector('table[aria-label="Band colors and positions"]')
-    assert.equal(table.querySelectorAll("thead th").length, 4)
-    assert.equal(table.querySelector("thead th").textContent, "Color")
+    assert.equal(table.querySelectorAll("thead th").length, 5)
+    assert.equal(table.querySelector("thead th").textContent, "Band")
     await click(field("Video / Legal"))
     assert.equal((await generate()).legal_range, true)
     await click(field("Full / Data"))
@@ -900,6 +912,92 @@ test("band editing preserves valid generation data, selection, and one-step reco
     await act(() => root.unmount())
     container.remove()
     globalThis.fetch = originalFetch
+  }
+})
+
+test("setup changes are recoverable, deletion is deliberate, and feedback stays local", async () => {
+  const originalToken = window.LUT_BUILDER_TOKEN
+  const originalSetup = window.LUT_BUILDER_SETUP
+  const storageKey = "lut-builder.named-setups.v1"
+  const originalPresets = window.localStorage.getItem(storageKey)
+  delete window.LUT_BUILDER_TOKEN
+  const initial = {
+    ...setup, profile: "Sony S-Log3", target: "Rec.709", cube_size: 17,
+    monochrome: true, legal_range: false, output: "test.cube",
+    low_signal_warning: false, high_signal_warning: false,
+    low_signal_hex: "#000000", high_signal_hex: "#ffffff",
+  }
+  window.LUT_BUILDER_SETUP = initial
+  window.localStorage.setItem(storageKey, JSON.stringify([
+    { name: "Interview", setup: { ...initial, cube_size: 33 } },
+    { name: "Exterior", setup: { ...initial, cube_size: 65 } },
+  ]))
+  const container = document.createElement("div")
+  document.body.append(container)
+  const root = createRoot(container)
+  const button = (text) => [...container.querySelectorAll("button")].find((item) => item.textContent === text)
+  const click = async (text) => { assert.ok(button(text), text); await act(() => button(text).click()) }
+  const liveMessages = (text) => [...container.querySelectorAll('[role="status"]')].filter((item) => item.textContent.includes(text))
+  const select = async (value) => {
+    const field = container.querySelector("details select")
+    await act(() => { field.value = value; field.dispatchEvent(new window.Event("change", { bubbles: true })) })
+  }
+  const importFile = async (text) => {
+    const field = container.querySelector('[aria-label="Import setup JSON file"]')
+    Object.defineProperty(field, "files", { configurable: true, value: [{ name: "setup.json", text: async () => text }] })
+    await act(() => field.dispatchEvent(new window.Event("change", { bubbles: true })))
+  }
+  try {
+    await act(() => root.render(React.createElement(App)))
+    const output = () => container.querySelector('[aria-label="LUT output"]').textContent
+    await select("Interview")
+    await click("Load setup")
+    assert.match(output(), /33³/)
+    assert.equal(liveMessages("Loaded Interview").length, 1)
+    assert.ok(liveMessages("Loaded Interview")[0].closest('[aria-label="Setup loading feedback"]'))
+    await click("Restore previous setup")
+    assert.match(output(), /17³/)
+    assert.equal(button("Restore previous setup"), undefined)
+    await importFile(JSON.stringify({ version: 1, ...initial, cube_size: 65 }))
+    assert.match(output(), /65³/)
+    assert.equal(liveMessages("Imported setup.json").length, 1)
+    await importFile("{")
+    assert.match(output(), /65³/, "invalid imports leave the working setup intact")
+    assert.ok(button("Restore previous setup"), "failed imports retain the recovery snapshot")
+    await click("Restore previous setup")
+    assert.match(output(), /17³/)
+    await click("Delete setup")
+    assert.equal(JSON.parse(window.localStorage.getItem(storageKey)).length, 2)
+    await click("Keep setup")
+    assert.equal(button("Confirm delete setup"), undefined)
+    await click("Delete setup")
+    await select("Exterior")
+    assert.equal(button("Confirm delete setup"), undefined, "selecting a different preset cancels confirmation")
+    await click("Delete setup")
+    await click("Confirm delete setup")
+    assert.deepEqual(JSON.parse(window.localStorage.getItem(storageKey)).map((preset) => preset.name), ["Interview"])
+    const name = [...container.querySelectorAll("label")].find((label) => label.textContent.trim() === "Preset name").querySelector("input")
+    await act(() => {
+      Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set.call(name, " interview ")
+      name.dispatchEvent(new window.Event("input", { bubbles: true }))
+    })
+    assert.ok(button("Replace saved setup"), "case-insensitive replacements are explicit")
+    assert.match(container.textContent, /overwrites that saved copy/)
+    await click("Replace saved setup")
+    assert.equal(JSON.parse(window.localStorage.getItem(storageKey))[0].setup.cube_size, 17)
+    assert.equal(liveMessages("Named LUT setup saved").length, 1)
+    assert.doesNotMatch(output(), /Named LUT setup saved/)
+    assert.equal(container.querySelector('a[href="#photo-result"]').textContent, "View photo result")
+    assert.ok(container.querySelector('#photo-result a[href="#exposure-bands"]'))
+  } finally {
+    await act(() => root.unmount())
+    container.remove()
+    if (originalToken !== undefined) window.LUT_BUILDER_TOKEN = originalToken
+    else delete window.LUT_BUILDER_TOKEN
+    if (originalSetup !== undefined) window.LUT_BUILDER_SETUP = originalSetup
+    else delete window.LUT_BUILDER_SETUP
+    if (originalPresets === null) window.localStorage.removeItem(storageKey)
+    else window.localStorage.setItem(storageKey, originalPresets)
   }
 })
 

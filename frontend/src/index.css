@@ -154,14 +154,19 @@ html {
 .oklch-slider {
   appearance: none;
   width: 100%;
-  height: 1.25rem;
+  min-width: 0;
+  height: 2.75rem;
+  background-size: 100% 1.25rem;
+  background-position: center;
+  background-repeat: no-repeat;
+  touch-action: pan-y;
   border-radius: 0.375rem;
   cursor: pointer;
 }
 
 .oklch-slider::-webkit-slider-thumb {
   appearance: none;
-  width: 1rem;
+  width: 1.25rem;
   height: 1.75rem;
   border: 2px solid white;
   border-radius: 0.25rem;
@@ -198,6 +203,22 @@ html {
 }
 /* Touch adjustments use buttons so a scroll never changes a value. */
 .touch-adjustment { display: none; }
+.band-field-label { display: none; }
+/* Include the box padding in the disclosure's tap target. */
+details.border.p-3 > summary { margin: -0.75rem; padding: 0.75rem; }
+details.border.p-4 > summary { margin: -1rem; padding: 1rem; }
+details.border[open] > summary { margin-bottom: 0; }
+@media (max-width: 639px) {
+  .band-table { display: block; min-width: 0; }
+  .band-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .band-table tbody { display: block; }
+  .band-table tbody tr { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); padding: 0.5rem; }
+  .band-table tbody th, .band-table tbody td:nth-child(2), .band-table tbody td:last-child { grid-column: 1 / -1; }
+  .band-table tbody td { min-width: 0; }
+  .band-table input, .band-table button { min-height: 44px; min-width: 44px; }
+  .band-table tbody th { display: flex; align-items: center; justify-content: space-between; }
+  .band-field-label { display: block; margin-bottom: 0.375rem; font-size: 0.75rem; color: var(--muted-foreground); }
+}
 @media (any-pointer: coarse), (max-width: 639px) {
   .pointer-adjustment { display: none !important; }
   .touch-adjustment { display: flex; }
