@@ -191,6 +191,7 @@ try {
   const roundtrip = JSON.parse(await download("Export JSON", "roundtrip.json"))
   assert.deepEqual(roundtrip, applied)
   await panel("Palette")
+  await disclosure("Save and reuse palettes")
   await button("Delete saved palette").click()
   assert.equal(await page.getByLabel("Reuse saved palette", { exact: true }).locator("option").count(), 1)
   console.log("PASS palette draft, geometry, undo, JSON, generation and same-browser server restart", geometry)
