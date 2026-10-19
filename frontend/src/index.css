@@ -196,3 +196,13 @@ html {
   background: transparent;
   box-shadow: 0 0 0 1px black;
 }
+/* Touch adjustments use buttons so a scroll never changes a value. */
+.touch-adjustment { display: none; }
+@media (any-pointer: coarse), (max-width: 639px) {
+  .pointer-adjustment { display: none !important; }
+  .touch-adjustment { display: flex; }
+  .touch-adjustment.grid { display: grid; }
+  select.touch-adjustment { display: block; }
+  .gradient-bar { pointer-events: none; }
+  button, select, summary { min-height: 44px; }
+}

@@ -1,0 +1,126 @@
+// Optional device-layout acceptance: PLAYWRIGHT_MODULE points to an existing installation.
+import assert from 'node:assert/strict'
+import { mkdir, readFile } from 'node:fs/promises'
+import { join } from 'node:path'
+import { tmpdir } from 'node:os'
+import { pathToFileURL } from 'node:url'
+
+const playwright = await import(process.env.PLAYWRIGHT_MODULE ? pathToFileURL(process.env.PLAYWRIGHT_MODULE).href : 'playwright')
+const evidence = join(tmpdir(), 'lut-mobile-45')
+await mkdir(evidence, { recursive: true })
+for (const [engine, width, touch] of [['chromium', 320, true], ['chromium', 390, true], ['webkit', 390, true], ['chromium', 1280, false]]) {
+  const browser = await playwright[engine].launch({ headless: true })
+  try {
+    const context = await browser.newContext({ viewport: { width, height: 844 }, hasTouch: touch, isMobile: touch, acceptDownloads: true })
+    const page = await context.newPage()
+    const errors = []
+    page.on('pageerror', error => errors.push(error.message))
+    page.setDefaultTimeout(20000)
+    await page.goto(process.env.LUT_BUILDER_URL ?? 'http://127.0.0.1:4175/')
+    const button = name => page.getByRole('button', { name, exact: true })
+    const preview = page.getByRole('group', { name: 'Persistent exposure preview' })
+    const colors = () => preview.locator('svg').first().locator('rect').evaluateAll(rects => rects.map(rect => rect.getAttribute('fill')))
+    const outputColors = () => page.getByRole('list', { name: 'Output band colors and boundaries' }).textContent()
+    const download = async name => {
+      const pending = page.waitForEvent('download')
+      await button(name).click()
+      return readFile(await (await pending).path(), 'utf8')
+    }
+    await page.getByAltText('Illustrative LUT result').waitFor()
+    assert.equal(await page.getByLabel('Gradient blend', { exact: true }).count(), 0)
+    if (touch) assert.equal(await button('Keyboard shortcuts (?)').isVisible(), false)
+    const navigation = await page.getByRole('navigation', { name: 'Workbench sections' }).locator('a').evaluateAll(links => links.map(link => link.getBoundingClientRect().top))
+    assert.equal(new Set(navigation).size, 1, 'compact navigation stays on one row')
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true)
+    await button('+ Add band').click()
+    const committed = await colors()
+    const summary = await outputColors()
+    await page.getByText('Band setup & graph settings', { exact: true }).click()
+    const range = page.getByLabel('Graph range in stops')
+    assert.equal(await range.evaluate(node => node.tagName), 'SELECT')
+    await range.selectOption('20')
+    assert.deepEqual(await colors(), committed)
+    await range.selectOption('7')
+    await page.getByText('Band setup & graph settings', { exact: true }).click()
+    const preset = button('Start with Reference emphasis')
+    for (let cycle = 0; cycle < 3; cycle++) {
+      await preset.scrollIntoViewIfNeeded()
+      if (touch) await preset.tap()
+      else await preset.click()
+      await page.waitForTimeout(100)
+      assert.notDeepEqual(await colors(), committed)
+      assert.equal(await outputColors(), summary, 'summary stays committed')
+      const before = (await preset.boundingBox()).y
+      const cancel = await preview.getByRole('button', { name: 'Cancel', exact: true }).boundingBox()
+      if (touch) await page.touchscreen.tap(cancel.x + cancel.width / 2, cancel.y + cancel.height / 2)
+      else await page.mouse.click(cancel.x + cancel.width / 2, cancel.y + cancel.height / 2)
+      await page.waitForTimeout(100)
+      assert.deepEqual(await colors(), committed)
+      assert.ok(Math.abs((await preset.boundingBox()).y - before) < 4, `cancel preserves chooser position: ${before} -> ${(await preset.boundingBox()).y}`)
+      assert.equal(await preset.evaluate(node => node === document.activeElement), true)
+    }
+    await preset.click()
+    await preview.getByRole('button', { name: 'Use palette', exact: true }).click()
+    assert.notDeepEqual(await colors(), committed)
+    await button('Customize gradient').click()
+    assert.equal(await page.getByLabel('Gradient blend', { exact: true }).isVisible(), true)
+    const stop = page.getByRole('slider', { name: 'Color stop 2', exact: true })
+    const position = await stop.getAttribute('aria-valuenow')
+    if (touch) {
+      assert.equal(await page.getByRole('slider', { name: 'Color lightness', exact: true }).isVisible(), false)
+      await page.getByLabel('Selected color', { exact: true }).selectOption('1')
+      await button('Move right').click()
+      assert.notEqual(await stop.getAttribute('aria-valuenow'), position)
+      await button('Increase lightness').click()
+      if (engine === 'chromium') {
+        const cdp = await context.newCDPSession(page)
+        for (const control of [stop, page.getByRole('group', { name: 'Gradient color stops' }), button('Increase lightness'), button('Increase chroma'), button('Increase hue')]) {
+          await control.scrollIntoViewIfNeeded()
+          const state = await stop.getAttribute('aria-valuetext')
+          const bounds = await control.boundingBox()
+          const x = bounds.x + bounds.width / 2, y = Math.min(700, bounds.y + bounds.height / 2)
+          await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y }] })
+          for (let i = 1; i <= 5; i++) await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: x + i * 2, y: y - i * 20 }] })
+          await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
+          assert.equal(await stop.getAttribute('aria-valuetext'), state, 'scroll does not edit gradient')
+        }
+      }
+    } else {
+      await stop.focus()
+      await stop.press('ArrowRight')
+      assert.notEqual(await stop.getAttribute('aria-valuenow'), position)
+    }
+    await button('Add color').click()
+    await button('Remove selected color').click()
+    await preview.getByRole('button', { name: 'Use palette', exact: true }).click()
+    const saved = await download('Export setup file')
+    await button('Choose a palette').click()
+    await button('Start with Exposure zones').click()
+    await page.getByText('Load setup · optional', { exact: true }).click()
+    await page.getByLabel('Import setup JSON file').setInputFiles({ name: 'roundtrip.json', mimeType: 'application/json', buffer: Buffer.from(saved) })
+    await page.waitForTimeout(250)
+    assert.equal(await preview.getByRole('button', { name: 'Cancel', exact: true }).count(), 0)
+    assert.equal(await page.getByLabel('Gradient blend', { exact: true }).count(), 0)
+    const roundtrip = JSON.parse(await download('Export setup file'))
+    assert.deepEqual(roundtrip, JSON.parse(saved))
+    const scene = page.getByLabel('Scene', { exact: true })
+    await scene.selectOption('1')
+    await page.getByAltText('Illustrative LUT result').waitFor()
+    const firstResult = await page.getByAltText('Illustrative LUT result').getAttribute('src')
+    await scene.selectOption('2')
+    await page.getByAltText('Illustrative LUT result').waitFor()
+    assert.notEqual(await page.getByAltText('Illustrative LUT result').getAttribute('src'), firstResult)
+    assert.equal(await page.getByRole('link', { name: 'Report an issue · GitHub' }).getAttribute('href'), 'https://github.com/Today20092/lut_builder/issues/new/choose')
+    await page.getByLabel('Reference photo preview').scrollIntoViewIfNeeded()
+    await page.screenshot({ path: join(evidence, `${engine}-${width}-photo.png`) })
+    await page.locator('#export').scrollIntoViewIfNeeded()
+    await page.screenshot({ path: join(evidence, `${engine}-${width}-output.png`) })
+    const cube = await download('Generate LUT')
+    assert.equal(Number(/^LUT_3D_SIZE (\d+)$/m.exec(cube)?.[1]), roundtrip.cube_size)
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true)
+    assert.deepEqual(errors, [])
+    console.log(`${engine} ${width}: navigation, range, draft/cancel/focus, gradient, setup import/export, samples, committed LUT passed`)
+    await context.close()
+  } finally { await browser.close() }
+}
+console.log(`Screenshots: ${evidence}`)

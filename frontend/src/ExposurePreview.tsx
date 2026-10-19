@@ -24,9 +24,8 @@ export function ExposurePreview({ setup, preview, minimum, maximum, unit }: {
   const displayed = preview?.setup ?? setup
   const label = preview ? preview.valid ? `Previewing ${preview.label}` : "Invalid draft · showing current bands" : "Current exposure bands"
   function decide(action: () => void) {
+    if (dialog.current?.open) dialog.current.close()
     action()
-    const target = dialog.current?.open ? dialog.current.querySelector("button") : trigger.current
-    target?.focus()
   }
   const actions = preview && <div className="flex items-center gap-2">
     <Button type="button" className="flex-1" disabled={!preview.valid} onClick={() => decide(preview.apply)}>Use palette</Button>

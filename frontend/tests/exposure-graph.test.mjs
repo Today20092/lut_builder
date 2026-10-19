@@ -40,7 +40,7 @@ const bundle = await build({
   external: ["@base-ui/react/*", "lucide-react", "react", "react/jsx-runtime", "react-dom", "react-dom/client"],
   format: "esm",
   jsx: "automatic",
-  loader: { ".jpg": "dataurl" },
+  loader: { ".jpg": "dataurl", ".png": "dataurl" },
   platform: "node",
   stdin: {
     contents: `
@@ -575,10 +575,9 @@ test("custom palettes draft, persist, reload, and reach generation without chang
   try {
     await mount()
     assert.match(container.textContent, /Saved palettes could not be read/)
-    const ramp = () => field("Draft palette ramp from low to high exposure").style.background
+    const ramp = () => field("Add color on gradient").style.background
     const chooseField = async (label, value) => { await act(() => { field(label).value = value; field(label).dispatchEvent(new window.Event("change", { bubbles: true })) }) }
-    assert.equal(field("Gradient blend").value, "colorful")
-    assert.equal(field("Hue path").value, "shorter")
+    assert.equal(field("Gradient blend"), null, "gradient editing is optional")
     const persistent = field("Persistent exposure preview")
     const previewColors = () => [...persistent.querySelectorAll("svg:first-of-type rect")].slice(0, initial.bands.length).map((rect) => rect.getAttribute("fill"))
     assert.deepEqual(previewColors(), initial.bands.map((band) => band.color))
@@ -600,10 +599,13 @@ test("custom palettes draft, persist, reload, and reach generation without chang
       const preset = field(`Start with ${name}`)
       await click(preset)
       assert.equal(preset.getAttribute("aria-pressed"), "true")
+      await click(button("Customize gradient"))
       assert.equal(container.querySelectorAll("[aria-label^='Color stop ']").length, count)
       assert.equal(preset.querySelector("[aria-hidden]").style.background, ramp())
       assert.deepEqual((await generate()).bands, initial.bands)
+      await click(button("Choose a palette"))
     }
+    await click(button("Customize gradient"))
     await click(field("Color stop 4"))
     await act(() => field("Color stop 4").dispatchEvent(new window.KeyboardEvent("keydown", { bubbles: true, key: "ArrowRight" })))
     assert.equal(field("Color stop 4").getAttribute("aria-valuenow"), "50")
@@ -616,6 +618,7 @@ test("custom palettes draft, persist, reload, and reach generation without chang
     window.localStorage.setItem("lut-builder.palettes.v1", JSON.stringify([{ name: "Custom draft", colors: ["#2563eb", "#f59e0b"], brightness: "custom", intensity: 100, blend: "colorful", huePath: "shorter" }]))
     await mount()
     await choose("Custom draft")
+    await click(button("Customize gradient"))
     await click(button("Delete saved palette"))
     const vividRamp = ramp()
     await chooseField("Gradient blend", "direct")
@@ -670,11 +673,13 @@ test("custom palettes draft, persist, reload, and reach generation without chang
     await type(document.querySelector("[aria-label='Band 1 color hex color']"), "#123456")
     assert.equal((await generate()).bands[0].color, "#123456")
     assert.match(container.textContent, /Applying will replace manual overrides/)
+    await click(button("Preview gradient"))
     await click(button("Use palette"))
     assert.deepEqual((await generate()).bands, applied.bands)
     await click(button("Undo last band edit"))
     assert.equal((await generate()).bands[0].color, "#123456")
     assert.match(container.textContent, /Applying will replace manual overrides/)
+    await click(button("Preview gradient"))
     await click(button("Use palette"))
     await type(field("Palette name"), "Neutral")
     await chooseField("Hue path", "longer")
@@ -700,12 +705,14 @@ test("custom palettes draft, persist, reload, and reach generation without chang
     root = createRoot(container)
     await mount()
     await choose("Neutral renamed")
+    await click(button("Customize gradient"))
     assert.equal(field("Gradient blend").value, "colorful")
     assert.equal(field("Hue path").value, "longer")
     await click(field("Color stop 2"))
     assert.equal(field("Selected color hex").value, "#00ff00")
     assert.equal(field("Color stop 2").getAttribute("aria-valuenow"), "90")
     assert.deepEqual((await generate()).bands, initial.bands)
+    await click(button("Preview gradient"))
     await click(button("Use palette"))
     const reused = await generate()
     assert.notEqual(reused.bands[1].color, initial.bands[1].color)
@@ -716,6 +723,7 @@ test("custom palettes draft, persist, reload, and reach generation without chang
     for (const mode of ["ire", "fill"]) {
       await act(() => container.querySelector(`input[name="band-mode"][value="${mode}"]`).click())
       const before = await generate()
+      await click(button("Preview gradient"))
       await click(button("Use palette"))
       const after = await generate()
       assert.deepEqual(after.bands.map(({ stop, width }) => ({ stop, width })), before.bands.map(({ stop, width }) => ({ stop, width })))
@@ -727,6 +735,7 @@ test("custom palettes draft, persist, reload, and reach generation without chang
     window.localStorage.setItem("lut-builder.palettes.v1", JSON.stringify([{ name: "Legacy", colors: ["#2563eb", "#22c55e", "#dc2626"], brightness: "custom", intensity: 100 }]))
     await mount()
     await choose("Legacy")
+    await click(button("Customize gradient"))
     assert.equal(field("Gradient blend").value, "direct")
     assert.equal(field("Hue path"), null)
     assert.equal(container.querySelectorAll("[aria-label^='Color stop ']").length, 3)
@@ -851,6 +860,7 @@ test("band editing preserves valid generation data, selection, and one-step reco
     assert.equal((await generate()).bands.length, 3)
     await click(button("Undo last band edit"))
     assert.equal((await generate()).bands.length, 2)
+    await click(field("Start with Exposure zones"))
     await click(button("Use palette"))
     assert.notDeepEqual((await generate()).bands.map(({ color }) => color), ["#ff0000", "#ffffff"])
     await click(button("Undo last band edit"))
@@ -923,18 +933,18 @@ test("browser-only app generates and downloads through a local worker without ba
     const range = container.querySelector('[aria-label="Graph range in stops"]')
     const setRange = async (value) => {
       await act(() => {
-        Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set.call(range, value)
-        range.dispatchEvent(new window.Event("input", { bubbles: true }))
+        range.value = value
+        range.dispatchEvent(new window.Event("change", { bubbles: true }))
       })
       await act(() => range.dispatchEvent(new window.KeyboardEvent("keydown", { key: "Enter", bubbles: true })))
     }
-    for (const value of ["9", "12", "100"]) {
+    for (const value of ["1", "9", "12", "20"]) {
       await setRange(value)
       assert.ok(container.querySelector(`[aria-label="Editable exposure graph from -${value} to ${value} stops"]`))
       assert.ok(container.querySelector('[aria-label="stops scale"]').children.length <= 17)
     }
     await setRange("12")
-    await setRange("0")
+    assert.equal([...range.options].some(option => option.value === '0'), false)
     assert.equal(range.value, "12")
     assert.equal(container.querySelector('[aria-label="Output filename preview"]').textContent, filenameBefore)
     await act(() => marker.dispatchEvent(new window.KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true })))
