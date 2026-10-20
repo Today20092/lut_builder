@@ -148,17 +148,26 @@ safe-area padding. At 960px and above, its grid is a 7rem task rail, a flexible
 preview stage, and a 24–29rem adjustment column. Stage padding is 2rem vertically
 and `clamp(1rem, 2vw, 2.5rem)` horizontally.
 
-Below 960px, navigation becomes a horizontal scrolling row, the stage sits above
-adjustments, and only the selected band is shown in the band editor. Adjustment
-content can collapse. The sticky stage becomes static with an expanded photo or
-on viewports at most 550px high. Imported-look phone previews hide the editable
-graph in favor of their comparison. Infrequent tasks use dedicated panels.
+Below 960px, five fixed bottom destinations provide Bands, Palette, Presets,
+Media and More. More opens Configure and Setups; Export LUT remains in the top
+header. The content reserves `calc(5.5rem + env(safe-area-inset-bottom))` below
+its flow, and navigation adds safe-area padding around its five equal columns.
 
-On coarse pointers or below 640px, buttons, selects and summaries have a 44px
-minimum height; band inputs/actions and numbered selection buttons also use 44px
-targets. Phone fields use 1rem text. Preserve the preview when adding controls.
+The phone stage scrolls with the page. Bands keeps its editable graph and selected
+band controls together; Palette retains a compact exposure preview without the
+graph or band picker. Other destinations and dedicated tasks hide the stage.
+Imported-look phone previews show their comparison in place of the editable graph.
+Only the selected band appears in the phone band editor. Swatch, hexadecimal color,
+position and width stay directly available. Band/graph settings, creative LUT
+import, recorded-signal warnings and saved palettes open dedicated screens with a
+Back action. Main destination content opens directly without a Collapse action.
 
-**The Preview and Edit Rule.** Keep selected-band editing immediately below the visible preview on phone and beside the preview on desktop.
+Primary phone panel fields and buttons use a 3rem (48px) minimum height; bottom
+navigation buttons use 3.625rem. Phone fields use 1rem (16px) text. Some compact
+controls retain their 44px minimum. Preserve safe-area and focus-scroll clearance
+when adding controls.
+
+**The Preview and Edit Rule.** Keep the graph and selected-band editing together in Bands on phone, and keep the preview beside editing on desktop. Palette uses its compact exposure preview.
 
 ## Elevation & Depth
 
@@ -172,7 +181,7 @@ the color track. Floating controls may retain their shared component elevation.
 
 Small rounded controls and softly rounded previews sit within straight workspace
 dividers. Shared fields use md, buttons use lg, and standalone shared cards use xl.
-The phone adjustment surface rounds its upper corners. Numbered band buttons
+The phone adjustment surface uses straight edges. Numbered band buttons
 contain small bordered color swatches; colors retain their actual artifact values.
 
 ## Components
@@ -196,13 +205,16 @@ use background fill and a 44px minimum height.
 Labeled SVG icons stack above task labels. Active tasks gain a muted surface,
 foreground text, weight 650 and an inset border outline. Hover changes color and
 background over 160ms ease-out; reduced motion removes that transition. Desktop
-navigation is vertical; phone navigation scrolls horizontally.
+navigation is vertical; phone navigation uses the five fixed bottom destinations.
+Configure and Setups open from More, and Export stays in the header.
 
 ### Cards / Containers
 
 Shared cards group content with spacing and a subtle ring. Workspace top-level
 panels flatten those cards into the adjustment column. Native disclosures collect
-infrequent settings and keep their full padded summary clickable.
+infrequent settings on desktop and keep their full padded summary clickable. On
+phone, dedicated task screens provide a Back action; main destination sections
+show their content directly.
 
 ### Exposure selection and comparison
 

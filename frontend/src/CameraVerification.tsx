@@ -284,7 +284,7 @@ export function CameraVerification({ setup, interpretations, video }: { setup: S
       {current?.provenance.warnings.map((warning) => <p key={warning} className="text-sm text-amber-700 dark:text-amber-300">{warning}</p>)}
       {current && <CheckedImage key={result!.key} result={current} />}
       {!video && <>
-      <label className="grid gap-2 text-sm font-medium">Choose camera still<input type="file" accept=".png,.pfm" className="max-w-full text-sm" onChange={(e) => { const file = e.target.files?.[0]; if (file) choose(file); e.target.value = "" }} /></label>
+      <label className="grid min-w-0 gap-2 text-sm font-medium">Choose camera still<input type="file" accept=".png,.pfm" className="w-full min-w-0 max-w-full text-sm" onChange={(e) => { const file = e.target.files?.[0]; if (file) choose(file); e.target.value = "" }} /></label>
       <p className="text-xs text-muted-foreground">Untagged, non-interlaced 16-bit RGB PNG, or float32 RGB PFM. No alpha. Up to 4,194,304 pixels and 48 MiB. PNG requires local FFmpeg. Files stay in this local workspace session.</p>
       <p className="text-xs" role="status">{reading ? "Reading still…" : source?.name ?? "No camera still selected."}</p>
       {fileError && <p className="text-sm text-destructive" role="alert">{fileError}</p>}

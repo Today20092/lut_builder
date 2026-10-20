@@ -270,7 +270,6 @@ details.border[open] > summary { margin-bottom: 0; }
 .workspace-adjustments { min-width: 0; align-self: stretch; border-left: 1px solid var(--border); background: var(--card); }
 .workspace-panel-heading { display: flex; align-items: center; justify-content: space-between; gap: .5rem; padding: .5rem 1.25rem; min-height: 3.5rem; border-bottom: 1px solid var(--border); }
 .workspace-panel-heading > span { font-size: .875rem; font-weight: 650; }
-.workspace-expand { display: none; }
 .workspace-panel-content { padding-bottom: max(2rem, env(safe-area-inset-bottom)); }
 .workspace-fields { min-width: 0; }
 .workspace-panel { min-width: 0; display: grid; gap: 1.5rem; outline-offset: -3px; }
@@ -294,26 +293,32 @@ details.border[open] > summary { margin-bottom: 0; }
 .workspace-skip:focus { top: .5rem; }
 .workspace input, .workspace select { caret-color: var(--foreground); scroll-margin-block: 15rem 6rem; }
 .workspace ::selection { color: var(--primary-foreground); background: var(--primary); }
+.workspace-mobile-navigation, .workspace-mobile-title, .workspace-mobile-band-actions { display: none; }
+.workspace-task-link { width: 100%; justify-content: space-between; }
+.workspace-more { display: grid; gap: .75rem; padding: 1.25rem; }
+.workspace-more > button { justify-content: start; }
+.workspace-more > button > svg:last-child { margin-left: auto; }
+.workspace-more > a { display: flex; align-items: center; min-height: 3rem; text-decoration: underline; text-underline-offset: .2em; }
 @media (min-width: 960px) {
+  #exposure-bands > [data-slot="card-header"] > .workspace-band-actions { order: 1; }
+  #exposure-bands > [data-slot="card-header"] > .workspace-task { order: 2; }
   .workspace-panel [class*="sm:grid-cols-2"] { grid-template-columns: 1fr; }
   .workspace-panel [class*="sm:col-span-2"] { grid-column: auto; }
   .workspace-panel [class*="sm:grid-cols-["] { grid-template-columns: minmax(0, 1fr) auto; }
 }
 @media (max-width: 959px) {
+  html { scroll-padding-block: 1rem 7rem; }
   .workspace-header { min-height: 3.5rem; gap: .5rem; }
   .workspace-brand > span { display: none; }
   .workspace-header-actions { gap: .5rem; }
   .workspace-header-actions > :first-child { display: none; }
   .workspace-interpretation { font-size: .6875rem; padding-block: .25rem; }
   .workspace-body { grid-template-columns: minmax(0, 1fr); }
-  .workspace-navigation { grid-row: 1; padding: .25rem .5rem; border-right: 0; border-bottom: 1px solid var(--border); gap: 0; }
-  .workspace-tabs { flex-direction: row; overflow-x: auto; padding: .25rem; }
-  .workspace-tab { flex: 1 0 3.75rem; min-height: 3.25rem; gap: .25rem; font-size: .6875rem; }
-  .workspace-tab > svg { width: 1rem; height: 1rem; }
+  .workspace-navigation { display: none; }
   .workspace-report { display: none; }
-  .workspace-stage { z-index: 30; gap: .375rem; padding: .875rem max(1rem, env(safe-area-inset-right)) .25rem max(1rem, env(safe-area-inset-left)); background: var(--background); border-bottom: 1px solid var(--border); }
+  .workspace-stage { position: static; gap: .75rem; padding: 1rem max(1rem, env(safe-area-inset-right)) .5rem max(1rem, env(safe-area-inset-left)); background: var(--background); border-bottom: 0; }
   .workspace-stage [aria-label="Exposure band coverage"] { height: .75rem; }
-  .workspace-graph [aria-label^="Editable exposure graph"] { height: clamp(3rem, 8dvh, 5rem); }
+  .workspace-graph [aria-label^="Editable exposure graph"] { height: 6rem; }
   .workspace-graph > div { gap: .25rem; }
   .workspace-graph > div > output { display: none; }
   .workspace-stage-hint { display: none; }
@@ -321,14 +326,11 @@ details.border[open] > summary { margin-bottom: 0; }
   .workspace-stage [aria-label="Imported look comparison"] { gap: .375rem; padding-block: .5rem; }
   .workspace-stage [aria-label="Imported look comparison"] h3 { font-size: .75rem; }
   .workspace-stage [aria-label="Imported look comparison"] summary { display: flex; align-items: center; min-height: 2.75rem; }
-  .workspace-stage:has(.workspace-photo[open]) { position: static; }
   .workspace-band-picker { flex-wrap: nowrap; overflow-x: auto; padding: .125rem; }
   .workspace-band-picker button { flex-shrink: 0; min-height: 2.75rem; }
-  .workspace-photo > summary { min-height: 2.25rem; font-size: .75rem; }
-  .workspace-adjustments { border-left: 0; border-radius: .75rem .75rem 0 0; }
+  .workspace-photo > summary { min-height: 3rem; font-size: .8125rem; }
+  .workspace-adjustments { border-left: 0; border-radius: 0; background: var(--background); }
   .workspace-panel-heading { padding-inline: 1rem; }
-  .workspace-expand { display: inline-flex; }
-  .workspace-panel-content[data-expanded="false"] { display: none; }
   .workspace-panel .band-table, .workspace-panel .band-table tbody { display: block; width: 100%; }
   .workspace-panel .band-table thead, .workspace-panel .band-table caption { display: none; }
   .workspace-panel .band-table tr { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 2.75rem; gap: .5rem; padding-block: .75rem; }
@@ -342,6 +344,61 @@ details.border[open] > summary { margin-bottom: 0; }
   .workspace-panel fieldset[aria-label="Band mode"] label > [aria-hidden] { display: none; }
   .workspace-panel fieldset[aria-label="Band mode"] label > span:last-child { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   .workspace-panel fieldset[aria-label="Band mode"] label { min-height: 2.75rem; align-content: center; padding-block: .5rem; }
+  .workspace { padding-bottom: calc(5.5rem + env(safe-area-inset-bottom)); }
+  .workspace-header-actions > a { display: none; }
+  .workspace-header { min-height: 4rem; }
+  .workspace-mobile-title { display: grid; gap: .5rem; padding: 1.25rem 1rem .5rem; }
+  .workspace-mobile-title > button { justify-self: start; padding-left: 0; }
+  .workspace-mobile-title h2 { font-size: 1.5rem; font-weight: 650; letter-spacing: -.025em; }
+  .workspace-mobile-navigation { position: fixed; inset: auto 0 0; z-index: 40; display: grid; grid-template-columns: repeat(5,minmax(0,1fr)); gap: .25rem; border-top: 1px solid var(--border); background: var(--card); padding: .375rem max(.25rem, env(safe-area-inset-right)) calc(.375rem + env(safe-area-inset-bottom)) max(.25rem, env(safe-area-inset-left)); }
+  .workspace-mobile-navigation > button { display: grid; justify-items: center; align-content: center; gap: .25rem; min-height: 3.625rem; border-radius: .5rem; color: var(--muted-foreground); font-size: .6875rem; cursor: pointer; }
+  .workspace-mobile-navigation > button > svg { width: 1.25rem; height: 1.25rem; }
+  .workspace-mobile-navigation > button[aria-current="page"] { color: var(--foreground); background: var(--accent); font-weight: 650; }
+  .workspace-mobile-navigation > button:disabled { opacity: .5; }
+  .workspace-panel-heading { display: none; }
+  .workspace[data-section]:not([data-section="bands"]):not([data-section="palette"]) .workspace-stage,
+  .workspace[data-section]:not([data-section="bands"]) > .workspace-interpretation,
+  .workspace[data-task]:not([data-task=""]) .workspace-stage,
+  .workspace[data-task]:not([data-task=""]) .workspace-mobile-title { display: none; }
+  .workspace[data-section="palette"] .workspace-graph,
+  .workspace[data-section="palette"] .workspace-band-picker,
+  .workspace[data-section="palette"] .workspace-stage > [aria-label="Imported look comparison"] { display: none; }
+  .workspace[data-section="bands"] .workspace-stage > [aria-label="Persistent exposure preview"] > button { min-height: 2.75rem; }
+  .workspace[data-section="bands"] .workspace-stage > [aria-label="Persistent exposure preview"] > button > svg,
+  .workspace[data-section="bands"] .workspace-stage > [aria-label="Persistent exposure preview"] > button > span:last-child { display: none; }
+  .workspace-band-title { display: none; }
+  .workspace-band-toolbar { display: flex; align-items: center; gap: .5rem; min-width: 0; }
+  .workspace-band-toolbar .workspace-band-picker { flex: 1; min-width: 0; }
+  .workspace-mobile-band-actions { display: flex; gap: .25rem; flex-shrink: 0; }
+  .workspace-mobile-band-actions > button { min-height: 3rem; }
+  .workspace-mobile-band-actions .workspace-undo-detail { display: none; }
+  .workspace[data-section="palette"] .workspace-band-toolbar,
+  #exposure-bands > [data-slot="card-header"] > .workspace-band-actions { display: none; }
+  .workspace[data-section="bands"] .workspace-stage { position: relative; }
+  .workspace[data-section="bands"] .workspace-stage > [aria-label="Persistent exposure preview"] { position: absolute; right: 1rem; top: .25rem; background: var(--background); }
+  .workspace[data-section="bands"] .workspace-stage > [aria-label="Persistent exposure preview"] > button > span:nth-child(2) > span:first-child { display: none; }
+  #exposure-bands > [data-slot="card-header"] { display: contents; }
+  #exposure-bands > [data-slot="card-content"] { order: 1; }
+  #exposure-bands > .workspace-task { order: 2; margin: 0 1rem; }
+  #exposure-bands > [data-slot="card-header"] > .workspace-task { order: 2; margin: 0 1rem; }
+  .workspace-panel > section, .workspace-panel > .workspace-task { margin: 1rem; }
+  .workspace-panel .band-table tr { grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 1rem .75rem; background: transparent; border: 0; }
+  .workspace-panel .band-table td:last-child { grid-column: 1 / -1; justify-self: end; }
+  .workspace-panel .band-table td > fieldset > div { flex-wrap: nowrap; }
+  .workspace-panel .band-table td > fieldset > div > input { flex: 1; min-width: 0; width: 0; }
+  .workspace-panel input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), .workspace-panel select, .workspace-panel button { min-height: 3rem; }
+  .workspace-panel label { gap: .5rem; }
+  .workspace input, .workspace select, .workspace button, .workspace summary { scroll-margin-block: 1rem 7rem; }
+  .workspace-panel:has(.workspace-task[data-open="true"]) > :not(.workspace-task):not(:has(.workspace-task[data-open="true"])),
+  .workspace-fields:has(.workspace-task[data-open="true"]) > .workspace-panel:not(:has(.workspace-task[data-open="true"])),
+  .workspace-panel section[aria-label="Band colors"]:has(.workspace-task[data-open="true"]) > :not(.workspace-task),
+  .workspace-panel [data-slot="card-header"]:has(.workspace-task[data-open="true"]) > :not(.workspace-task),
+  .workspace[data-task="band-settings"] #exposure-bands > [data-slot="card-content"],
+  .workspace-panel:has(.workspace-task[data-open="true"]) .workspace-task:not([data-open="true"]) { display: none; }
+  .workspace-task[data-open="true"] { border: 0; padding: 0; }
+  .workspace-mobile-photo { margin: 1.5rem 1rem 0; }
+  .workspace-feedback-area { margin-top: 1.5rem; }
+  .workspace-panel-content { padding-bottom: 1.5rem; }
 }
 @media (max-height: 550px) and (max-width: 959px) {
   .workspace-stage { position: static; }

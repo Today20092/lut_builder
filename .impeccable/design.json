@@ -1,28 +1,127 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-19T22:45:53Z",
+  "generatedAt": "2026-10-20T00:01:56Z",
   "title": "Design System: LUT Builder Workspace",
   "extensions": {
-    "sources": ["frontend/src/index.css", "frontend/src/WorkspaceShell.tsx", "frontend/src/App.tsx", "frontend/src/components/ui/button.tsx", "frontend/src/components/ui/card.tsx", "frontend/src/ImportedLookSettings.tsx"],
+    "sources": [
+      "frontend/src/index.css",
+      "frontend/src/WorkspaceShell.tsx",
+      "frontend/src/App.tsx",
+      "frontend/src/components/ui/button.tsx",
+      "frontend/src/components/ui/card.tsx",
+      "frontend/src/ImportedLookSettings.tsx",
+      "frontend/src/WorkspaceTask.tsx",
+      "frontend/src/workspaceNavigation.ts"
+    ],
     "theme": "Unprefixed frontmatter colors describe light mode. Dark-prefixed entries describe prefers-color-scheme: dark overrides. Secondary and accent reuse muted; popover reuses card. Runtime CSS custom properties remain authoritative.",
-    "breakpoints": [{"name":"workspace-columns","value":"960px"},{"name":"compact-touch","value":"640px"},{"name":"short-phone-static-stage","value":"550px height with width below 960px"}],
-    "motion": [{"name":"navigation-state","value":"background-color 160ms ease-out, color 160ms ease-out","purpose":"Task hover and selection; removed by prefers-reduced-motion: reduce."}],
-    "shadows": [{"name":"field-focus","value":"0 0 0 2px color-mix(in oklch, var(--ring) 30%, transparent)","purpose":"Shared text field focus ring."},{"name":"oklch-thumb-outline","value":"0 0 0 1px #171717","purpose":"Contrasting color-track thumb edge, paired with a white border."}],
-    "evidence": "Sampled canonical 390-dark/workspace-actual.png, 1280-light/workspace-actual.png and 320-light/imported-workspace.png. Full 48-capture visual review is recorded separately; this extraction did not repeat it. No seed ran; the direction contract records the historical workflow deviation."
+    "breakpoints": [
+      {
+        "name": "workspace-columns",
+        "value": "960px"
+      },
+      {
+        "name": "compact-touch",
+        "value": "640px"
+      }
+    ],
+    "motion": [
+      {
+        "name": "navigation-state",
+        "value": "background-color 160ms ease-out, color 160ms ease-out",
+        "purpose": "Task hover and selection; removed by prefers-reduced-motion: reduce."
+      }
+    ],
+    "shadows": [
+      {
+        "name": "field-focus",
+        "value": "0 0 0 2px color-mix(in oklch, var(--ring) 30%, transparent)",
+        "purpose": "Shared text field focus ring."
+      },
+      {
+        "name": "oklch-thumb-outline",
+        "value": "0 0 0 1px #171717",
+        "purpose": "Contrasting color-track thumb edge, paired with a white border."
+      }
+    ],
+    "evidence": "Mobile refinement follows the user's approved mobile.html prototype in the local lut-mobile-design-proposal temporary folder and the current WorkspaceShell.tsx, WorkspaceTask.tsx, workspaceNavigation.ts and index.css. Five fixed bottom destinations, dedicated tasks and stage visibility are code-backed. Earlier extraction sampled canonical 390-dark/workspace-actual.png, 1280-light/workspace-actual.png and 320-light/imported-workspace.png; those captures precede this refinement. Final mobile QA is in progress; no physical phone was tested. No seed ran; the direction contract records the historical workflow deviation."
   },
   "components": [
-    {"name":"Primary action","kind":"button","refersTo":"button-primary","description":"High-contrast shared action; phone target override included.","html":"<button class=\"ds-primary\">Export LUT</button>","css":".ds-primary{display:inline-flex;align-items:center;justify-content:center;height:2.25rem;padding:0 .625rem;border:1px solid transparent;border-radius:var(--radius);background:var(--primary);color:var(--primary-foreground);font:500 .875rem/1.25rem ui-sans-serif,system-ui,sans-serif;cursor:pointer}.ds-primary:hover{background:color-mix(in oklch,var(--primary) 80%,transparent)}.ds-primary:focus-visible{outline:2px solid var(--foreground);outline-offset:2px;box-shadow:0 0 0 3px color-mix(in oklch,var(--ring) 50%,transparent)}.ds-primary:active{transform:translateY(1px)}.ds-primary:disabled{opacity:.5;pointer-events:none}@media(any-pointer:coarse),(max-width:639px){.ds-primary{min-height:44px}}"},
-    {"name":"Outline action","kind":"button","refersTo":"button-outline","description":"Quiet bordered action.","html":"<button class=\"ds-outline\">Add band</button>","css":".ds-outline{height:2.25rem;padding:0 .625rem;border:1px solid var(--border);border-radius:var(--radius);background:var(--background);color:var(--foreground);font:500 .875rem/1.25rem ui-sans-serif,system-ui,sans-serif}.ds-outline:hover{background:var(--muted)}.ds-outline:focus-visible{outline:2px solid var(--foreground);outline-offset:2px}.ds-outline:active{transform:translateY(1px)}@media(any-pointer:coarse),(max-width:639px){.ds-outline{min-height:44px}}@media(prefers-color-scheme:dark){.ds-outline{border-color:var(--input);background:color-mix(in oklch,var(--input) 30%,transparent)}.ds-outline:hover{background:color-mix(in oklch,var(--input) 50%,transparent)}}"},
-    {"name":"Numeric field","kind":"input","refersTo":"field","description":"Precise band position with accessible label.","html":"<label class=\"ds-label\">Position (stops)<input class=\"ds-field\" type=\"number\" value=\"0\" step=\"any\"></label>","css":".ds-label{display:grid;gap:.5rem;color:var(--foreground);font:.75rem/1rem ui-sans-serif,system-ui,sans-serif}.ds-field{height:2.25rem;min-width:0;border:1px solid var(--input);border-radius:calc(var(--radius)*.8);background:transparent;color:var(--foreground);padding:0 .75rem;font:.875rem/1.25rem ui-sans-serif,system-ui,sans-serif}.ds-field:focus-visible{border-color:var(--ring);outline:2px solid var(--foreground);outline-offset:2px;box-shadow:0 0 0 2px color-mix(in oklch,var(--ring) 30%,transparent)}.ds-field:disabled{opacity:.5;cursor:not-allowed}@media(max-width:959px){.ds-field{font-size:1rem;min-height:2.75rem}}"},
-    {"name":"Task navigation","kind":"nav","refersTo":"navigation","description":"Active and inactive workspace tasks; icons omitted from this label-only specimen.","html":"<nav class=\"ds-nav\" aria-label=\"Workbench sections\"><button class=\"ds-task\" aria-current=\"page\">Bands</button><button class=\"ds-task\">Palette</button></nav>","css":".ds-nav{display:flex;gap:.25rem;background:var(--sidebar);padding:.5rem}.ds-task{display:flex;align-items:center;justify-content:center;min-width:3.75rem;min-height:3.25rem;padding:.375rem;border:0;border-radius:.5rem;background:transparent;color:var(--muted-foreground);font:.75rem/1rem ui-sans-serif,system-ui,sans-serif;transition:background-color 160ms ease-out,color 160ms ease-out}.ds-task:hover,.ds-task[aria-current]{background:var(--accent);color:var(--foreground)}.ds-task[aria-current]{font-weight:650;outline:1px solid var(--border);outline-offset:-1px}.ds-task:focus-visible{outline:2px solid var(--foreground);outline-offset:2px}@media(prefers-reduced-motion:reduce){.ds-task{transition:none}}"},
-    {"name":"Shared card","kind":"card","refersTo":"card","description":"Standalone shared container; workspace top-level panels remove its framing.","html":"<section class=\"ds-card\"><h3 class=\"ds-card-title\">Configuration</h3><p>Match your recording and monitor.</p></section>","css":".ds-card{display:flex;flex-direction:column;gap:1rem;overflow:hidden;padding:1rem;border-radius:calc(var(--radius)*1.4);background:var(--card);color:var(--card-foreground);box-shadow:0 0 0 1px color-mix(in oklch,var(--foreground) 10%,transparent);font:.875rem/1.25rem ui-sans-serif,system-ui,sans-serif}.ds-card-title{margin:0;font-size:1rem;font-weight:500;line-height:1.375}.ds-card p{margin:0;color:var(--muted-foreground)}"}
+    {
+      "name": "Primary action",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "High-contrast shared action; phone target override included.",
+      "html": "<button class=\"ds-primary\">Export LUT</button>",
+      "css": ".ds-primary{display:inline-flex;align-items:center;justify-content:center;height:2.25rem;padding:0 .625rem;border:1px solid transparent;border-radius:var(--radius);background:var(--primary);color:var(--primary-foreground);font:500 .875rem/1.25rem ui-sans-serif,system-ui,sans-serif;cursor:pointer}.ds-primary:hover{background:color-mix(in oklch,var(--primary) 80%,transparent)}.ds-primary:focus-visible{outline:2px solid var(--foreground);outline-offset:2px;box-shadow:0 0 0 3px color-mix(in oklch,var(--ring) 50%,transparent)}.ds-primary:active{transform:translateY(1px)}.ds-primary:disabled{opacity:.5;pointer-events:none}@media(any-pointer:coarse),(max-width:639px){.ds-primary{min-height:44px}}"
+    },
+    {
+      "name": "Outline action",
+      "kind": "button",
+      "refersTo": "button-outline",
+      "description": "Quiet bordered action.",
+      "html": "<button class=\"ds-outline\">Add band</button>",
+      "css": ".ds-outline{height:2.25rem;padding:0 .625rem;border:1px solid var(--border);border-radius:var(--radius);background:var(--background);color:var(--foreground);font:500 .875rem/1.25rem ui-sans-serif,system-ui,sans-serif}.ds-outline:hover{background:var(--muted)}.ds-outline:focus-visible{outline:2px solid var(--foreground);outline-offset:2px}.ds-outline:active{transform:translateY(1px)}@media(any-pointer:coarse),(max-width:639px){.ds-outline{min-height:44px}}@media(prefers-color-scheme:dark){.ds-outline{border-color:var(--input);background:color-mix(in oklch,var(--input) 30%,transparent)}.ds-outline:hover{background:color-mix(in oklch,var(--input) 50%,transparent)}}"
+    },
+    {
+      "name": "Numeric field",
+      "kind": "input",
+      "refersTo": "field",
+      "description": "Precise band position with accessible label.",
+      "html": "<label class=\"ds-label\">Position (stops)<input class=\"ds-field\" type=\"number\" value=\"0\" step=\"any\"></label>",
+      "css": ".ds-label{display:grid;gap:.5rem;color:var(--foreground);font:.75rem/1rem ui-sans-serif,system-ui,sans-serif}.ds-field{height:2.25rem;min-width:0;border:1px solid var(--input);border-radius:calc(var(--radius)*.8);background:transparent;color:var(--foreground);padding:0 .75rem;font:.875rem/1.25rem ui-sans-serif,system-ui,sans-serif}.ds-field:focus-visible{border-color:var(--ring);outline:2px solid var(--foreground);outline-offset:2px;box-shadow:0 0 0 2px color-mix(in oklch,var(--ring) 30%,transparent)}.ds-field:disabled{opacity:.5;cursor:not-allowed}@media(max-width:959px){.ds-field{font-size:1rem;min-height:3rem}}"
+    },
+    {
+      "name": "Task navigation",
+      "kind": "nav",
+      "refersTo": "navigation",
+      "description": "Workspace task styling specimen. Desktop uses a vertical rail; phone uses a fixed five-column bottom bar with Bands, Palette, Presets, Media and More. Configure and Setups open from More; Export stays in the header.",
+      "html": "<nav class=\"ds-nav\" aria-label=\"Workbench sections\"><button class=\"ds-task\" aria-current=\"page\">Bands</button><button class=\"ds-task\">Palette</button></nav>",
+      "css": ".ds-nav{display:flex;gap:.25rem;background:var(--sidebar);padding:.5rem}.ds-task{display:flex;align-items:center;justify-content:center;min-width:3.75rem;min-height:3.25rem;padding:.375rem;border:0;border-radius:.5rem;background:transparent;color:var(--muted-foreground);font:.75rem/1rem ui-sans-serif,system-ui,sans-serif;transition:background-color 160ms ease-out,color 160ms ease-out}.ds-task:hover,.ds-task[aria-current]{background:var(--accent);color:var(--foreground)}.ds-task[aria-current]{font-weight:650;outline:1px solid var(--border);outline-offset:-1px}.ds-task:focus-visible{outline:2px solid var(--foreground);outline-offset:2px}@media(prefers-reduced-motion:reduce){.ds-task{transition:none}}"
+    },
+    {
+      "name": "Shared card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "Standalone shared container; workspace top-level panels remove its framing.",
+      "html": "<section class=\"ds-card\"><h3 class=\"ds-card-title\">Configuration</h3><p>Match your recording and monitor.</p></section>",
+      "css": ".ds-card{display:flex;flex-direction:column;gap:1rem;overflow:hidden;padding:1rem;border-radius:calc(var(--radius)*1.4);background:var(--card);color:var(--card-foreground);box-shadow:0 0 0 1px color-mix(in oklch,var(--foreground) 10%,transparent);font:.875rem/1.25rem ui-sans-serif,system-ui,sans-serif}.ds-card-title{margin:0;font-size:1rem;font-weight:500;line-height:1.375}.ds-card p{margin:0;color:var(--muted-foreground)}"
+    }
   ],
   "narrative": {
-    "northStar":"A neutral editing bench",
-    "overview":"The workspace applies the user's Lightroom direction through restrained neutral surfaces, a prominent exposure scale and precise controls. Diagnostic colors are the artifact being edited. System sans typography keeps the surrounding tool quiet.\n\nThis is the browser workspace system, extracted from `frontend/src/index.css`, `WorkspaceShell.tsx`, the shared button/card components and the fields in `App.tsx`. The manual has its own contract in `docs/DESIGN.md`. This records the shipped implementation; it does not establish seed-process compliance. The direction contract discloses that the seed was not run.",
-    "keyCharacteristics":["Neutral light and dark chrome.","A visible labeled exposure preview beside or above precise editing.","Compact task navigation and optional media.","Numeric entry, selection and recovery feedback remain explicit."],
-    "rules":[{"name":"The Artifact Color Rule","body":"Keep diagnostic colors in the exposure artifact and its editing controls; use neutral chrome around them.","section":"colors"},{"name":"The Precision Rule","body":"Keep exact values readable and editable through numeric or text fields alongside graphical controls.","section":"typography"},{"name":"The Preview and Edit Rule","body":"Keep selected-band editing immediately below the visible preview on phone and beside the preview on desktop.","section":"layout"}],
-    "dos":["Do keep diagnostic colors in the artifact and its editing controls.","Do retain labeled units, exact input values and visible selection.","Do preserve focus visibility, touch targets and reduced-motion behavior."],
-    "donts":["Don't require media import before editing the exposure scale.","Don't replace the labeled exposure scale with a decorative grayscale ramp.","Don't treat illustration or emulated screenshots as calibrated display evidence."]
+    "northStar": "A neutral editing bench",
+    "overview": "The workspace applies the user's Lightroom direction through restrained neutral surfaces, a prominent exposure scale and precise controls. Diagnostic colors are the artifact being edited. System sans typography keeps the surrounding tool quiet.\n\nThis is the browser workspace system, extracted from `frontend/src/index.css`, `WorkspaceShell.tsx`, the shared button/card components and the fields in `App.tsx`. The manual has its own contract in `docs/DESIGN.md`. This records the shipped implementation; it does not establish seed-process compliance. The direction contract discloses that the seed was not run.",
+    "keyCharacteristics": [
+      "Neutral light and dark chrome.",
+      "A visible labeled exposure preview beside or above precise editing.",
+      "Compact task navigation and optional media.",
+      "Numeric entry, selection and recovery feedback remain explicit."
+    ],
+    "rules": [
+      {
+        "name": "The Artifact Color Rule",
+        "body": "Keep diagnostic colors in the exposure artifact and its editing controls; use neutral chrome around them.",
+        "section": "colors"
+      },
+      {
+        "name": "The Precision Rule",
+        "body": "Keep exact values readable and editable through numeric or text fields alongside graphical controls.",
+        "section": "typography"
+      },
+      {
+        "name": "The Preview and Edit Rule",
+        "body": "Keep the graph and selected-band editing together in Bands on phone, and keep the preview beside editing on desktop. Palette uses its compact exposure preview.",
+        "section": "layout"
+      }
+    ],
+    "dos": [
+      "Do keep diagnostic colors in the artifact and its editing controls.",
+      "Do retain labeled units, exact input values and visible selection.",
+      "Do preserve focus visibility, touch targets and reduced-motion behavior."
+    ],
+    "donts": [
+      "Don't require media import before editing the exposure scale.",
+      "Don't replace the labeled exposure scale with a decorative grayscale ramp.",
+      "Don't treat illustration or emulated screenshots as calibrated display evidence."
+    ]
   }
 }

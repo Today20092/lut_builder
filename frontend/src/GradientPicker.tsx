@@ -1,6 +1,7 @@
 import { useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { BandNumberInput } from "./BandNumberInput"
+import { WorkspaceDisclosure } from "./WorkspaceTask"
 import { hexToOklch, isHexColor, maxSrgbChroma, oklchToHex, sampleOklabRamp, type GradientBlend, type HuePath, type OklchAnchor } from "./editor"
 
 const fieldClass = "h-9 w-full min-w-0 rounded-md border border-input bg-transparent px-3 text-sm"
@@ -40,14 +41,13 @@ function OklchPicker({ color, onChange }: { color: string; onChange: (color: str
     <p className="text-xs text-muted-foreground">{channels.c > maxSrgbChroma(channels) + 0.002
       ? "Outside sRGB: chroma is reduced in the saved color to keep it displayable."
       : "OKLCH controls · colors are saved as sRGB hex."}</p>
-    <details>
-      <summary className="cursor-pointer text-xs font-medium">Exact hex color</summary>
+    <WorkspaceDisclosure title="Exact hex color">
       <label className="mt-2 grid gap-1 text-sm">Hex color
         <input aria-label="Selected color hex" className={fieldClass} value={color} aria-invalid={!isHexColor(color)} spellCheck={false} onChange={(event) => onChange(event.target.value)}
           onFocus={() => { if (isHexColor(color)) originalHex.current = color }}
           onKeyDown={(event) => { if (event.key === "Escape" && !event.nativeEvent.isComposing) { event.preventDefault(); event.stopPropagation(); onChange(originalHex.current) } }} />
       </label>
-    </details>
+    </WorkspaceDisclosure>
   </div>
 }
 

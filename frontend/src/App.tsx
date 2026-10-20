@@ -40,6 +40,7 @@ import { browserInterpretations, browserProfiles, browserTargets } from "@/lutEn
 import { defaultFilenameTemplate, outputFilename } from "./outputFilename"
 import { deleteSetupPreset, readSetupPresets, saveSetupPreset, readWorkspaceSession, writeWorkspaceSession, workspaceSessionBackup, setupPresetsBackup, type SetupPreset } from "@/setupPresets"
 import { WorkspaceShell, WorkspacePanel } from "./WorkspaceShell"
+import { WorkspaceDisclosure, WorkspaceTask } from "./WorkspaceTask"
 import { ImportedLookSettings } from "./ImportedLookSettings"
 import { ImportedLookPreview } from "./ImportedLookPreview"
 import { createWorkspaceRuntime, type Preview } from "./workspaceRuntime"
@@ -1004,8 +1005,13 @@ export function App() {
     }).catch((error: unknown) => setLoadStatus(error instanceof Error ? error.message : "Could not replace the saved library."))
   }
 
+  const bandActions = <>
+    <Button type="button" variant="outline" disabled={isGenerating || isLoadingSetup || !sessionReady} onClick={addBand}>Add band</Button>
+    <Button type="button" variant="ghost" aria-label="Undo last band edit" disabled={!undo || isGenerating || isLoadingSetup || !sessionReady} onClick={undoEdit}>Undo<span className="workspace-undo-detail"> last band edit</span></Button>
+  </>
   return (
     <WorkspaceShell setup={setup} busy={isGenerating || isLoadingSetup || !sessionReady}
+      illustration={<details id="photo-result" className="workspace-photo"><summary>Photo illustration · optional</summary><ReferencePreview setup={palettePreview?.valid ? palettePreview.setup : setup} draft={Boolean(palettePreview?.valid)} /><a href="#exposure-bands" className="inline-flex min-h-11 items-center text-sm underline">Back to band editing</a></details>}
       shortcuts={<KeyboardHelp canUndo={Boolean(undo)} onUndo={undoEdit} />}
       stage={(openBands) => <>
         <ExposurePreview setup={setup} preview={palettePreview} minimum={graphMinimum} maximum={graphMaximum} unit={graphPreview.unit} />
@@ -1019,12 +1025,11 @@ export function App() {
             onChange={(index, stop) => editSetup((current) => setup.fill_mode ? updateFillBoundary(current, index, stop, movementIncrement) : updateBand(current, index, { stop }), index)}
             onWidthChange={(index, width) => editSetup((current) => updateBand(current, index, { width }), index)} />
         </fieldset>
-        <div className="workspace-band-picker" aria-label="Select exposure band">
+        <div className="workspace-band-toolbar"><div className="workspace-band-picker" aria-label="Select exposure band">
           {setup.bands.map((band, index) => <Button key={bandId(band)} type="button" variant={selectedBand === index ? "secondary" : "ghost"} aria-pressed={selectedBand === index} aria-label={`Select band ${index + 1}`} disabled={isGenerating || isLoadingSetup || !sessionReady} onClick={() => { selectBand(index); openBands() }}><span className="workspace-swatch" style={{ backgroundColor: band.color }} aria-hidden="true" />{index + 1}</Button>)}
-        </div>
+        </div><div className="workspace-mobile-band-actions">{bandActions}</div></div>
         <ImportedLookPreview setup={setup} />
         <p className="workspace-stage-hint">Select a band to edit its color and exposure range.</p>
-        <details id="photo-result" className="workspace-photo"><summary>Photo illustration · optional</summary><ReferencePreview setup={palettePreview?.valid ? palettePreview.setup : setup} draft={Boolean(palettePreview?.valid)} /><a href="#exposure-bands" className="inline-flex min-h-11 items-center text-sm underline" onClick={openBands}>Back to band editing</a></details>
       </>}
       feedback={<>
         <p className="workspace-session-status" role="status">{sessionStatus || (!sessionReady ? "Restoring workspace…" : "")}</p>
@@ -1036,8 +1041,7 @@ export function App() {
         </div>
       </>}>
         <WorkspacePanel value="files">
-        <details className="rounded-lg border p-4">
-          <summary className="cursor-pointer font-medium">Load setup · optional</summary>
+        <WorkspaceDisclosure className="rounded-lg border p-4" title="Load setup · optional">
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
             <label className="grid gap-1 text-sm font-medium">Saved setup in this browser
                 <select className={fieldClass} value={selectedPreset} onChange={(event) => { setSelectedPreset(event.target.value); setDeletingPreset(false) }}><option value="">Choose a setup</option>{setupPresets.map((preset) => <option key={preset.name} value={preset.name}>{preset.name}</option>)}</select>
@@ -1051,7 +1055,7 @@ export function App() {
             </div>
               {deletingPreset && <p className="text-sm sm:col-span-2">Delete “{selectedPreset}” from this browser? This cannot be undone. Your current editing setup will stay open.</p>}
           </div>
-        </details>
+        </WorkspaceDisclosure>
         </WorkspacePanel>
         <WorkspacePanel value="configuration">
         <Card id="configuration" className="scroll-mt-6">
@@ -1072,8 +1076,7 @@ export function App() {
                 {catalog.targets.map((target) => <option key={target}>{target}</option>)}
               </select>
             </label>
-            <details className="sm:col-span-2 rounded-lg border p-3 text-sm">
-              <summary className="cursor-pointer font-medium">Output settings · {setup.cube_size}³ · {setup.legal_range ? "Legal range" : "Full range"}</summary>
+            <WorkspaceDisclosure className="sm:col-span-2 rounded-lg border p-3 text-sm" title={<>Output settings · {setup.cube_size}³ · {setup.legal_range ? "Legal range" : "Full range"}</>}>
               <div className="mt-4 grid gap-4 sm:grid-cols-2">
             <label className="grid gap-1 text-sm font-medium">
               <span className="flex items-center gap-1.5">Cube size <InfoTooltip text="Higher cube sizes sample the transform more precisely but produce larger LUT files and take longer to generate." /></span>
@@ -1103,8 +1106,7 @@ export function App() {
                 </div>
               </details>
             </fieldset>
-            <details className="text-sm sm:col-span-2">
-              <summary className="cursor-pointer font-medium">Customize output filename</summary>
+            <WorkspaceDisclosure className="text-sm sm:col-span-2" title="Customize output filename">
             <div className="mt-3 grid max-w-2xl gap-2">
               <label className="grid gap-1 font-medium">Output filename template
                 <input aria-label="Output filename template" className={fieldClass} value={setup.output} onChange={(e) => patchSetup({ output: e.target.value })} />
@@ -1112,15 +1114,15 @@ export function App() {
               <p className="text-xs text-muted-foreground">Use %inputgamma%, %targetgamma%, and %id%, or type a fixed name. The ID changes with your setup.</p>
               <Button type="button" size="sm" variant="outline" className="justify-self-start" onClick={() => patchSetup({ output: defaultFilenameTemplate })}>Use automatic filename</Button>
             </div>
-            </details>
+            </WorkspaceDisclosure>
               </div>
-            </details>
+            </WorkspaceDisclosure>
           </CardContent>
         </Card>
-        <div className="workspace-import-settings">
+        <div className="workspace-import-settings"><WorkspaceTask id="import" title="Imported creative LUT" desktopInline>
           {setup.imported_lut && <p className="mb-3 text-xs text-muted-foreground">Input, display encoding, output range and color base belong to the confirmed look. Replace the imported file and confirm its interpretation to change them, or remove the look to use standard settings.</p>}
           <ImportedLookSettings setup={setup} onChange={patchSetup} />
-        </div>
+        </WorkspaceTask></div>
 
         </WorkspacePanel>
         <WorkspacePanel value="presets">
@@ -1143,8 +1145,7 @@ export function App() {
                   setBandStatus("Exposure preset applied. Undo last band edit restores your previous bands.")
                 }}>Use preset</Button>
               </div>
-              <details className="text-xs text-muted-foreground">
-                <summary className="flex min-h-11 cursor-pointer items-center text-sm font-medium text-foreground">Details</summary>
+              <WorkspaceDisclosure className="text-xs text-muted-foreground" title="Details">
                 <div className="grid gap-2 pb-2">
               <p>{exposurePreset === "contrast-checker"
                 ? "Dark green → light green → gray → light pink → bright pink. Boundaries: −1.5, −0.5, +0.5, +1.5 stops from 18% gray. Compare face and scene contrast; colors do not establish a universal safe skin exposure."
@@ -1154,16 +1155,20 @@ export function App() {
               <p>{setup.fill_mode ? "Drag dividers to resize zones. Edit colors in the table." : "Drag bands to move them, or edit values in the table."}</p>
               <p>Stops measure scene exposure; IRE measures camera-log levels; Fill colors every zone. <a className="underline" href={`${import.meta.env.BASE_URL}docs/controls/#exposure-bands`} target="_blank" rel="noreferrer">Bands and palette guide (new tab)</a></p>
                 </div>
-              </details>
+              </WorkspaceDisclosure>
             </section>
           </div>
         </WorkspacePanel>
         <WorkspacePanel value="bands">
         <Card id="exposure-bands" className="min-w-0 scroll-mt-6 overflow-visible">
           <CardHeader className="grid gap-4">
-            <div>
+            <div className="workspace-band-title">
               <CardTitle className="text-lg font-semibold"><h2>Exposure bands</h2></CardTitle>
             </div>
+            <div className="workspace-band-actions flex items-center justify-between gap-2">
+              {bandActions}
+            </div>
+            <WorkspaceTask id="band-settings" title="Band setup & graph settings" lead={<>
             <fieldset className="grid grid-cols-3 gap-2" aria-label="Band mode">
               <legend className="sr-only">Band mode</legend>
               {([
@@ -1181,12 +1186,7 @@ export function App() {
               </label>)}
             </fieldset>
             {mode === "ire" && <p className="text-xs text-muted-foreground">{setup.ire_basis === "camera" ? `${setup.profile} · camera-log input · full-code-range scale` : "Legacy setup · target-display IRE"}{setup.ire_basis !== "camera" && <> · <button type="button" className="font-medium text-foreground underline" onClick={() => editSetup((current) => changeMode(current, "ire", catalog.palette))}>Switch to camera-log IRE</button></>}</p>}
-            <div className="flex items-center justify-between gap-2">
-              <Button type="button" variant="outline" onClick={addBand}>Add band</Button>
-              <Button type="button" variant="ghost" disabled={!undo} onClick={undoEdit}>Undo last band edit</Button>
-            </div>
-            <details className="rounded-lg border p-3">
-              <summary className="cursor-pointer text-sm font-medium">Band setup &amp; graph settings</summary>
+            </>}>
             <div className="mt-4 grid min-w-0 gap-5">
               <section className="grid gap-3" aria-label="Replace arrangement">
                 <div className="grid grid-cols-1 items-end gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
@@ -1243,7 +1243,7 @@ export function App() {
                 </div>
               </section>}
             </div>
-            </details>
+            </WorkspaceTask>
           </CardHeader>
           <CardContent className="grid gap-4">
             {graphPreview ? (
@@ -1292,6 +1292,7 @@ export function App() {
           <PaletteEditor key={`${revision}:${paletteRevision}`} setup={setup} palette={catalog.palette} onApply={applyPalette} onPreview={setPalettePreview} />
         </WorkspacePanel>
         <WorkspacePanel value="configuration">
+        <WorkspaceTask id="signal-warnings" title="Recorded-signal limit warnings" desktopInline>
         <Card>
             <CardHeader>
               <CardTitle><h2>Recorded-signal limit warnings</h2></CardTitle>
@@ -1321,10 +1322,10 @@ export function App() {
               </div>
             </CardContent>
         </Card>
-
+        </WorkspaceTask>
         </WorkspacePanel>
         <WorkspacePanel value="media">
-        <details className="min-w-0 rounded-lg border p-4"><summary className="cursor-pointer font-medium">Use original camera media · image or video</summary><div className="mt-4"><p className="mb-3 text-xs text-muted-foreground">Camera verification requires known source settings. <a className="underline" href={`${import.meta.env.BASE_URL}docs/verification/`} target="_blank" rel="noreferrer">Preview and source interpretation help (new tab)</a></p><WorkbenchPreview preview={preview} setup={{ ...setup, output: outputFilename(setup) }} catalog={catalog} browserOnly={browserOnly} /></div></details>
+        <WorkspaceDisclosure className="min-w-0 rounded-lg border p-4" title="Use original camera media · image or video"><div className="mt-4"><p className="mb-3 text-xs text-muted-foreground">Camera verification requires known source settings. <a className="underline" href={`${import.meta.env.BASE_URL}docs/verification/`} target="_blank" rel="noreferrer">Preview and source interpretation help (new tab)</a></p><WorkbenchPreview preview={preview} setup={{ ...setup, output: outputFilename(setup) }} catalog={catalog} browserOnly={browserOnly} /></div></WorkspaceDisclosure>
         </WorkspacePanel>
         <WorkspacePanel value="files">
         <Card>

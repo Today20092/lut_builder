@@ -4,6 +4,7 @@ import { Data, Effect, Result, Schema } from "effect"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { GradientPicker } from "./GradientPicker"
+import { WorkspaceTask } from "./WorkspaceTask"
 import { isTypingTarget } from "./keyboard"
 import { applyColorPreset, applyLightnessProfile, exposurePaletteScale, exposureReferenceValue, hexToOklch, isHexColor, sampleOklabRamp, type GradientBlend, type HuePath, type PaletteColor, type Setup } from "./editor"
 
@@ -196,8 +197,7 @@ export function PaletteEditor({ setup, palette, onApply, onPreview }: { setup: S
     </div>
     <p className="text-xs text-muted-foreground">{blend === "colorful" ? "Colorful blends around the color wheel. Longer passes through more hues; colors are fitted to sRGB." : "Direct blends straight between colors and may pass through gray. Hue path does not affect this blend."}</p>
     <GradientPicker displayColors={ramp} colors={draft.colors} positions={positions} blend={blend} huePath={huePath} exposureScale={mapping === "exposure" ? exposurePaletteScale(setup) : undefined} exposureUnit={setup.band_mode === "stops" ? "stops" : "IRE"} onChange={(colors, positions) => setDraft({ ...draft, colors, positions })} />
-    <details className="rounded-md border p-3">
-    <summary className="cursor-pointer text-sm font-medium">Advanced: adjust all colors</summary>
+    <WorkspaceTask id="palette-adjustments" title="Advanced: adjust all colors" className="rounded-md border p-3">
     <div className="mt-3 grid gap-3">
     <p className="text-xs text-muted-foreground">Optional finishing controls for the whole palette. They change the preview and applied colors, while your individual dots keep their chosen colors.</p>
     <fieldset className="flex flex-wrap gap-2">
@@ -215,7 +215,7 @@ export function PaletteEditor({ setup, palette, onApply, onPreview }: { setup: S
     <p id="palette-intensity-help" className="text-xs text-muted-foreground">100% keeps your chosen color strength. 0% makes the palette gray.</p>
     <Button type="button" variant="outline" size="sm" className="justify-self-start" disabled={draft.brightness === "custom" && draft.intensity === 100} onClick={() => setDraft({ ...draft, brightness: "custom", intensity: 100 })}>Reset adjustments</Button>
     </div>
-    </details>
+    </WorkspaceTask>
     </>}
     {!valid && <p role="alert" className="text-sm text-destructive">Correct the invalid anchor color before applying or saving.</p>}
     <p role="status" className="text-sm">{audition ? "Draft · review your bands above." : !pending ? "Palette applied to bands." : "Current band colors are kept."}</p>
@@ -225,8 +225,7 @@ export function PaletteEditor({ setup, palette, onApply, onPreview }: { setup: S
       <Button ref={applyButton} type="button" className="justify-self-start" disabled={!valid || setup.bands.length === 0} onClick={apply}>Use palette</Button>
       {audition && <Button type="button" variant="outline" onClick={cancelPreview}>Cancel preview</Button>}
     </div>}
-    <details className="rounded-md border p-3">
-    <summary className="cursor-pointer text-sm font-medium">Save and reuse palettes</summary>
+    <WorkspaceTask id="saved-palettes" title="Save and reuse palettes" className="rounded-md border p-3">
     <div className="mt-3 grid gap-2">
       <p className="text-xs text-muted-foreground">Stored in this browser only.</p>
         <select aria-label="Reuse saved palette" className={fieldClass} value={selected} onChange={(event) => {
@@ -244,7 +243,7 @@ export function PaletteEditor({ setup, palette, onApply, onPreview }: { setup: S
       </div>
       <p className="text-xs text-muted-foreground">Saving stores this draft, not the bands. Export JSON keeps applied band colors with your setup.</p>
     </div>
-    </details>
+    </WorkspaceTask>
     <p role="status" className="text-xs text-muted-foreground">{library.message}</p>
   </section>
 }
