@@ -218,6 +218,12 @@ show their content directly.
 
 ### Exposure selection and comparison
 
+Mobile Presets uses three visible sections: IRE, Fill and Stops. Each preset has
+a short description and a full-width Use button with at least a 48px touch target.
+Standard and Detailed choices reuse the existing arrangements. Apply feedback
+appears beside the chosen action; Bands provides editing and undo. Desktop retains
+the compact preset selector.
+
 The labeled stop scale, selected graph handle and numbered color swatches connect
 the artifact to its editor. Imported comparison labels distinguish camera exposure
 reference, look, and look plus diagnostics. Optional photo illustration remains a

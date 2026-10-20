@@ -43,6 +43,8 @@ import { WorkspaceShell, WorkspacePanel } from "./WorkspaceShell"
 import { WorkspaceActionText, WorkspaceDisclosure, WorkspaceTask } from "./WorkspaceTask"
 import { ImportedLookSettings } from "./ImportedLookSettings"
 import { ImportedLookPreview } from "./ImportedLookPreview"
+import { MobileExposurePresets } from "./MobileExposurePresets"
+import { useMobileWorkspace } from "./workspaceNavigation"
 import { createWorkspaceRuntime, type Preview } from "./workspaceRuntime"
 import { createSetupReplacement, createSetupWorkspace, reduceSetupWorkspace } from "./setupReplacement"
 import {
@@ -771,6 +773,7 @@ function InfoTooltip({ text }: { text: string }) {
 }
 
 export function App() {
+  const mobileWorkspace = useMobileWorkspace()
   const [runtime] = useState(() => createWorkspaceRuntime(window.LUT_BUILDER_TOKEN))
   const { browserOnly } = runtime
   const catalog = window.LUT_BUILDER_CATALOG ?? browserCatalog
@@ -956,6 +959,19 @@ export function App() {
     }).catch((error: unknown) => setSaveStatus(error instanceof Error ? error.message : "Could not save this preset."))
   }
 
+  function applySelectedExposurePreset(preset: ExposurePreset, arrangement?: BandPreset) {
+    setExposurePreset(preset)
+    setPalettePreview(null)
+    setPaletteRevision((value) => value + 1)
+    setRemovingBandIndex(null)
+    editSetup((current) => {
+      const next = applyExposurePreset(current, catalog.palette, preset)
+      if (!arrangement) return next
+      return next.fill_mode ? applyFillPreset(next, catalog.palette, arrangement) : applyBandPreset(next, catalog.palette, arrangement)
+    }, 0)
+    setBandStatus("Exposure preset applied. Undo last band edit restores your previous bands.")
+  }
+
   async function loadPreset() {
     const preset = setupPresets.find((item) => item.name === selectedPreset)
     if (!preset) return
@@ -1128,7 +1144,7 @@ export function App() {
         <WorkspacePanel value="presets">
           <div className="workspace-preset-panel">
             <h2 className="font-semibold">Exposure presets</h2>
-            <section className="grid gap-2" aria-label="Exposure presets">
+            {mobileWorkspace ? <MobileExposurePresets onApply={applySelectedExposurePreset} /> : <section className="grid gap-2" aria-label="Exposure presets">
               <div className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-2">
                 <label className="grid min-w-0 gap-1.5 text-sm font-medium">Start with a preset
                   <select className={fieldClass} value={exposurePreset} onChange={(event) => setExposurePreset(event.target.value as ExposurePreset)}>
@@ -1137,13 +1153,7 @@ export function App() {
                     <option value="camera-ire">Camera-log IRE · 7 bands</option>
                   </select>
                 </label>
-                <Button type="button" variant="outline" onClick={() => {
-                  setPalettePreview(null)
-                  setPaletteRevision((value) => value + 1)
-                  setRemovingBandIndex(null)
-                  editSetup((current) => applyExposurePreset(current, catalog.palette, exposurePreset), 0)
-                  setBandStatus("Exposure preset applied. Undo last band edit restores your previous bands.")
-                }}>Use preset</Button>
+                <Button type="button" variant="outline" onClick={() => applySelectedExposurePreset(exposurePreset)}>Use preset</Button>
               </div>
               <WorkspaceDisclosure className="text-xs text-muted-foreground" title="Details">
                 <div className="grid gap-2 pb-2">
@@ -1156,7 +1166,7 @@ export function App() {
               <p>Stops measure scene exposure; IRE measures camera-log levels; Fill colors every zone. <a className="underline" href={`${import.meta.env.BASE_URL}docs/controls/#exposure-bands`} target="_blank" rel="noreferrer">Bands and palette guide (new tab)</a></p>
                 </div>
               </WorkspaceDisclosure>
-            </section>
+            </section>}
           </div>
         </WorkspacePanel>
         <WorkspacePanel value="bands">

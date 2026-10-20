@@ -10,6 +10,11 @@ navigation. **More** contains **Configure** and **Setups**; **Export LUT** is in
 header. Occasional settings open their own screen with **Back**. Desktop retains
 the side navigation and preview beside the controls.
 
+On mobile, **Presets** shows separate **IRE**, **Fill**, and **Stops** sections.
+Tap a preset’s **Use** button to apply it directly. Standard and Detailed options
+reuse the existing arrangements; **Undo last band edit** in Bands restores your
+previous bands and mode. Desktop keeps its preset picker.
+
 The phone exposure graph scrolls with **Bands**. **Palette** has a compact preview;
 other tasks use the full screen without the exposure stage above their controls.
 

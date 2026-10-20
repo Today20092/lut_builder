@@ -4,6 +4,16 @@ import { readFile } from 'node:fs/promises'
 
 const constantLookCube = 'TITLE "Constant camera look"\nLUT_3D_SIZE 2\n' + Array(8).fill('0.125 0.25 0.5').join('\n') + '\n'
 
+async function applyPreset(page: Page, preset: string) {
+  if (page.viewportSize()!.width < 960) {
+    const names: Record<string, string> = { 'contrast-checker': 'Contrast Checker', 'three-band': 'Three-band Exposure', 'camera-ire': 'Camera-log IRE' }
+    await page.getByRole('button', { name: `Use ${names[preset]}`, exact: true }).click()
+  } else {
+    await page.getByLabel('Start with a preset', { exact: false }).selectOption(preset)
+    await page.getByRole('button', { name: 'Use preset', exact: true }).click()
+  }
+}
+
 test.beforeEach(async ({ page }) => {
   await page.goto('./')
   await expect(page.locator('.workspace')).toBeVisible()
@@ -272,6 +282,22 @@ test('output summary shares the committed preview and shows ranges without hex c
   await page.screenshot({ path: `../.scratch/output-summary-${test.info().project.name}.png`, fullPage: true, clip: (await output.boundingBox())! })
 })
 
+test('mobile preset sections apply existing standard and detailed arrangements @checks', async ({ page }) => {
+  test.skip(page.viewportSize()!.width >= 960, 'Mobile grouped preset browser')
+  const cases = [
+    ['Detailed IRE', 9], ['Standard Fill', 5], ['Detailed Fill', 9],
+    ['Standard Stops', 7], ['Detailed Stops', 10],
+  ] as const
+  for (const [name, count] of cases) {
+    await panel(page, 'Presets')
+    await page.getByRole('button', { name: `Use ${name}`, exact: true }).click()
+    await panel(page, 'Bands')
+    await expect(page.locator('table[aria-label="Band colors and positions"] tbody tr')).toHaveCount(count)
+    await page.getByRole('button', { name: 'Undo last band edit', exact: true }).click()
+    await expect(page.locator('table[aria-label="Band colors and positions"] tbody tr')).toHaveCount(1)
+  }
+})
+
 test('complete presets lead into editable bands and undo without changing configuration @checks', async ({ page }) => {
   await panel(page, 'Configure')
   const camera = page.getByLabel('Camera recording', { exact: false })
@@ -282,16 +308,25 @@ test('complete presets lead into editable bands and undo without changing config
   await page.getByRole('button', { name: 'Customize gradient', exact: true }).click()
   await page.getByLabel('Color hue value', { exact: true }).fill('240')
   await panel(page, 'Presets')
-  const preset = page.getByLabel('Start with a preset', { exact: false })
-  await preset.selectOption('contrast-checker')
-  await page.getByRole('button', { name: 'Use preset', exact: true }).click()
+  await applyPreset(page, 'contrast-checker')
   if (page.viewportSize()!.width >= 960) {
     const details = page.getByRole('region', { name: 'Exposure presets' }).locator('details')
     await expect(details).not.toHaveAttribute('open')
     await details.locator('summary').click()
     await expect(details.getByText(/Dark green → light green/)).toBeVisible()
     await details.locator('summary').click()
-  } else await expect(page.getByText(/Dark green → light green/)).toBeVisible()
+  } else {
+    await expect(page.getByRole('combobox', { name: /^Start with a preset/ })).toHaveCount(0)
+    for (const mode of ['IRE', 'Fill', 'Stops']) {
+      const group = page.getByRole('region', { name: `${mode} presets`, exact: true })
+      await expect(group).toBeVisible()
+      for (const button of await group.getByRole('button').all()) {
+        expect((await button.boundingBox())!.height).toBeGreaterThanOrEqual(44)
+      }
+    }
+    await accessible(page)
+    await page.screenshot({ path: test.info().outputPath('mobile-presets.png'), fullPage: true })
+  }
   await panel(page, 'Bands')
   await bandMode(page, 'Fill Color every zone')
   const table = page.getByRole('table', { name: 'Band colors and positions' })
@@ -306,14 +341,12 @@ test('complete presets lead into editable bands and undo without changing config
   await page.getByRole('button', { name: 'Undo last band edit', exact: true }).click()
   await expect(table.locator('tbody tr')).toHaveCount(initial)
   await panel(page, 'Presets')
-  await preset.selectOption('three-band')
-  await page.getByRole('button', { name: 'Use preset', exact: true }).click()
+  await applyPreset(page, 'three-band')
   await panel(page, 'Bands')
   await expect(table.locator('tbody tr')).toHaveCount(3)
   await expect(page.getByRole('textbox', { name: 'Band 1 stops', exact: true })).toHaveValue('-2')
   await panel(page, 'Presets')
-  await preset.selectOption('camera-ire')
-  await page.getByRole('button', { name: 'Use preset', exact: true }).click()
+  await applyPreset(page, 'camera-ire')
   await panel(page, 'Bands')
   await bandMode(page, 'IRE Camera log level')
   await expect(table.locator('tbody tr')).toHaveCount(7)
@@ -400,8 +433,7 @@ test('phone navigation gives unrelated tasks the full viewport @checks', async (
 
 test('selected band, panels, session restore and keyboard remain usable @checks', async ({ page }) => {
   await panel(page, 'Presets')
-  await page.getByLabel('Start with a preset', { exact: false }).selectOption('three-band')
-  await page.getByRole('button', { name: 'Use preset', exact: true }).click()
+  await applyPreset(page, 'three-band')
   await panel(page, 'Bands')
   await page.getByRole('button', { name: 'Select band 2', exact: true }).click()
   await expect(page.locator('.workspace')).toHaveAttribute('data-section', 'bands')
@@ -503,8 +535,7 @@ test('confirmed imported look edits, compares and exports portably without chang
   await page.screenshot({ path: test.info().outputPath('imported-workspace.png'), fullPage: true })
   await panel(page, 'Presets')
   for (const preset of ['contrast-checker', 'camera-ire', 'three-band']) {
-    await page.getByRole('combobox', { name: /^Start with a preset/ }).selectOption(preset)
-    await page.getByRole('button', { name: 'Use preset', exact: true }).click()
+    await applyPreset(page, preset)
   }
   await panel(page, 'Bands')
   await page.getByRole('button', { name: 'Select band 1', exact: true }).click()
