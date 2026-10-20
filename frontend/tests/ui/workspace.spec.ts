@@ -9,6 +9,7 @@ test.beforeEach(async ({ page }) => {
   await expect(page.locator('.workspace')).toBeVisible()
   await expect(page.getByRole('button', { name: 'Add band', exact: true })).toBeEnabled()
   await page.evaluate(() => document.fonts.ready)
+  await expect(page.locator('.workspace-session-status')).toContainText('Session saved on this device.')
 })
 
 async function panel(page: Page, name: string) {
@@ -425,6 +426,10 @@ test('selected band, panels, session restore and keyboard remain usable @checks'
     expect(bounds.y + bounds.height).toBeLessThanOrEqual(navigation.y)
   }
   await expect(page.getByText(/^Session saved on this device/)).toBeVisible()
+  await expect.poll(() => page.evaluate(() => {
+    const raw = localStorage.getItem('lut-builder.workspace-session.v1')
+    return raw ? JSON.parse(raw).bands?.[1]?.stop : null
+  })).toBe(0.75)
   await page.reload()
   await expect(page.getByText('Last session restored. Reselect any camera media to verify; media files are not stored.', { exact: true })).toBeVisible()
   await page.getByRole('button', { name: 'Select band 2', exact: true }).click()

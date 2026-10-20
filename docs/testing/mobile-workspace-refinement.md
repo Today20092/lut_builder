@@ -38,6 +38,9 @@ viewport changes; an unconfirmed imported LUT draft survives the same transition
 - New phone navigation and touch checks cover the four phone projects. They verify
   task isolation, native file-input containment, focus return, graph scrolling and
   horizontal touch editing. Desktop skips these phone-only cases.
+- Screenshot setup waits for the initial session write. The restore test polls the
+  serialized edited value before reloading, respecting the existing 500ms autosave
+  debounce rather than treating an older saved-status message as proof of durability.
 - Separate Chromium, WebKit and Firefox runs passed navigation, task isolation,
   media containment, exact editing/undo, landscape overflow and fields remaining
   above the bottom navigation.
