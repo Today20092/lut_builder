@@ -794,6 +794,7 @@ export function App() {
   const [sessionReady, setSessionReady] = useState(false)
   const [sessionBlocked, setSessionBlocked] = useState(false)
   const [sessionStatus, setSessionStatus] = useState("")
+  const sessionProblem = sessionBlocked || /^(Could not|Session not saved)/.test(sessionStatus)
   const [sessionRetry, setSessionRetry] = useState(0)
   useEffect(() => {
     const controller = new AbortController()
@@ -1039,12 +1040,12 @@ export function App() {
       </>}
       feedback={<>
         {sessionReady && presetsBlocked && loadStatus && <p role="alert" className="p-3 text-sm">{loadStatus}</p>}
-        {(sessionBlocked || sessionStatus.startsWith("Could not")) && <p className="workspace-session-error" role="status">{sessionStatus}</p>}
+        {sessionProblem && <p className="workspace-session-error" role="status">{sessionStatus}</p>}
         {sessionBlocked && <div className="grid gap-2 p-3"><Button type="button" variant="outline" onClick={downloadSessionBackup}><Download data-icon="inline-start" aria-hidden="true" />Download saved session backup</Button><Button type="button" variant="outline" onClick={() => { setSessionBlocked(false); setSessionRetry((value) => value + 1) }}><RefreshCw data-icon="inline-start" aria-hidden="true" />Replace saved session with current setup</Button></div>}
         {!sessionBlocked && sessionStatus.startsWith("Could not") && <Button type="button" variant="outline" onClick={() => setSessionRetry((value) => value + 1)}><RefreshCw data-icon="inline-start" aria-hidden="true" />Retry session save</Button>}
       </>}>
         <WorkspacePanel value="files">
-        <p className="workspace-session-status" role="status">{!sessionBlocked && !sessionStatus.startsWith("Could not") ? sessionStatus || (!sessionReady ? "Restoring workspace…" : "") : ""}</p>
+        <p className="workspace-session-status" role="status">{!sessionProblem ? sessionStatus || (!sessionReady ? "Restoring workspace…" : "") : ""}</p>
         <div className={loadStatus || isLoadingSetup || previousSetup ? "workspace-feedback" : "hidden"} aria-label="Setup loading feedback">
           <p role="status" className="text-sm">{isLoadingSetup ? "Loading setup…" : loadStatus}</p>
           {previousSetup && <Button type="button" variant="outline" onClick={setupReplacement.restore}><History data-icon="inline-start" aria-hidden="true" />Restore previous setup</Button>}
@@ -1171,7 +1172,7 @@ export function App() {
               {bandActions}
             </div>
             <WorkspaceTask id="band-settings" title="Band setup & graph settings" icon={SlidersHorizontal} lead={<>
-            <fieldset className="grid grid-cols-3 gap-2" aria-label="Band mode">
+            <fieldset className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,5rem),1fr))] gap-2" aria-label="Band mode">
               <legend className="sr-only">Band mode</legend>
               {([
                 ["stops", "Stops", "Mark exposure", "−7   0   +7"],

@@ -353,6 +353,20 @@ test('mode choices have visible examples and routine recovery stays in Setups @c
   await panel(page, 'Setups')
   await expect(page.locator('.workspace-session-status')).toBeVisible()
   await accessible(page)
+  await panel(page, 'Bands')
+  await page.evaluate(() => {
+    const save = Storage.prototype.setItem
+    Storage.prototype.setItem = function (key, value) {
+      if (key === 'lut-builder.workspace-session.v1') throw new DOMException('Storage full', 'QuotaExceededError')
+      save.call(this, key, value)
+    }
+  })
+  const position = page.getByRole('textbox', { name: 'Band 1 stops', exact: true })
+  await position.fill('0.5')
+  await position.press('Enter')
+  await expect(page.locator('.workspace-session-error')).toContainText('Could not save your session')
+  await expect(page.locator('.workspace-session-error')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Retry session save', exact: true })).toBeVisible()
 })
 
 test('complete presets lead into editable bands and undo without changing configuration @checks', async ({ page }) => {
@@ -694,11 +708,13 @@ test('reviewed UI screenshots @visual', async ({ page }) => {
   test.skip(process.platform !== 'linux', 'Use pnpm test:ui:container for the canonical Linux screenshots; native checks still run.')
   await expect.soft(page).toHaveScreenshot('workspace.png', { fullPage: true })
   await panel(page, 'Presets')
+  await page.screenshot({ path: test.info().outputPath('presets.png'), fullPage: true, animations: 'disabled' })
   await expect.soft(page).toHaveScreenshot('presets.png', { fullPage: true })
   await panel(page, 'Bands')
   await disclosure(page, 'Band setup & graph settings')
   await snapshot(page, page.getByRole('group', { name: 'Band mode', exact: true }), 'band-modes.png')
   await panel(page, 'Setups')
+  await page.screenshot({ path: test.info().outputPath('setups.png'), fullPage: true, animations: 'disabled' })
   await expect.soft(page).toHaveScreenshot('setups.png', { fullPage: true })
   await panel(page, 'Configure')
   await snapshot(page, page.locator('#configuration'), 'configuration.png')

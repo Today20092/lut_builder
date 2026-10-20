@@ -231,7 +231,9 @@ details.border[open] > summary { margin-bottom: 0; }
 .workspace fieldset { min-width: 0; }
 .workspace legend { max-width: 100%; }
 .workspace [data-slot="input"], .workspace [data-slot="native-select"] { min-height: 2.5rem; }
-.workspace-preset-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 1rem; padding-block: .5rem; }
+.workspace-preset-row { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; padding-block: .5rem; }
+.workspace-preset-row > div { flex: 1 1 10rem; min-width: 0; }
+.workspace-preset-row > button { margin-left: auto; }
 .workspace-screen-heading { display: flex; align-items: center; gap: .625rem; }
 .workspace-screen-heading > svg { width: 1.25rem; height: 1.25rem; flex-shrink: 0; color: var(--muted-foreground); }
 .workspace-mobile-title > p { max-width: 42ch; color: var(--muted-foreground); font-size: .875rem; line-height: 1.5; }
