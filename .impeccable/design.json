@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-20T00:01:56Z",
+  "generatedAt": "2026-10-20T00:49:05Z",
   "title": "Design System: LUT Builder Workspace",
   "extensions": {
     "sources": [
@@ -43,7 +43,7 @@
         "purpose": "Contrasting color-track thumb edge, paired with a white border."
       }
     ],
-    "evidence": "Mobile refinement follows the user's approved mobile.html prototype in the local lut-mobile-design-proposal temporary folder and the current WorkspaceShell.tsx, WorkspaceTask.tsx, workspaceNavigation.ts and index.css. Five fixed bottom destinations, dedicated tasks and stage visibility are code-backed. Earlier extraction sampled canonical 390-dark/workspace-actual.png, 1280-light/workspace-actual.png and 320-light/imported-workspace.png; those captures precede this refinement. Final mobile QA is in progress; no physical phone was tested. No seed ran; the direction contract records the historical workflow deviation."
+    "evidence": "Mobile refinement follows the user's approved mobile.html prototype in the local lut-mobile-design-proposal temporary folder and the current WorkspaceShell.tsx, WorkspaceTask.tsx, workspaceNavigation.ts and index.css. Five fixed bottom destinations, dedicated tasks and stage visibility are code-backed. All 32 changed phone baselines were reviewed; Linux run 39348490422 passed 92 tests with four intentional desktop skips, including all 48 strict screenshot comparisons and unchanged desktop baselines. Chromium, WebKit and Firefox covered navigation, edits, undo and landscape; Chromium synthesized touch covered horizontal editing and vertical scrolling. No physical phone was tested. Earlier extraction sampled canonical 390-dark/workspace-actual.png, 1280-light/workspace-actual.png and 320-light/imported-workspace.png before this refinement. The earlier redesign did not run a seed; the direction contract retains that historical workflow deviation."
   },
   "components": [
     {

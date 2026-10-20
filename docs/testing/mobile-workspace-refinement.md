@@ -55,8 +55,11 @@ The canonical Linux screenshot capture is
 All 32 mobile candidates (eight states in four width/theme projects) were reviewed
 and accepted. The strict comparison passed in
 [run 39346873728](https://github.com/Today20092/lut_builder/actions/runs/39346873728),
-including both unchanged desktop baseline sets. The full behavior gate also runs
-with screenshot updates disabled.
+including both unchanged desktop baseline sets. The complete Linux gate passed in
+[run 39348490422](https://github.com/Today20092/lut_builder/actions/runs/39348490422):
+92 passed, with four intentional desktop skips for the two phone-only tests. This
+includes all 48 screenshot comparisons with updates disabled and zero pixel
+tolerance. Application code was at `748dc53`; later changes only record this result.
 
 ## Baseline intent
 
