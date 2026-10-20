@@ -26,11 +26,12 @@ async function panel(page: Page, name: string) {
 
 async function disclosure(page: Page, title: string) {
   const summary = page.locator('summary').filter({ hasText: title })
-  if (await summary.isVisible()) await summary.click()
-  else {
-    const action = page.getByRole('button', { name: title, exact: true })
-    if (await action.isVisible()) await action.click()
+  if (page.viewportSize()!.width >= 960) {
+    await expect(summary).toBeVisible()
+    if (await summary.locator('..').getAttribute('open') === null) await summary.click()
+    await expect(summary.locator('..')).toHaveAttribute('open', '')
   }
+  else if (title !== 'Output settings') await page.getByRole('button', { name: title, exact: true }).click()
 }
 
 async function bandMode(page: Page, name: string, change = false) {
@@ -328,6 +329,28 @@ async function snapshot(page: Page, region: Locator, name: string) {
   await expect.soft(page).toHaveScreenshot(name, { fullPage: true, clip: clip! })
 }
 
+test('phone graph supports touch editing and page scrolling @checks', async ({ page, context }) => {
+  test.skip(page.viewportSize()!.width >= 960, 'Synthesized phone touch only')
+  await page.setViewportSize({ width: page.viewportSize()!.width, height: 740 })
+  const session = await context.newCDPSession(page)
+  async function swipe(x: number, y: number, dx: number, dy: number) {
+    await session.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y }] })
+    for (let i = 1; i <= 12; i++) await session.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: x + dx * i / 12, y: y + dy * i / 12 }] })
+    await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
+  }
+  const center = (await page.getByRole('button', { name: 'Band 1, 0 stops', exact: true }).boundingBox())!
+  await swipe(center.x + center.width / 2, center.y + center.height / 2, 50, 0)
+  const field = page.getByRole('textbox', { name: 'Band 1 stops', exact: true })
+  await expect(field).not.toHaveValue('0')
+  const position = await field.inputValue()
+  await page.evaluate(() => window.scrollTo(0, 0))
+  const graph = (await page.locator('[aria-label^="Editable exposure graph"]').boundingBox())!
+  await swipe(graph.x + 12, graph.y + graph.height - 10, 0, -100)
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0)
+  await expect(field).toHaveValue(position)
+  await session.detach()
+})
+
 test('phone navigation gives unrelated tasks the full viewport @checks', async ({ page }) => {
   test.skip(page.viewportSize()!.width >= 960, 'Phone navigation only')
   const navigation = page.getByRole('navigation', { name: 'Mobile navigation' })
@@ -358,6 +381,7 @@ test('phone navigation gives unrelated tasks the full viewport @checks', async (
   await expect(page.getByRole('textbox', { name: 'Band 1 stops', exact: true })).not.toBeVisible()
   await expect(page.getByRole('radio', { name: 'Stops Mark exposure', exact: true })).toBeVisible()
   await page.getByRole('button', { name: 'Back', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Band setup & graph settings', exact: true })).toBeFocused()
   const field = page.getByRole('textbox', { name: 'Band 1 stops', exact: true })
   await field.scrollIntoViewIfNeeded()
   await expect(field).toBeVisible()
@@ -515,6 +539,7 @@ test('confirmed imported look edits, compares and exports portably without chang
 })
 
 test('reviewed UI screenshots @visual', async ({ page }) => {
+  test.setTimeout(120_000)
   test.skip(process.platform !== 'linux', 'Use pnpm test:ui:container for the canonical Linux screenshots; native checks still run.')
   await expect.soft(page).toHaveScreenshot('workspace.png', { fullPage: true })
   await panel(page, 'Configure')

@@ -1007,7 +1007,7 @@ export function App() {
 
   const bandActions = <>
     <Button type="button" variant="outline" disabled={isGenerating || isLoadingSetup || !sessionReady} onClick={addBand}>Add band</Button>
-    <Button type="button" variant="ghost" aria-label="Undo last band edit" disabled={!undo || isGenerating || isLoadingSetup || !sessionReady} onClick={undoEdit}>Undo<span className="workspace-undo-detail"> last band edit</span></Button>
+    <Button type="button" variant="ghost" aria-label="Undo last band edit" disabled={!undo || isGenerating || isLoadingSetup || !sessionReady} onClick={undoEdit}><span className="workspace-undo-detail">Undo last band edit</span><span className="workspace-undo-short">Undo</span></Button>
   </>
   return (
     <WorkspaceShell setup={setup} busy={isGenerating || isLoadingSetup || !sessionReady}

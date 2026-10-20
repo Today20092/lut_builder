@@ -8,7 +8,7 @@ import { WorkspaceNavigation } from "./workspaceNavigation"
 export function WorkspaceTask({ id, title, children, lead, desktopInline = false, className = "rounded-lg border p-3" }: { id: string; title: string; children: ReactNode; lead?: ReactNode; desktopInline?: boolean; className?: string }) {
   const { mobile, task, openTask } = useContext(WorkspaceNavigation)
   if (!mobile) return desktopInline ? <>{children}</> : <>{lead}<details className={`workspace-task ${className}`}><summary className="cursor-pointer text-sm font-medium">{title}</summary>{children}</details></>
-  return <div className="workspace-task" data-open={task === id}>
+  return <div className="workspace-task" data-task-id={id} data-open={task === id}>
     {task !== id && <Button type="button" variant="ghost" className="workspace-task-link" onClick={() => openTask(id)}>{title}<ChevronRight aria-hidden="true" /></Button>}
     <section hidden={task !== id} aria-label={title}>
       <Button type="button" variant="ghost" onClick={() => openTask("")}><ArrowLeft aria-hidden="true" />Back</Button>
@@ -20,8 +20,8 @@ export function WorkspaceTask({ id, title, children, lead, desktopInline = false
 }
 
 /** Tab content is already a destination: do not require a second expand action. */
-export function WorkspaceDisclosure({ title, className, children }: { title: ReactNode; className?: string; children: ReactNode }) {
+export function WorkspaceDisclosure({ title, className, children, summaryClassName = "cursor-pointer font-medium" }: { title: ReactNode; className?: string; children: ReactNode; summaryClassName?: string }) {
   const { mobile } = useContext(WorkspaceNavigation)
   if (mobile) return <section className={className}><h3 className="font-medium">{title}</h3>{children}</section>
-  return <details className={className}><summary className="cursor-pointer font-medium">{title}</summary>{children}</details>
+  return <details className={className}><summary className={summaryClassName}>{title}</summary>{children}</details>
 }

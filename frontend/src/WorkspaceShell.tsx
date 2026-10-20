@@ -49,7 +49,11 @@ export function WorkspaceShell({ setup, stage, illustration, feedback, shortcuts
   const secondary = ["configuration", "files", "export"].includes(section)
   function openTask(value: string) {
     setTask(value)
-    requestAnimationFrame(() => { window.scrollTo(0, 0); document.querySelector<HTMLElement>(value ? '.workspace-task[data-open="true"] button' : '.workspace-task-link')?.focus({ preventScroll: true }) })
+    requestAnimationFrame(() => {
+      window.scrollTo(0, 0)
+      const selector = value ? '.workspace-task[data-open="true"] button' : `.workspace-task[data-task-id="${task}"] .workspace-task-link`
+      document.querySelector<HTMLElement>(selector)?.focus({ preventScroll: true })
+    })
   }
   return <WorkspaceNavigation.Provider value={{ mobile, task, openTask }}><main className="workspace" data-section={section} data-task={mobile ? task : ""} data-imported={Boolean(setup.imported_lut)} onKeyDown={(event) => {
     if (event.key === "Escape" && mobile && task && !event.defaultPrevented && !(event.target instanceof Element && event.target.closest('dialog, [role="dialog"], [data-slot="popover-content"]'))) { event.preventDefault(); openTask(""); return }

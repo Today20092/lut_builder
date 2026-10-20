@@ -293,7 +293,7 @@ details.border[open] > summary { margin-bottom: 0; }
 .workspace-skip:focus { top: .5rem; }
 .workspace input, .workspace select { caret-color: var(--foreground); scroll-margin-block: 15rem 6rem; }
 .workspace ::selection { color: var(--primary-foreground); background: var(--primary); }
-.workspace-mobile-navigation, .workspace-mobile-title, .workspace-mobile-band-actions { display: none; }
+.workspace-mobile-navigation, .workspace-mobile-title, .workspace-mobile-band-actions, .workspace-undo-short { display: none; }
 .workspace-task-link { width: 100%; justify-content: space-between; }
 .workspace-more { display: grid; gap: .75rem; padding: 1.25rem; }
 .workspace-more > button { justify-content: start; }
@@ -318,7 +318,7 @@ details.border[open] > summary { margin-bottom: 0; }
   .workspace-report { display: none; }
   .workspace-stage { position: static; gap: .75rem; padding: 1rem max(1rem, env(safe-area-inset-right)) .5rem max(1rem, env(safe-area-inset-left)); background: var(--background); border-bottom: 0; }
   .workspace-stage [aria-label="Exposure band coverage"] { height: .75rem; }
-  .workspace-graph [aria-label^="Editable exposure graph"] { height: 6rem; }
+  .workspace-graph [aria-label^="Editable exposure graph"] { height: 6rem; touch-action: pan-y; }
   .workspace-graph > div { gap: .25rem; }
   .workspace-graph > div > output { display: none; }
   .workspace-stage-hint { display: none; }
@@ -372,6 +372,7 @@ details.border[open] > summary { margin-bottom: 0; }
   .workspace-mobile-band-actions { display: flex; gap: .25rem; flex-shrink: 0; }
   .workspace-mobile-band-actions > button { min-height: 3rem; }
   .workspace-mobile-band-actions .workspace-undo-detail { display: none; }
+  .workspace-mobile-band-actions .workspace-undo-short { display: inline; }
   .workspace[data-section="palette"] .workspace-band-toolbar,
   #exposure-bands > [data-slot="card-header"] > .workspace-band-actions { display: none; }
   .workspace[data-section="bands"] .workspace-stage { position: relative; }
