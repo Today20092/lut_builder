@@ -403,9 +403,9 @@ test('mobile More menu is consistent and preset feedback floats above navigation
   // Base UI intentionally disables supplementary tooltips on touch devices.
   if (!test.info().project.use.isMobile) {
     await help.hover()
-    await expect(page.getByRole('tooltip')).toContainText('Open the manual in a new tab')
+    await expect(page.locator('[data-slot="tooltip-content"]')).toContainText('Open the manual in a new tab')
     await page.mouse.move(0, 0)
-    await expect(page.getByRole('tooltip')).toHaveCount(0)
+    await expect(page.locator('[data-slot="tooltip-content"]')).toHaveCount(0)
   }
   await accessible(page)
   await page.screenshot({ path: test.info().outputPath('more-menu.png'), fullPage: true })
