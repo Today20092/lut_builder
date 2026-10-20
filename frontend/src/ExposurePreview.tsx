@@ -1,3 +1,4 @@
+import { Check, Minimize } from "lucide-react"
 import { useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { exposureReferenceValue, type Setup } from "./editor"
@@ -32,7 +33,7 @@ export function ExposurePreview({ setup, preview, minimum, maximum, unit }: {
     action()
   }
   const actions = preview && <div className="flex items-center gap-2">
-    <Button type="button" className="flex-1" disabled={!preview.valid} onClick={() => decide(preview.apply)}>Use palette</Button>
+    <Button type="button" className="flex-1" disabled={!preview.valid} onClick={() => decide(preview.apply)}><Check data-icon="inline-start" aria-hidden="true" />Use palette</Button>
     <Button type="button" variant="outline" onClick={() => decide(preview.cancel)}>Cancel</Button>
   </div>
   return <div tabIndex={0} role="group" className="sticky top-0 z-40 grid gap-2 border-b bg-card p-3 shadow-sm" aria-label="Persistent exposure preview"
@@ -51,7 +52,7 @@ export function ExposurePreview({ setup, preview, minimum, maximum, unit }: {
     {preview && <p className="text-xs text-muted-foreground">{preview.valid ? "Draft only · current bands and downloads are unchanged." : "Correct the invalid color before using this palette."}</p>}
     {actions}
     <dialog ref={dialog} aria-labelledby="exposure-preview-title" className="fixed inset-0 m-0 h-dvh max-h-dvh w-screen max-w-none overflow-auto border bg-card p-4 text-card-foreground backdrop:bg-black/70 sm:m-auto sm:h-auto sm:max-h-[90dvh] sm:w-[min(48rem,calc(100%-2rem))] sm:rounded-xl" onClose={() => trigger.current?.focus()}>
-      <div className="sticky top-0 z-10 mb-4 flex flex-wrap items-center justify-between gap-3 bg-card pb-2"><h2 id="exposure-preview-title" className="font-semibold">Exposure band preview</h2><Button type="button" variant="outline" onClick={() => dialog.current?.close()}>Close preview</Button></div>
+      <div className="sticky top-0 z-10 mb-4 flex flex-wrap items-center justify-between gap-3 bg-card pb-2"><h2 id="exposure-preview-title" className="font-semibold">Exposure band preview</h2><Button type="button" variant="outline" onClick={() => dialog.current?.close()}><Minimize data-icon="inline-start" aria-hidden="true" />Close preview</Button></div>
       <p className="mb-3 text-sm font-medium">{label}</p>
       <BandStrip setup={displayed} minimum={minimum} maximum={maximum} expanded />
       {(setup.low_signal_warning || setup.high_signal_warning) && <div className="mt-2">{warnings}</div>}

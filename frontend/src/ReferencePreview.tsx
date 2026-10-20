@@ -1,3 +1,5 @@
+import { NativeSelect } from "@/components/ui/native-select"
+import { ChevronLeft, ChevronRight, RefreshCw, ImagePlus } from "lucide-react"
 import { useEffect, useRef, useState } from 'react'
 import { Data, Effect } from 'effect'
 import { Button } from '@/components/ui/button'
@@ -85,13 +87,13 @@ export function ReferencePreview({ setup, draft }: { setup: Setup; draft: boolea
       <figure>{current?.url ? <img className="h-56 w-full rounded object-contain bg-muted" src={current.url} alt="Illustrative LUT result" /> : <div className="flex h-56 items-center justify-center rounded bg-muted p-4 text-sm" role="status">{current?.error ?? 'Updating photo preview…'}</div>}<figcaption className="mt-1 text-sm">{draft ? 'Draft result' : 'LUT result'} · {setup.profile} → {setup.target}</figcaption></figure>
     </div>
     <div className="flex flex-wrap items-center gap-2">
-      <Button type="button" variant="outline" aria-label="Previous scene" onClick={() => browse(-1)}>←</Button>
-      <label className="flex min-w-0 flex-1 items-center gap-2 text-sm">Scene<select aria-label="Scene" className="min-h-11 min-w-0 flex-1 rounded border bg-background px-2" value={custom ? 'custom' : scene} onChange={event => { setCustom(null); setScene(Number(event.target.value)) }}>{scenes.map((scene, index) => <option value={index} key={scene.name}>{scene.name}</option>)}{custom && <option value="custom">Your photo</option>}</select></label>
-      <Button type="button" variant="outline" aria-label="Next scene" onClick={() => browse(1)}>→</Button>
-      {current?.error && <Button type="button" variant="outline" onClick={() => setRetry(retry + 1)}>Retry preview</Button>}
+      <Button type="button" variant="outline" aria-label="Previous scene" onClick={() => browse(-1)}><ChevronLeft data-icon="inline-start" aria-hidden="true" /></Button>
+      <label className="flex min-w-0 flex-1 items-center gap-2 text-sm">Scene<NativeSelect aria-label="Scene" className="w-full min-w-0 flex-1" value={custom ? 'custom' : scene} onChange={event => { setCustom(null); setScene(Number(event.target.value)) }}>{scenes.map((scene, index) => <option value={index} key={scene.name}>{scene.name}</option>)}{custom && <option value="custom">Your photo</option>}</NativeSelect></label>
+      <Button type="button" variant="outline" aria-label="Next scene" onClick={() => browse(1)}><ChevronRight data-icon="inline-start" aria-hidden="true" /></Button>
+      {current?.error && <Button type="button" variant="outline" onClick={() => setRetry(retry + 1)}><RefreshCw data-icon="inline-start" aria-hidden="true" />Retry preview</Button>}
     </div>
     <details className="text-sm"><summary className="cursor-pointer">About this illustration &amp; photo credits</summary><p className="mt-2">{custom ? 'Your photo is interpreted by the browser as a display image; untagged files use browser color defaults.' : `${scenes[scene].credit}. Embedded profile: ${scenes[scene].profile}.`} The browser converts to sRGB. Display light is treated as scene light, converted to the camera gamut and approximately log-encoded before applying the actual generated cube. This cannot recover camera exposure or prove profile accuracy.</p><a className="underline" href="https://scikit-image.org/docs/0.25.x/api/skimage.data.html" target="_blank" rel="noreferrer">Sample sources and licenses</a></details>
-    <Button type="button" variant="outline" className="justify-self-start" onClick={() => input.current?.click()}>Use your own photo</Button>
+    <Button type="button" variant="outline" className="justify-self-start" onClick={() => input.current?.click()}><ImagePlus data-icon="inline-start" aria-hidden="true" />Use your own photo</Button>
     <input ref={input} type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" tabIndex={-1} aria-label="Choose display photo" onChange={event => {
       const file = event.target.files?.[0]
       event.target.value = ''

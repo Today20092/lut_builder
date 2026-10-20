@@ -1,3 +1,5 @@
+import { NativeSelect } from "@/components/ui/native-select"
+import { Trash2, Check, X } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 import { Data, Effect } from "effect"
 import { Button } from "@/components/ui/button"
@@ -6,7 +8,7 @@ import { browserProfiles, browserTargets } from "./lutEngine"
 import { cubeSha256, MAX_CUBE_BYTES, parseImportedCube, type ImportedLut, type OutputTransfer } from "./importedLut"
 import { decodeSetup } from "./setupSchema"
 
-const field = "min-h-11 w-full rounded-md border border-input bg-background px-3 text-sm"
+const field = "w-full min-w-0"
 class LookImportError extends Data.TaggedError("LookImportError")<{message:string;cause?:unknown}> {}
 
 export function ImportedLookSettings({setup,onChange}:{setup:Setup;onChange:(changes:Partial<Setup>)=>void}) {
@@ -60,20 +62,20 @@ export function ImportedLookSettings({setup,onChange}:{setup:Setup;onChange:(cha
     {setup.imported_lut && <div className="grid gap-2 rounded-md border p-3 text-sm">
       <p className="break-all">{setup.imported_lut.name}</p>
       <p className="text-xs">{setup.imported_lut.source_profile} → {setup.imported_lut.output_gamut} / {setup.imported_lut.output_transfer} / {setup.imported_lut.output_range}</p>
-      <Button variant="outline" onClick={()=>{cancel();onChange({imported_lut:undefined});setStatus("Imported look removed. Standard diagnostic pipeline restored.")}}>Remove imported look</Button>
+      <Button variant="outline" onClick={()=>{cancel();onChange({imported_lut:undefined});setStatus("Imported look removed. Standard diagnostic pipeline restored.")}}><Trash2 data-icon="inline-start" aria-hidden="true" />Remove imported look</Button>
     </div>}
     <label className="grid gap-2 text-sm">Import .cube LUT<input className="min-h-11 max-w-full min-w-0 text-sm" type="file" accept=".cube" disabled={busy} onChange={e=>{const file=e.target.files?.[0];e.target.value="";if(file)void choose(file)}} /></label>
     <p className="text-xs text-muted-foreground">Single 3D Iridas .cube, size 2–65, up to 16 MiB. 1D/shaper LUTs are unsupported; bake them into a 3D cube. Portable setups embed the exact LUT.</p>
     {draft && <fieldset className="grid gap-3" disabled={busy}>
       <legend className="mb-2 text-sm font-medium">Confirm LUT interpretation</legend>
       <p className="text-xs text-muted-foreground">Choose the actual input/output of this LUT. Filenames do not establish colorimetry. Applying also selects source-camera IRE and turns monochrome off to preserve the look.</p>
-      <label className="grid gap-1 text-sm">LUT camera input<select className={field} value={profile} onChange={e=>setProfile(e.target.value)}>{browserProfiles.map(p=><option key={p}>{p}</option>)}</select></label>
-      <label className="grid gap-1 text-sm">LUT output primaries<select className={field} value={gamut} onChange={e=>setGamut(e.target.value as ImportedLut["output_gamut"])}>{browserTargets.map(p=><option key={p}>{p}</option>)}</select></label>
-      <label className="grid gap-1 text-sm">LUT output transfer<select className={field} value={transfer} onChange={e=>setTransfer(e.target.value as OutputTransfer)}><option value="gamma2.2">Gamma 2.2</option><option value="gamma2.4">Gamma 2.4</option><option value="sRGB">sRGB</option><option value="BT.709">BT.709 OETF</option></select></label>
-      <label className="grid gap-1 text-sm">LUT output range<select className={field} value={range} onChange={e=>setRange(e.target.value as "full"|"legal")}><option value="full">Full (0–1023)</option><option value="legal">Legal (64–940)</option></select></label>
-      <Button onClick={()=>void confirm()}>Confirm and apply look</Button>
+      <label className="grid gap-1 text-sm">LUT camera input<NativeSelect className={field} value={profile} onChange={e=>setProfile(e.target.value)}>{browserProfiles.map(p=><option key={p}>{p}</option>)}</NativeSelect></label>
+      <label className="grid gap-1 text-sm">LUT output primaries<NativeSelect className={field} value={gamut} onChange={e=>setGamut(e.target.value as ImportedLut["output_gamut"])}>{browserTargets.map(p=><option key={p}>{p}</option>)}</NativeSelect></label>
+      <label className="grid gap-1 text-sm">LUT output transfer<NativeSelect className={field} value={transfer} onChange={e=>setTransfer(e.target.value as OutputTransfer)}><option value="gamma2.2">Gamma 2.2</option><option value="gamma2.4">Gamma 2.4</option><option value="sRGB">sRGB</option><option value="BT.709">BT.709 OETF</option></NativeSelect></label>
+      <label className="grid gap-1 text-sm">LUT output range<NativeSelect className={field} value={range} onChange={e=>setRange(e.target.value as "full"|"legal")}><option value="full">Full (0–1023)</option><option value="legal">Legal (64–940)</option></NativeSelect></label>
+      <Button onClick={()=>void confirm()}><Check data-icon="inline-start" aria-hidden="true" />Confirm and apply look</Button>
     </fieldset>}
-    {(busy||draft) && <Button variant="outline" onClick={cancel}>Cancel LUT import</Button>}
+    {(busy||draft) && <Button variant="outline" onClick={cancel}><X data-icon="inline-start" aria-hidden="true" />Cancel LUT import</Button>}
     <p className="break-words text-xs" role="status" aria-live="polite">{status}</p>
   </section>
 }

@@ -1,8 +1,12 @@
+import { Input } from "@/components/ui/input"
+import { NativeSelect } from "@/components/ui/native-select"
+import { Palette, SlidersHorizontal, RotateCcw, Eye, Check, X, Save, Pencil, Trash2 } from "lucide-react"
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react"
 import { createPaletteWorkflow, reducePaletteWorkflow, type PaletteDraft as Draft } from "./paletteWorkflow"
 import { Data, Effect, Result, Schema } from "effect"
 import { Button } from "@/components/ui/button"
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { ContextHelp } from "./ContextHelp"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { GradientPicker } from "./GradientPicker"
 import { WorkspaceTask } from "./WorkspaceTask"
 import { isTypingTarget } from "./keyboard"
@@ -11,17 +15,14 @@ import { applyColorPreset, applyLightnessProfile, exposurePaletteScale, exposure
 type SavedPalette = Draft & { name: string }
 export type PalettePreview = { setup: Setup; label: string; valid: boolean; apply: () => void; cancel: () => void }
 const storageKey = "lut-builder.palettes.v1"
-const fieldClass = "h-9 w-full min-w-0 rounded-md border border-input bg-transparent px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+const fieldClass = "w-full min-w-0"
 const startingPalettes = [
   { name: "Exposure zones", description: "Blended gradient · green reference · cool to warm", colors: ["#5b21b6", "#2563eb", "#38bdf8", "#22c55e", "#facc15", "#f97316", "#dc2626"] },
   { name: "Reference emphasis", description: "Green reference stands out against quieter surrounding colors", colors: ["#334e68", "#3b6c8e", "#4c8b93", "#22c55e", "#a3a044", "#a66b35", "#a33a3a"] },
 ]
 
 function PaletteHelp({ label, children }: { label: string; children: string }) {
-  return <Tooltip>
-    <TooltipTrigger render={<button type="button" />} aria-label={`About ${label}`} className="inline-flex size-6 shrink-0 items-center justify-center rounded-full border text-xs text-muted-foreground">?</TooltipTrigger>
-    <TooltipContent className="max-w-72">{children}</TooltipContent>
-  </Tooltip>
+  return <ContextHelp label={`About ${label}`}>{children}</ContextHelp>
 }
 const SavedPaletteSchema = Schema.Struct({
   name: Schema.String,
@@ -146,10 +147,10 @@ export function PaletteEditor({ setup, palette, onApply, onPreview }: { setup: S
   }}>
     <h3 className="text-sm font-semibold">Recolor all bands</h3>
     <p className="text-sm text-muted-foreground">Keep your colors, edit a band swatch above, or choose a method.</p>
-    <div className="flex flex-wrap gap-2" aria-label="Color editing method">
-      <Button type="button" variant={method === "palette" ? "default" : "outline"} aria-pressed={method === "palette"} onClick={() => send({ type: "choose-method", method: "palette" })}>Choose a palette</Button>
-      <Button type="button" variant={method === "gradient" ? "default" : "outline"} aria-pressed={method === "gradient"} onClick={(event) => { chooser.current = event.currentTarget; send({ type: "choose-method", method: "gradient" }) }}>Customize gradient</Button>
-    </div>
+    <ToggleGroup className="w-full" variant="outline" value={[method]} onValueChange={(values) => { const value = values[0]; if (value === "palette" || value === "gradient") send({ type: "choose-method", method: value }) }} aria-label="Color editing method">
+      <ToggleGroupItem className="min-w-0 flex-1 whitespace-normal" value="palette"><Palette data-icon="inline-start" aria-hidden="true" />Choose a palette</ToggleGroupItem>
+      <ToggleGroupItem className="min-w-0 flex-1 whitespace-normal" value="gradient" onClick={(event) => { chooser.current = event.currentTarget }}><SlidersHorizontal data-icon="inline-start" aria-hidden="true" />Customize gradient</ToggleGroupItem>
+    </ToggleGroup>
     {method === "palette" && <>
     <fieldset className="grid grid-cols-1 gap-2 sm:grid-cols-2">
       <legend className="mb-2 text-sm font-medium">Choose a starting palette</legend>
@@ -185,19 +186,19 @@ export function PaletteEditor({ setup, palette, onApply, onPreview }: { setup: S
     <h4 className="text-sm font-medium">Shape your gradient</h4>
     <div className="grid grid-cols-2 items-end gap-3">
       <label className="grid min-w-0 gap-1 text-sm font-medium">Blend
-        <select aria-label="Gradient blend" className={fieldClass} value={blend} onChange={(event) => setDraft({ ...draft, blend: event.target.value as GradientBlend })}>
+        <NativeSelect aria-label="Gradient blend" className={fieldClass} value={blend} onChange={(event) => setDraft({ ...draft, blend: event.target.value as GradientBlend })}>
           <option value="colorful">Colorful</option><option value="direct">Direct</option>
-        </select>
+        </NativeSelect>
       </label>
       {blend === "colorful" && <label className="grid min-w-0 gap-1 text-sm font-medium">Hue path
-        <select aria-label="Hue path" className={fieldClass} value={huePath} onChange={(event) => setDraft({ ...draft, huePath: event.target.value as HuePath })}>
+        <NativeSelect aria-label="Hue path" className={fieldClass} value={huePath} onChange={(event) => setDraft({ ...draft, huePath: event.target.value as HuePath })}>
           <option value="shorter">Shorter</option><option value="longer">Longer</option>
-        </select>
+        </NativeSelect>
       </label>}
     </div>
     <p className="text-xs text-muted-foreground">{blend === "colorful" ? "Colorful blends around the color wheel. Longer passes through more hues; colors are fitted to sRGB." : "Direct blends straight between colors and may pass through gray. Hue path does not affect this blend."}</p>
     <GradientPicker displayColors={ramp} colors={draft.colors} positions={positions} blend={blend} huePath={huePath} exposureScale={mapping === "exposure" ? exposurePaletteScale(setup) : undefined} exposureUnit={setup.band_mode === "stops" ? "stops" : "IRE"} onChange={(colors, positions) => setDraft({ ...draft, colors, positions })} />
-    <WorkspaceTask id="palette-adjustments" title="Advanced: adjust all colors" className="rounded-md border p-3">
+    <WorkspaceTask id="palette-adjustments" title="Advanced: adjust all colors" icon={SlidersHorizontal} className="rounded-md border p-3">
     <div className="mt-3 grid gap-3">
     <p className="text-xs text-muted-foreground">Optional finishing controls for the whole palette. They change the preview and applied colors, while your individual dots keep their chosen colors.</p>
     <fieldset className="flex flex-wrap gap-2">
@@ -210,36 +211,36 @@ export function PaletteEditor({ setup, palette, onApply, onPreview }: { setup: S
     <label className="grid gap-2 text-sm font-medium">
       <span className="sr-only">Overall color strength</span>
       <input className="pointer-adjustment" id="palette-intensity" aria-label="Color intensity" aria-describedby="palette-intensity-help" type="range" min="0" max="200" value={draft.intensity} onChange={(event) => setDraft({ ...draft, intensity: Number(event.target.value) })} />
-      <select className={`${fieldClass} touch-adjustment`} aria-label="Color intensity" value={draft.intensity} onChange={(event) => setDraft({ ...draft, intensity: Number(event.target.value) })}>{Array.from(new Set([...Array.from({ length: 21 }, (_, i) => i * 10), draft.intensity])).sort((a, b) => a - b).map((value) => <option key={value} value={value}>{value}%</option>)}</select>
+      <NativeSelect className={`${fieldClass} touch-adjustment`} aria-label="Color intensity" value={draft.intensity} onChange={(event) => setDraft({ ...draft, intensity: Number(event.target.value) })}>{Array.from(new Set([...Array.from({ length: 21 }, (_, i) => i * 10), draft.intensity])).sort((a, b) => a - b).map((value) => <option key={value} value={value}>{value}%</option>)}</NativeSelect>
     </label>
     <p id="palette-intensity-help" className="text-xs text-muted-foreground">100% keeps your chosen color strength. 0% makes the palette gray.</p>
-    <Button type="button" variant="outline" size="sm" className="justify-self-start" disabled={draft.brightness === "custom" && draft.intensity === 100} onClick={() => setDraft({ ...draft, brightness: "custom", intensity: 100 })}>Reset adjustments</Button>
+    <Button type="button" variant="outline" size="sm" className="justify-self-start" disabled={draft.brightness === "custom" && draft.intensity === 100} onClick={() => setDraft({ ...draft, brightness: "custom", intensity: 100 })}><RotateCcw data-icon="inline-start" aria-hidden="true" />Reset adjustments</Button>
     </div>
     </WorkspaceTask>
     </>}
     {!valid && <p role="alert" className="text-sm text-destructive">Correct the invalid anchor color before applying or saving.</p>}
     <p role="status" className="text-sm">{audition ? "Draft · review your bands above." : !pending ? "Palette applied to bands." : "Current band colors are kept."}</p>
-    {!audition && method === "gradient" && <Button type="button" variant="outline" className="justify-self-start" onClick={() => setDraft(draft, draftLabel)}>Preview gradient</Button>}
+    {!audition && method === "gradient" && <Button type="button" variant="outline" className="justify-self-start" onClick={() => setDraft(draft, draftLabel)}><Eye data-icon="inline-start" aria-hidden="true" />Preview gradient</Button>}
     {applied && applied.colors !== bandColors && <p className="text-xs text-muted-foreground">Applying will replace manual overrides.</p>}
     {audition && <div className="flex flex-wrap gap-2">
-      <Button ref={applyButton} type="button" className="justify-self-start" disabled={!valid || setup.bands.length === 0} onClick={apply}>Use palette</Button>
-      {audition && <Button type="button" variant="outline" onClick={cancelPreview}>Cancel preview</Button>}
+      <Button ref={applyButton} type="button" className="justify-self-start" disabled={!valid || setup.bands.length === 0} onClick={apply}><Check data-icon="inline-start" aria-hidden="true" />Use palette</Button>
+      {audition && <Button type="button" variant="outline" onClick={cancelPreview}><X data-icon="inline-start" aria-hidden="true" />Cancel preview</Button>}
     </div>}
-    <WorkspaceTask id="saved-palettes" title="Save and reuse palettes" className="rounded-md border p-3">
+    <WorkspaceTask id="saved-palettes" title="Save and reuse palettes" icon={Save} className="rounded-md border p-3">
     <div className="mt-3 grid gap-2">
       <p className="text-xs text-muted-foreground">Stored in this browser only.</p>
-        <select aria-label="Reuse saved palette" className={fieldClass} value={selected} onChange={(event) => {
+        <NativeSelect aria-label="Reuse saved palette" className={fieldClass} value={selected} onChange={(event) => {
           setSelected(event.target.value)
           const saved = library.palettes.find((item) => item.name === event.target.value)
           if (saved) { setDraft({ colors: [...saved.colors], positions: saved.positions ? [...saved.positions] : undefined, brightness: saved.brightness, intensity: saved.intensity, blend: saved.blend ?? "direct", huePath: saved.huePath ?? "shorter", mapping: saved.mapping ?? "band-range" }, saved.name, event.currentTarget); setName(saved.name) }
-        }}><option value="">Choose a saved palette</option>{library.palettes.map((item) => <option key={item.name}>{item.name}</option>)}</select>
-      <label className="grid gap-1 text-sm">Palette name<input aria-label="Palette name" className={fieldClass} value={name} maxLength={80} onChange={(event) => setName(event.target.value)} /></label>
+        }}><option value="">Choose a saved palette</option>{library.palettes.map((item) => <option key={item.name}>{item.name}</option>)}</NativeSelect>
+      <label className="grid gap-1 text-sm">Palette name<Input aria-label="Palette name" className={fieldClass} value={name} maxLength={80} onChange={(event) => setName(event.target.value)} /></label>
       {nameError && <p className="text-xs text-muted-foreground">{nameError}</p>}
       <div className="flex flex-wrap gap-2">
-        <Button type="button" variant="outline" disabled={!valid || !!nameError} onClick={() => save("new")}>Save new palette</Button>
-        <Button type="button" variant="outline" disabled={!selected || !valid || !!nameError} onClick={() => save("replace")}>Replace saved palette</Button>
-        <Button type="button" variant="outline" disabled={!selected || !!nameError} onClick={() => save("rename")}>Rename saved palette</Button>
-        <Button type="button" variant="ghost" disabled={!selected} onClick={() => save("delete")}>Delete saved palette</Button>
+        <Button type="button" variant="outline" disabled={!valid || !!nameError} onClick={() => save("new")}><Save data-icon="inline-start" aria-hidden="true" />Save new palette</Button>
+        <Button type="button" variant="outline" disabled={!selected || !valid || !!nameError} onClick={() => save("replace")}><Save data-icon="inline-start" aria-hidden="true" />Replace saved palette</Button>
+        <Button type="button" variant="outline" disabled={!selected || !!nameError} onClick={() => save("rename")}><Pencil data-icon="inline-start" aria-hidden="true" />Rename saved palette</Button>
+        <Button type="button" variant="ghost" disabled={!selected} onClick={() => save("delete")}><Trash2 data-icon="inline-start" aria-hidden="true" />Delete saved palette</Button>
       </div>
       <p className="text-xs text-muted-foreground">Saving stores this draft, not the bands. Export JSON keeps applied band colors with your setup.</p>
     </div>

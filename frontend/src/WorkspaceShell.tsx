@@ -7,13 +7,13 @@ import type { Setup } from "./editor"
 import { useMobileWorkspace, WorkspaceNavigation } from "./workspaceNavigation"
 
 const sections = [
-  { value: "bands", label: "Bands", icon: SlidersHorizontal },
-  { value: "palette", label: "Palette", icon: Palette },
-  { value: "presets", label: "Presets", icon: WandSparkles },
-  { value: "media", label: "Media", icon: Image },
-  { value: "configuration", label: "Configure", icon: Layers },
-  { value: "files", label: "Setups", icon: FileJson },
-  { value: "export", label: "Export", icon: Download },
+  { value: "bands", label: "Bands", icon: SlidersHorizontal, description: "Edit exposure positions, widths and colors." },
+  { value: "palette", label: "Palette", icon: Palette, description: "Choose colors or shape a custom gradient." },
+  { value: "presets", label: "Presets", icon: WandSparkles, description: "Choose a starting exposure arrangement." },
+  { value: "media", label: "Media", icon: Image, description: "Check the LUT with your own camera footage." },
+  { value: "configuration", label: "Configure", icon: Layers, description: "Set your camera, display and LUT output." },
+  { value: "files", label: "Setups", icon: FileJson, description: "Save, load and back up your editing setup." },
+  { value: "export", label: "Export", icon: Download, description: "Review and generate your final LUT." },
 ] as const
 
 export function WorkspacePanel({ value, children }: { value: string; children: ReactNode }) {
@@ -27,6 +27,8 @@ export function WorkspaceShell({ setup, stage, illustration, feedback, shortcuts
   const [task, setTask] = useState("")
   const mobile = useMobileWorkspace()
   const section = !mobile && requestedSection === "more" ? "bands" : requestedSection
+  const screen = sections.find(item => item.value === section)
+  const ScreenIcon = screen?.icon ?? Ellipsis
   const returnFocus = useRef<HTMLElement | null>(null)
   const bandsTab = useRef<HTMLButtonElement>(null)
   function open(value: string) {
@@ -86,7 +88,8 @@ export function WorkspaceShell({ setup, stage, illustration, feedback, shortcuts
       </nav>
       <div className="workspace-mobile-title">
         {secondary && <Button type="button" variant="ghost" onClick={() => open(section === "export" ? "bands" : "more")}><ArrowLeft aria-hidden="true" />{section === "export" ? "Back to editing" : "More"}</Button>}
-        <h2 id="workspace-screen-title" tabIndex={-1}>{section === "more" ? "More" : sections.find(item => item.value === section)?.label}</h2>
+        <div className="workspace-screen-heading"><ScreenIcon aria-hidden="true" /><h2 id="workspace-screen-title" tabIndex={-1}>{section === "more" ? "More" : screen?.label}</h2></div>
+        <p>{section === "more" ? "Settings, saved work and support." : screen?.description}</p>
       </div>
       <section className="workspace-stage" aria-label="Exposure workspace">{stage(() => { setSection("bands"); setTask("") })}{!mobile && illustration(() => { setSection("bands"); setTask("") })}</section>
       <aside id="workspace-adjustments" className="workspace-adjustments" aria-label="Workspace adjustments">

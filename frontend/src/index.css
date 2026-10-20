@@ -228,6 +228,11 @@ details.border[open] > summary { margin-bottom: 0; }
   font-variant-numeric: tabular-nums;
 }
 .workspace [hidden] { display: none !important; }
+.workspace [data-slot="input"], .workspace [data-slot="native-select"] { min-height: 2.5rem; }
+.workspace-preset-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 1rem; padding-block: .5rem; }
+.workspace-screen-heading { display: flex; align-items: center; gap: .625rem; }
+.workspace-screen-heading > svg { width: 1.25rem; height: 1.25rem; flex-shrink: 0; color: var(--muted-foreground); }
+.workspace-mobile-title > p { max-width: 42ch; color: var(--muted-foreground); font-size: .875rem; line-height: 1.5; }
 .workspace-header {
   display: flex;
   align-items: center;
@@ -296,6 +301,7 @@ details.border[open] > summary { margin-bottom: 0; }
 .workspace ::selection { color: var(--primary-foreground); background: var(--primary); }
 .workspace-mobile-navigation, .workspace-mobile-title, .workspace-mobile-band-actions { display: none; }
 .workspace-task-link { width: 100%; justify-content: space-between; }
+.workspace-task-link > span { min-width: 0; flex: 1; text-align: left; white-space: normal; }
 .workspace-more { display: grid; gap: .75rem; padding: 1.25rem; }
 .workspace-more > :is(button, a) { justify-content: start; min-height: 3rem; gap: .75rem; }
 .workspace-more > :is(button, a) > svg:last-of-type { margin-left: auto; }
@@ -319,6 +325,11 @@ details.border[open] > summary { margin-bottom: 0; }
   .workspace-header-actions > :first-child { display: none; }
   .workspace-interpretation { font-size: .6875rem; padding-block: .25rem; }
   .workspace-body { grid-template-columns: minmax(0, 1fr); }
+  .workspace [data-slot="input"], .workspace [data-slot="native-select"], .workspace [data-slot="toggle-group-item"] { min-height: 3rem; }
+  .workspace-panel label, .workspace-panel [data-slot="field-label"] { font-size: .875rem; }
+  .workspace-desktop-heading, .workspace-panel > [data-slot="card"] > [data-slot="card-header"] > [data-slot="card-title"]:not(.workspace-section-heading) { display: none; }
+  .workspace-panel .workspace-disclosure { border: 0; border-radius: 0; padding: 0; }
+  .workspace-panel .workspace-disclosure > h3 { font-size: 1rem; margin-bottom: .75rem; }
   .workspace[data-section="more"] .workspace-body { align-content: start; }
   .workspace-navigation { display: none; }
   .workspace-report { display: none; }

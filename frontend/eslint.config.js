@@ -31,4 +31,10 @@ export default defineConfig([
       'react-refresh/only-export-components': ['error', { allowExportNames: ['createToastManager', 'toast', 'useToastManager'] }],
     },
   },
+  {
+    files: ['src/components/ui/toggle.tsx'],
+    rules: {
+      'react-refresh/only-export-components': ['error', { allowExportNames: ['toggleVariants'] }],
+    },
+  },
 ])

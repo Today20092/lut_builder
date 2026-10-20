@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
 import { Effect } from "effect"
-import { Button } from "@/components/ui/button"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { Eye, ScanLine } from "lucide-react"
 import type { Setup } from "./editor"
 import { generateInWorker } from "./lutWorkerClient"
 import { applyCube, displayRgb, parseCube } from "./verificationMath"
@@ -37,7 +38,7 @@ export function ImportedLookPreview({setup}:{setup:Setup}) {
   if(!setup.imported_lut)return null
   const current=result?.key===key?result:null
   return <section className="grid min-w-0 gap-3" aria-label="Imported look comparison">
-    <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="text-sm font-semibold">Camera exposure reference</h3><div className="flex flex-wrap gap-2" role="group" aria-label="Exposure preview viewing mode"><Button variant="outline" aria-pressed={!diagnostics} onClick={()=>setDiagnostics(false)}>Look</Button><Button variant="outline" aria-pressed={diagnostics} onClick={()=>setDiagnostics(true)}>Look + diagnostics</Button></div></div>
+    <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="text-sm font-semibold">Camera exposure reference</h3><ToggleGroup variant="outline" value={[diagnostics ? "diagnostics" : "look"]} onValueChange={(values)=>{if(values.length)setDiagnostics(values[0]==="diagnostics")}} aria-label="Exposure preview viewing mode"><ToggleGroupItem value="look"><Eye data-icon="inline-start" aria-hidden="true" />Look</ToggleGroupItem><ToggleGroupItem value="diagnostics"><ScanLine data-icon="inline-start" aria-hidden="true" />Look + diagnostics</ToggleGroupItem></ToggleGroup></div>
     <div className="grid grid-cols-9 gap-0.5" aria-label="Neutral camera patches at labeled stops">{current?.patches.map((p,i)=><div key={i} className="min-w-0 text-center"><div className="h-12 rounded-sm border" style={{backgroundColor:diagnostics?p.diagnostic:p.look}}/><span className="text-[10px] tabular-nums">{p.stop>0?"+":""}{p.stop.toFixed(1)}</span></div>)}</div>
     <details className="text-xs text-muted-foreground"><summary className="cursor-pointer">About this comparison</summary><p className="mt-2">Original neutral camera codes, labeled in stops. Diagnostics use the sampled exported {setup.cube_size}³ transform; thin markers can blur or miss grid nodes. Look uses the imported transform directly. Viewing mode never changes export.</p></details>
     {!current&&!error&&<p role="status" className="text-xs">Updating sampled LUT preview…</p>}

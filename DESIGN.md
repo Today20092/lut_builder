@@ -195,10 +195,12 @@ overrides apply to these shared primitives.
 
 ### Inputs / Fields
 
-Fields use a transparent background, input stroke and compact horizontal padding.
-Focus strengthens the border and adds a ring. Invalid drafts remain visible with
-error feedback; disabled controls reduce opacity. Import interpretation fields
-use background fill and a 44px minimum height.
+Text and number fields use the shared shadcn Input; selectors use NativeSelect.
+Both use the Rhea input surface and focus treatment. Layout classes belong on the
+select wrapper, which has no second border. Controls are at least 40px high on
+desktop and 48px on phones. Invalid drafts remain visible with error feedback;
+disabled controls reduce opacity. Contextual help opens on tap or keyboard and
+returns focus when dismissed. Labels stay visible outside the help popup.
 
 ### Navigation
 
@@ -219,7 +221,7 @@ show their content directly.
 ### Exposure selection and comparison
 
 Mobile Presets uses three visible sections: IRE, Fill and Stops. Each preset has
-a short description and a full-width Use button with at least a 48px touch target.
+a short description and a trailing Use button with at least a 48px touch target.
 Standard and Detailed choices reuse the existing arrangements. Apply feedback
 uses a temporary shadcn toast above mobile navigation; Bands provides editing and undo. Desktop retains
 the compact preset selector.
@@ -227,6 +229,13 @@ the compact preset selector.
 More uses matching ghost navigation rows for Configure, Setups, Help / Manual
 and Report an issue. External destinations retain link semantics, show an
 external-link icon, and explain the new tab in a tooltip and accessible name.
+
+Task headers pair a Lucide icon with a concise title and purpose. Action icons
+come from that same family and supplement visible labels; decorative icons are
+hidden from assistive technology. Palette and imported-look comparison choices
+use the shared ToggleGroup, preserving their existing state and undo behavior.
+See [mobile UI research](docs/research/mobile-workspace-ui.md) for the Apple,
+Cloudflare, Stripe and Lightroom references behind these interaction rules.
 
 The labeled stop scale, selected graph handle and numbered color swatches connect
 the artifact to its editor. Imported comparison labels distinguish camera exposure

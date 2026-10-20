@@ -16,7 +16,7 @@ window.HTMLDialogElement.prototype.close = function () { this.open = false; this
 after(() => dom.window.close())
 
 const bundle = await build({
-  bundle: true, external: ["react", "react/jsx-runtime", "react-dom", "react-dom/client"], format: "esm", jsx: "automatic", platform: "node",
+  bundle: true, external: ["@base-ui/react/*", "lucide-react", "react", "react/jsx-runtime", "react-dom", "react-dom/client"], format: "esm", jsx: "automatic", platform: "node",
   stdin: { contents: `export { CameraVerification } from "./src/CameraVerification.tsx"; export { default as React, act } from "react"; export { createRoot } from "react-dom/client";`, resolveDir: process.cwd(), sourcefile: "verification-test.ts" }, write: false,
 })
 stop()

@@ -1,3 +1,6 @@
+import { Input } from "@/components/ui/input"
+import { NativeSelect } from "@/components/ui/native-select"
+import { ImagePlus, VideoIcon, ImageIcon, X, Check, ChevronLeft, ChevronRight, Expand, Minimize, Plus, Download, RefreshCw, History, FolderOpen, Upload, RotateCcw, Trash2, SlidersHorizontal, TriangleAlert, Undo2, Save } from "lucide-react"
 import {
   Fragment,
   useCallback,
@@ -33,7 +36,8 @@ import {
 } from "@/components/ui/card"
 import { Spinner } from "@/components/ui/spinner"
 import { toast } from "@/components/ui/toast"
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
+import { ContextHelp } from "./ContextHelp"
 import referenceImage from "@/assets/lut-preview-reference.jpg"
 import { CameraVerification, type SourceInterpretations } from "@/CameraVerification"
 import { BrowserVerification } from "./BrowserVerification"
@@ -166,9 +170,9 @@ export function LutImagePreview({ preview, camera }: { preview: Preview | null; 
     <p className="text-xs text-muted-foreground">Opacity changes this view only, never the exported LUT.</p>
     </>}
     <div className="flex flex-wrap gap-2">
-      {!camera && <Button type="button" variant="outline" onClick={() => inputRef.current?.click()}>Choose image</Button>}
-      <Button type="button" variant="outline" onClick={() => videoInput.current?.click()}>Choose video</Button>
-      {!camera && imageUrl !== referenceImage && <Button type="button" variant="ghost" onClick={() => reference()}>Reference photo</Button>}
+      {!camera && <Button type="button" variant="outline" onClick={() => inputRef.current?.click()}><ImagePlus data-icon="inline-start" aria-hidden="true" />Choose image</Button>}
+      <Button type="button" variant="outline" onClick={() => videoInput.current?.click()}><VideoIcon data-icon="inline-start" aria-hidden="true" />Choose video</Button>
+      {!camera && imageUrl !== referenceImage && <Button type="button" variant="ghost" onClick={() => reference()}><ImageIcon data-icon="inline-start" aria-hidden="true" />Reference photo</Button>}
       <input ref={inputRef} className="sr-only" tabIndex={-1} aria-label="Choose demonstration still image" type="file" accept="image/*" onChange={(event) => {
         const file = event.target.files?.[0]
         if (file) void chooseImage(file)
@@ -182,16 +186,16 @@ export function LutImagePreview({ preview, camera }: { preview: Preview | null; 
     </div>
     <p className="break-all text-xs text-muted-foreground" role="status">{camera && !video ? "No camera video selected." : imageName} · {camera || video ? "Video stays on this computer in temporary server storage." : "Still images stay in this browser session. Maximum 25 MB."}</p>
     <p className="text-xs text-muted-foreground">Video: MP4/MOV/MKV, H.264, HEVC, ProRes 422 or FFV1. Progressive, square pixels, no rotation. Up to 256 MB, 1920 × 1080, 120 seconds and 10,000 frames. Processing limit: 60 seconds per stage. One video per app launch; expires after 15 idle minutes.</p>
-    {videoBusy && <div className="flex flex-wrap items-center gap-2"><p role="status" className="text-sm">{videoBusy}</p><Button type="button" variant="outline" onClick={() => reference("Video cancelled and temporary data released.")}>Cancel video</Button></div>}
+    {videoBusy && <div className="flex flex-wrap items-center gap-2"><p role="status" className="text-sm">{videoBusy}</p><Button type="button" variant="outline" onClick={() => reference("Video cancelled and temporary data released.")}><X data-icon="inline-start" aria-hidden="true" />Cancel video</Button></div>}
     {video && <div className="grid gap-3 rounded-md border p-3">
       <label className="grid gap-2 text-sm">Requested relative time in seconds
-        <input type="number" min="0" step="any" className={fieldClass} value={videoTime} onChange={(event) => setVideoTime(event.target.value)} disabled={!!videoBusy} />
+        <Input type="number" min="0" step="any" className={fieldClass} value={videoTime} onChange={(event) => setVideoTime(event.target.value)} disabled={!!videoBusy} />
       </label>
       <div className="flex flex-wrap gap-2">
-        <Button type="button" variant="outline" disabled={!!videoBusy || !videoTime.trim()} onClick={() => void selectVideoFrame({ time: videoTime })}>Select frame</Button>
-        <Button type="button" variant="outline" disabled={!!videoBusy || video.frame.index === 0} onClick={() => void selectVideoFrame({ index: video.frame.index - 1 })}>Previous frame</Button>
-        <Button type="button" variant="outline" disabled={!!videoBusy || video.frame.index + 1 === video.frame.count} onClick={() => void selectVideoFrame({ index: video.frame.index + 1 })}>Next frame</Button>
-        <Button type="button" variant="ghost" onClick={() => reference()}>Release video</Button>
+        <Button type="button" variant="outline" disabled={!!videoBusy || !videoTime.trim()} onClick={() => void selectVideoFrame({ time: videoTime })}><Check data-icon="inline-start" aria-hidden="true" />Select frame</Button>
+        <Button type="button" variant="outline" disabled={!!videoBusy || video.frame.index === 0} onClick={() => void selectVideoFrame({ index: video.frame.index - 1 })}><ChevronLeft data-icon="inline-start" aria-hidden="true" />Previous frame</Button>
+        <Button type="button" variant="outline" disabled={!!videoBusy || video.frame.index + 1 === video.frame.count} onClick={() => void selectVideoFrame({ index: video.frame.index + 1 })}><ChevronRight data-icon="inline-start" aria-hidden="true" />Next frame</Button>
+        <Button type="button" variant="ghost" onClick={() => reference()}><X data-icon="inline-start" aria-hidden="true" />Release video</Button>
       </div>
       <p role="status" className="text-sm">Selected {video.frame.seconds.toFixed(6)} s · exact {video.frame.relative_time} s · frame {video.frame.index + 1} of {video.frame.count}. PTS {video.frame.pts}, time base {video.frame.time_base}; first PTS {video.frame.first_pts}.</p>
       <p className="text-xs text-muted-foreground">First decoded presentation frame at or after the request. Previous/Next follows decoded frames, including variable frame rate.</p>
@@ -238,7 +242,7 @@ export function LutImagePreview({ preview, camera }: { preview: Preview | null; 
             type="button"
             variant="ghost"
             onClick={() => { setExpanded(true); dialogRef.current?.showModal() }}
-          >
+          ><Expand data-icon="inline-start" aria-hidden="true" />
             Expand preview
           </Button>
         </CardHeader>
@@ -250,7 +254,7 @@ export function LutImagePreview({ preview, camera }: { preview: Preview | null; 
       <dialog ref={dialogRef} aria-labelledby="expanded-preview-title" className="m-auto max-h-[90dvh] w-[min(72rem,calc(100%-2rem))] overflow-auto rounded-xl border bg-card p-4 text-card-foreground backdrop:bg-black/70" onClose={() => { setExpanded(false); expandRef.current?.focus() }}>
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
           <h2 id="expanded-preview-title" className="text-lg font-semibold">Expanded demonstration</h2>
-          <Button type="button" variant="outline" onClick={() => dialogRef.current?.close()}>Close preview</Button>
+          <Button type="button" variant="outline" onClick={() => dialogRef.current?.close()}><Minimize data-icon="inline-start" aria-hidden="true" />Close preview</Button>
         </div>
         <p className="mb-3 text-sm text-muted-foreground">Illustration only. A graded image cannot verify original camera exposure; this does not apply the exported LUT.</p>
         {expanded && content}
@@ -302,8 +306,7 @@ const browserSetup: Setup = {
   legal_range: false, output: defaultFilenameTemplate,
 }
 
-const fieldClass =
-  "h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 disabled:cursor-not-allowed disabled:opacity-50"
+const fieldClass = "w-full min-w-0"
 
 export function ColorPicker({
   label,
@@ -373,7 +376,7 @@ export function ColorPicker({
             style={{ backgroundColor: isHexColor(value) ? value : "#000000" }}
           />
         </Popover.Trigger>
-        <input aria-label={`${label} hex value`} title="Copy or paste a six-digit hex color, such as #2563eb" className={`${fieldClass} ${hideLabel ? "!px-1 sm:!px-2" : "!px-2"} min-w-0 font-mono text-xs`} value={hexValue} spellCheck={false} aria-invalid={!isHexColor(hexValue)}
+        <Input aria-label={`${label} hex value`} title="Copy or paste a six-digit hex color, such as #2563eb" className={`${fieldClass} ${hideLabel ? "!px-1 sm:!px-2" : "!px-2"} min-w-0 font-mono text-xs`} value={hexValue} spellCheck={false} aria-invalid={!isHexColor(hexValue)}
           onChange={(event) => {
             const next = event.target.value
             setHexDraft(next)
@@ -423,7 +426,7 @@ export function ColorPicker({
                 <label htmlFor={`${label}-brightness`}>Brightness</label>
                 <input id={`${label}-brightness`} type="range" min="0" max="100" value={Math.round(hsv.value * 100)} onChange={(event) => onChange(hsvToHex(hue, hsv.saturation, Number(event.target.value) / 100))} />
               </div>
-              <input
+              <Input
                 aria-label={`${label} hex color`}
                 aria-invalid={!isHexColor(value)}
                 className={fieldClass}
@@ -433,7 +436,7 @@ export function ColorPicker({
               />
               </div>
                 {showPresets && <div className="grid min-w-0 gap-3">
-                <input aria-label={`Search ${label} palette`} className={fieldClass} value={search} placeholder="Search red-500 or #ef44" onChange={(event) => setSearch(event.target.value)} />
+                <Input aria-label={`Search ${label} palette`} className={fieldClass} value={search} placeholder="Search red-500 or #ef44" onChange={(event) => setSearch(event.target.value)} />
                   <div className="grid gap-3">
                     {presetGroups.length === 0 && <p className="text-xs text-muted-foreground">No matching colors.</p>}
                     {presetGroups.map(([family, colors]) => <div className="grid min-w-0 grid-cols-6 gap-1" key={family}>
@@ -759,18 +762,7 @@ export function ExposureGraph({
 }
 
 function InfoTooltip({ text }: { text: string }) {
-  return (
-    <Tooltip>
-      <TooltipTrigger
-        aria-label={text}
-        className="inline-flex size-4 cursor-help items-center justify-center rounded-full border text-[10px] text-muted-foreground"
-        render={<span tabIndex={0} />}
-      >
-        ?
-      </TooltipTrigger>
-      <TooltipContent>{text}</TooltipContent>
-    </Tooltip>
-  )
+  return <ContextHelp label="About cube size">{text}</ContextHelp>
 }
 
 export function App() {
@@ -1024,8 +1016,8 @@ export function App() {
   }
 
   const bandActions = <>
-    <Button type="button" variant="outline" disabled={isGenerating || isLoadingSetup || !sessionReady} onClick={addBand}>Add band</Button>
-    <Button type="button" variant="ghost" aria-label="Undo last band edit" disabled={!undo || isGenerating || isLoadingSetup || !sessionReady} onClick={undoEdit}><WorkspaceActionText desktop="Undo last band edit" mobile="Undo" /></Button>
+    <Button type="button" variant="outline" disabled={isGenerating || isLoadingSetup || !sessionReady} onClick={addBand}><Plus data-icon="inline-start" aria-hidden="true" />Add band</Button>
+    <Button type="button" variant="ghost" aria-label="Undo last band edit" disabled={!undo || isGenerating || isLoadingSetup || !sessionReady} onClick={undoEdit}><Undo2 data-icon="inline-start" aria-hidden="true" /><WorkspaceActionText desktop="Undo last band edit" mobile="Undo" /></Button>
   </>
   return (
     <WorkspaceShell setup={setup} busy={isGenerating || isLoadingSetup || !sessionReady}
@@ -1051,24 +1043,24 @@ export function App() {
       </>}
       feedback={<>
         <p className="workspace-session-status" role="status">{sessionStatus || (!sessionReady ? "Restoring workspace…" : "")}</p>
-        {sessionBlocked && <div className="grid gap-2 p-3"><Button type="button" variant="outline" onClick={downloadSessionBackup}>Download saved session backup</Button><Button type="button" variant="outline" onClick={() => { setSessionBlocked(false); setSessionRetry((value) => value + 1) }}>Replace saved session with current setup</Button></div>}
-        {!sessionBlocked && sessionStatus.startsWith("Could not") && <Button type="button" variant="outline" onClick={() => setSessionRetry((value) => value + 1)}>Retry session save</Button>}
+        {sessionBlocked && <div className="grid gap-2 p-3"><Button type="button" variant="outline" onClick={downloadSessionBackup}><Download data-icon="inline-start" aria-hidden="true" />Download saved session backup</Button><Button type="button" variant="outline" onClick={() => { setSessionBlocked(false); setSessionRetry((value) => value + 1) }}><RefreshCw data-icon="inline-start" aria-hidden="true" />Replace saved session with current setup</Button></div>}
+        {!sessionBlocked && sessionStatus.startsWith("Could not") && <Button type="button" variant="outline" onClick={() => setSessionRetry((value) => value + 1)}><RefreshCw data-icon="inline-start" aria-hidden="true" />Retry session save</Button>}
         <div className={loadStatus || isLoadingSetup || previousSetup ? "workspace-feedback" : "hidden"} aria-label="Setup loading feedback">
           <p role="status" className="text-sm">{isLoadingSetup ? "Loading setup…" : loadStatus}</p>
-          {previousSetup && <Button type="button" variant="outline" onClick={setupReplacement.restore}>Restore previous setup</Button>}
+          {previousSetup && <Button type="button" variant="outline" onClick={setupReplacement.restore}><History data-icon="inline-start" aria-hidden="true" />Restore previous setup</Button>}
         </div>
       </>}>
         <WorkspacePanel value="files">
         <WorkspaceDisclosure className="rounded-lg border p-4" title="Load setup · optional">
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
             <label className="grid gap-1 text-sm font-medium">Saved setup in this browser
-                <select className={fieldClass} value={selectedPreset} onChange={(event) => { setSelectedPreset(event.target.value); setDeletingPreset(false) }}><option value="">Choose a setup</option>{setupPresets.map((preset) => <option key={preset.name} value={preset.name}>{preset.name}</option>)}</select>
+                <NativeSelect className={fieldClass} value={selectedPreset} onChange={(event) => { setSelectedPreset(event.target.value); setDeletingPreset(false) }}><option value="">Choose a setup</option>{setupPresets.map((preset) => <option key={preset.name} value={preset.name}>{preset.name}</option>)}</NativeSelect>
             </label>
             <div className="flex flex-wrap items-end gap-2">
-              <Button type="button" variant="outline" disabled={!selectedPreset} onClick={() => void loadPreset()}>Load setup</Button>
-                <Button type="button" variant={deletingPreset ? "destructive" : "ghost"} disabled={!selectedPreset} onClick={() => deletingPreset ? removePreset() : setDeletingPreset(true)}>{deletingPreset ? "Confirm delete setup" : "Delete setup"}</Button>
-                {deletingPreset && <Button type="button" variant="outline" onClick={() => setDeletingPreset(false)}>Keep setup</Button>}
-              <Button type="button" variant="outline" onClick={() => importInput.current?.click()}>Import setup file</Button>
+              <Button type="button" variant="outline" disabled={!selectedPreset} onClick={() => void loadPreset()}><FolderOpen data-icon="inline-start" aria-hidden="true" />Load setup</Button>
+                <Button type="button" variant={deletingPreset ? "destructive" : "ghost"} disabled={!selectedPreset} onClick={() => deletingPreset ? removePreset() : setDeletingPreset(true)}><Trash2 data-icon="inline-start" aria-hidden="true" />{deletingPreset ? "Confirm delete setup" : "Delete setup"}</Button>
+                {deletingPreset && <Button type="button" variant="outline" onClick={() => setDeletingPreset(false)}><X data-icon="inline-start" aria-hidden="true" />Keep setup</Button>}
+              <Button type="button" variant="outline" onClick={() => importInput.current?.click()}><Upload data-icon="inline-start" aria-hidden="true" />Import setup file</Button>
               <input ref={importInput} className="sr-only" tabIndex={-1} aria-label="Import setup JSON file" type="file" accept="application/json,.json" onChange={(event) => { const file = event.target.files?.[0]; if (file) void importFile(file); event.target.value = "" }} />
             </div>
               {deletingPreset && <p className="text-sm sm:col-span-2">Delete “{selectedPreset}” from this browser? This cannot be undone. Your current editing setup will stay open.</p>}
@@ -1081,27 +1073,27 @@ export function App() {
             <CardTitle><h2>Configuration</h2></CardTitle>
             <CardDescription>Match your recording and monitor. <a className="underline" href={`${import.meta.env.BASE_URL}docs/controls/#configuration`} target="_blank" rel="noreferrer">Profile, range, and output help (new tab)</a></CardDescription>
           </CardHeader>
-          <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <label className="grid gap-1 text-sm font-medium">
-              Camera recording
-              <select className={fieldClass} value={setup.profile} disabled={Boolean(setup.imported_lut)} onChange={(e) => patchSetup({ profile: e.target.value })}>
+          <CardContent><FieldGroup className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+            <Field>
+              <FieldLabel htmlFor="camera-recording">Camera recording</FieldLabel>
+              <NativeSelect id="camera-recording" className={fieldClass} value={setup.profile} disabled={Boolean(setup.imported_lut)} onChange={(e) => patchSetup({ profile: e.target.value })}>
                 {catalog.profiles.map((profile) => <option key={profile} value={profile}>{profile} · {browserInterpretations[profile]?.gamut ?? "Profile gamut"}</option>)}
-              </select>
-            </label>
-            <label className="grid gap-1 text-sm font-medium">
-              Target display
-              <select className={fieldClass} value={setup.target} disabled={Boolean(setup.imported_lut)} onChange={(e) => patchSetup({ target: e.target.value })}>
+              </NativeSelect>
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="target-display">Target display</FieldLabel>
+              <NativeSelect id="target-display" className={fieldClass} value={setup.target} disabled={Boolean(setup.imported_lut)} onChange={(e) => patchSetup({ target: e.target.value })}>
                 {catalog.targets.map((target) => <option key={target}>{target}</option>)}
-              </select>
-            </label>
+              </NativeSelect>
+            </Field>
             <WorkspaceDisclosure className="sm:col-span-2 rounded-lg border p-3 text-sm" title={<>Output settings · {setup.cube_size}³ · {setup.legal_range ? "Legal range" : "Full range"}</>}>
               <div className="mt-4 grid gap-4 sm:grid-cols-2">
-            <label className="grid gap-1 text-sm font-medium">
-              <span className="flex items-center gap-1.5">Cube size <InfoTooltip text="Higher cube sizes sample the transform more precisely but produce larger LUT files and take longer to generate." /></span>
-              <select className={fieldClass} value={setup.cube_size} onChange={(e) => patchSetup({ cube_size: Number(e.target.value) })}>
+            <Field>
+              <div className="flex items-center gap-1.5"><FieldLabel htmlFor="cube-size">Cube size</FieldLabel><InfoTooltip text="Higher cube sizes sample the transform more precisely but produce larger LUT files and take longer to generate." /></div>
+              <NativeSelect id="cube-size" className={fieldClass} value={setup.cube_size} onChange={(e) => patchSetup({ cube_size: Number(e.target.value) })}>
                 {[17, 33, 65].map((size) => <option key={size} value={size}>{size}³</option>)}
-              </select>
-            </label>
+              </NativeSelect>
+            </Field>
             <label className="flex items-center gap-2 text-sm font-medium">
                   <input type="checkbox" checked={setup.monochrome} disabled={setup.fill_mode || Boolean(setup.imported_lut)} onChange={(e) => patchSetup({ monochrome: e.target.checked })} />
               Monochrome base
@@ -1127,17 +1119,17 @@ export function App() {
             <WorkspaceDisclosure className="text-sm sm:col-span-2" title="Customize output filename">
             <div className="mt-3 grid max-w-2xl gap-2">
               <label className="grid gap-1 font-medium">Output filename template
-                <input aria-label="Output filename template" className={fieldClass} value={setup.output} onChange={(e) => patchSetup({ output: e.target.value })} />
+                <Input aria-label="Output filename template" className={fieldClass} value={setup.output} onChange={(e) => patchSetup({ output: e.target.value })} />
               </label>
               <p className="text-xs text-muted-foreground">Use %inputgamma%, %targetgamma%, and %id%, or type a fixed name. The ID changes with your setup.</p>
-              <Button type="button" size="sm" variant="outline" className="justify-self-start" onClick={() => patchSetup({ output: defaultFilenameTemplate })}>Use automatic filename</Button>
+              <Button type="button" size="sm" variant="outline" className="justify-self-start" onClick={() => patchSetup({ output: defaultFilenameTemplate })}><RotateCcw data-icon="inline-start" aria-hidden="true" />Use automatic filename</Button>
             </div>
             </WorkspaceDisclosure>
               </div>
             </WorkspaceDisclosure>
-          </CardContent>
+          </FieldGroup></CardContent>
         </Card>
-        <div className="workspace-import-settings"><WorkspaceTask id="import" title="Imported creative LUT" desktopInline>
+        <div className="workspace-import-settings"><WorkspaceTask id="import" title="Imported creative LUT" icon={Upload} desktopInline>
           {setup.imported_lut && <p className="mb-3 text-xs text-muted-foreground">Input, display encoding, output range and color base belong to the confirmed look. Replace the imported file and confirm its interpretation to change them, or remove the look to use standard settings.</p>}
           <ImportedLookSettings setup={setup} onChange={patchSetup} />
         </WorkspaceTask></div>
@@ -1145,17 +1137,17 @@ export function App() {
         </WorkspacePanel>
         <WorkspacePanel value="presets">
           <div className="workspace-preset-panel">
-            <h2 className="font-semibold">Exposure presets</h2>
+            <h2 className="workspace-desktop-heading font-semibold">Exposure presets</h2>
             {mobileWorkspace ? <MobileExposurePresets onApply={applySelectedExposurePreset} /> : <section className="grid gap-2" aria-label="Exposure presets">
               <div className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-2">
                 <label className="grid min-w-0 gap-1.5 text-sm font-medium">Start with a preset
-                  <select className={fieldClass} value={exposurePreset} onChange={(event) => setExposurePreset(event.target.value as ExposurePreset)}>
+                  <NativeSelect className={fieldClass} value={exposurePreset} onChange={(event) => setExposurePreset(event.target.value as ExposurePreset)}>
                     <option value="contrast-checker">Contrast Checker · 5 fill zones</option>
                     <option value="three-band">Three-band Exposure · Stops</option>
                     <option value="camera-ire">Camera-log IRE · 7 bands</option>
-                  </select>
+                  </NativeSelect>
                 </label>
-                <Button type="button" variant="outline" onClick={() => applySelectedExposurePreset(exposurePreset)}>Use preset</Button>
+                <Button type="button" variant="outline" onClick={() => applySelectedExposurePreset(exposurePreset)}><Check data-icon="inline-start" aria-hidden="true" />Use preset</Button>
               </div>
               <WorkspaceDisclosure className="text-xs text-muted-foreground" title="Details">
                 <div className="grid gap-2 pb-2">
@@ -1180,7 +1172,7 @@ export function App() {
             <div className="workspace-band-actions flex items-center justify-between gap-2">
               {bandActions}
             </div>
-            <WorkspaceTask id="band-settings" title="Band setup & graph settings" lead={<>
+            <WorkspaceTask id="band-settings" title="Band setup & graph settings" icon={SlidersHorizontal} lead={<>
             <fieldset className="grid grid-cols-3 gap-2" aria-label="Band mode">
               <legend className="sr-only">Band mode</legend>
               {([
@@ -1205,22 +1197,22 @@ export function App() {
                 {!setup.fill_mode && (
                   <>
                     <label className="grid min-w-0 gap-1.5 text-xs font-medium">Band preset
-                      <select className={fieldClass} value={bandPreset} onChange={(event) => setBandPreset(event.target.value as BandPreset)}>
+                      <NativeSelect className={fieldClass} value={bandPreset} onChange={(event) => setBandPreset(event.target.value as BandPreset)}>
                         <option value="standard">Standard · 7 bands</option>
                         <option value="detailed">Detailed · {mode === "ire" ? "9" : "10"} bands</option>
-                      </select>
+                      </NativeSelect>
                     </label>
-                    <Button type="button" className="w-full sm:w-auto" variant="outline" onClick={() => editSetup((current) => applyBandPreset(current, catalog.palette, bandPreset))}>Apply preset</Button>
+                    <Button type="button" className="w-full sm:w-auto" variant="outline" onClick={() => editSetup((current) => applyBandPreset(current, catalog.palette, bandPreset))}><Check data-icon="inline-start" aria-hidden="true" />Apply preset</Button>
                   </>
                 )}
                 {setup.fill_mode && <>
                   <label className="grid min-w-0 gap-1.5 text-xs font-medium">Fill preset
-                    <select className={fieldClass} value={fillPreset} onChange={(event) => setFillPreset(event.target.value as FillPreset)}>
+                    <NativeSelect className={fieldClass} value={fillPreset} onChange={(event) => setFillPreset(event.target.value as FillPreset)}>
                       <option value="standard">Standard · 5 zones</option>
                       <option value="detailed">Detailed · 9 zones</option>
-                    </select>
+                    </NativeSelect>
                   </label>
-                  <Button type="button" className="w-full sm:w-auto" variant="outline" onClick={() => editSetup((current) => applyFillPreset(current, catalog.palette, fillPreset))}>Apply preset</Button>
+                  <Button type="button" className="w-full sm:w-auto" variant="outline" onClick={() => editSetup((current) => applyFillPreset(current, catalog.palette, fillPreset))}><Check data-icon="inline-start" aria-hidden="true" />Apply preset</Button>
                 </>}
                 </div>
                 <p className="text-xs text-muted-foreground">Replaces positions and colors. Undo restores them.</p>
@@ -1243,13 +1235,13 @@ export function App() {
                 )}
                 {mode === "stops" && (
                   <label className="grid min-w-0 gap-1.5 text-xs font-medium">Drag step
-                    <select aria-label="Movement increment" className={fieldClass} value={stopIncrement} onChange={(event) => setStopIncrement(Number(event.target.value) as 1 | 0.5 | 0.25)}>
+                    <NativeSelect aria-label="Movement increment" className={fieldClass} value={stopIncrement} onChange={(event) => setStopIncrement(Number(event.target.value) as 1 | 0.5 | 0.25)}>
                       <option value="1">1 stop</option><option value="0.5">½ stop</option><option value="0.25">¼ stop</option>
-                    </select>
+                    </NativeSelect>
                   </label>
                 )}
               {setup.band_mode === "stops" && <label className="grid min-w-0 gap-1.5 text-xs font-medium sm:col-span-2">Visible range (± stops)
-                <select aria-label="Graph range in stops" className={fieldClass} value={graphRange} onChange={(event) => setGraphRange(Number(event.target.value))}>{Array.from({ length: 20 }, (_, index) => index + 1).map((value) => <option key={value} value={value}>±{value} stops</option>)}</select>
+                <NativeSelect aria-label="Graph range in stops" className={fieldClass} value={graphRange} onChange={(event) => setGraphRange(Number(event.target.value))}>{Array.from({ length: 20 }, (_, index) => index + 1).map((value) => <option key={value} value={value}>±{value} stops</option>)}</NativeSelect>
                 <span className="text-xs font-normal text-muted-foreground">Zooms the graph; your bands stay unchanged.</span>
               </label>}
                 </div>
@@ -1285,7 +1277,7 @@ export function App() {
                             editSetup((current) => removeBand(current, index))
                             setRemovingBandIndex(null)
                           }}
-                        ><span aria-hidden="true" className="text-base">{removingBandIndex === index ? "✓" : "×"}</span></Button></td>
+                        >{removingBandIndex === index ? <Check aria-hidden="true" /> : <Trash2 aria-hidden="true" />}</Button></td>
                       </tr>
                     ))}</tbody>
                   </table>
@@ -1304,7 +1296,7 @@ export function App() {
           <PaletteEditor key={`${revision}:${paletteRevision}`} setup={setup} palette={catalog.palette} onApply={applyPalette} onPreview={setPalettePreview} />
         </WorkspacePanel>
         <WorkspacePanel value="configuration">
-        <WorkspaceTask id="signal-warnings" title="Recorded-signal limit warnings" desktopInline>
+        <WorkspaceTask id="signal-warnings" title="Recorded-signal limit warnings" icon={TriangleAlert} desktopInline>
         <Card>
             <CardHeader>
               <CardTitle><h2>Recorded-signal limit warnings</h2></CardTitle>
@@ -1342,20 +1334,20 @@ export function App() {
         <WorkspacePanel value="files">
         <Card>
           <CardHeader>
-            <CardTitle><h2>Save setup · optional</h2></CardTitle>
+            <CardTitle className="workspace-section-heading"><h2>Save setup · optional</h2></CardTitle>
             <CardDescription>Keep your settings for next time.</CardDescription>
           </CardHeader>
           <CardContent className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,14rem),1fr))] items-end gap-3">
             <label className="grid gap-1 text-sm font-medium">Preset name
-              <input className={fieldClass} value={presetName} onChange={(event) => setPresetName(event.target.value)} maxLength={80} />
+              <Input className={fieldClass} value={presetName} onChange={(event) => setPresetName(event.target.value)} maxLength={80} />
             </label>
-            <Button type="button" variant="outline" disabled={presetsBlocked} onClick={saveCurrentPreset}>{replacingPreset ? "Replace saved setup" : "Save current setup"}</Button>
+            <Button type="button" variant="outline" disabled={presetsBlocked} onClick={saveCurrentPreset}><Save data-icon="inline-start" aria-hidden="true" />{replacingPreset ? "Replace saved setup" : "Save current setup"}</Button>
             {presetsBlocked && sessionReady && <div className="grid gap-2 sm:col-span-2">
               <p className="text-sm">Saved setups could not be read. Saving is blocked to protect your existing work. Download the raw library backup before replacing it; replacement deletes every saved entry. Your current session is kept separately.</p>
-              <Button type="button" variant="outline" onClick={downloadPresetsBackup}>Download saved library backup</Button>
-              <Button type="button" variant="outline" className="border-destructive/40 text-foreground" onClick={replaceDamagedLibrary}>Replace saved library with an empty library</Button>
+              <Button type="button" variant="outline" onClick={downloadPresetsBackup}><Download data-icon="inline-start" aria-hidden="true" />Download saved library backup</Button>
+              <Button type="button" variant="outline" className="border-destructive/40 text-foreground" onClick={replaceDamagedLibrary}><Trash2 data-icon="inline-start" aria-hidden="true" />Replace saved library with an empty library</Button>
             </div>}
-            <Button type="button" variant="outline" onClick={downloadConfig}>Export setup file</Button>
+            <Button type="button" variant="outline" onClick={downloadConfig}><Download data-icon="inline-start" aria-hidden="true" />Export setup file</Button>
             {replacingPreset && <p className="text-sm sm:col-span-2">A setup named “{presetName.trim()}” is already saved. Replacing it overwrites that saved copy.</p>}
             <p role="status" className="text-sm sm:col-span-2">{saveStatus}</p>
           </CardContent>
@@ -1380,7 +1372,7 @@ export function App() {
           </CardContent>
           <CardFooter className="flex flex-wrap gap-3">
             <Button size="lg" className="w-full" disabled={isGenerating || Boolean(validationError)} onClick={generate}>
-              {isGenerating && <Spinner data-icon="inline-start" />}
+              {isGenerating ? <Spinner data-icon="inline-start" /> : <Download data-icon="inline-start" aria-hidden="true" />}
               {isGenerating ? "Generating…" : "Generate LUT"}
             </Button>
             <p className="min-h-5 w-full text-sm text-muted-foreground" role="status" aria-live="polite">{status}</p>
@@ -1389,7 +1381,7 @@ export function App() {
 
         </aside>
         </WorkspacePanel>
-      {browserOnly && isGenerating && <Button type="button" variant="outline" onClick={() => workerRef.current?.abort()}>Cancel generation</Button>}
+      {browserOnly && isGenerating && <Button type="button" variant="outline" onClick={() => workerRef.current?.abort()}><X data-icon="inline-start" aria-hidden="true" />Cancel generation</Button>}
     </WorkspaceShell>
   )
 }

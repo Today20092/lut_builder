@@ -101,6 +101,29 @@ async function accessible(page: Page) {
   expect(result.violations.map(({ id, nodes }) => ({ id, nodes: nodes.map(({ target, failureSummary }) => ({ target, failureSummary })) }))).toEqual([])
 }
 
+test('configuration help opens by tap and fields keep a single control surface @checks', async ({ page }) => {
+  await panel(page, 'Configure')
+  await disclosure(page, 'Output settings')
+  const camera = page.getByLabel('Camera recording', { exact: true })
+  await expect(camera).toBeVisible()
+  const field = await camera.evaluate(element => {
+    const control = element.getBoundingClientRect()
+    const wrapper = element.parentElement!.getBoundingClientRect()
+    return { height: control.height, width: control.width, wrapperWidth: wrapper.width, wrapperBorder: getComputedStyle(element.parentElement!).borderWidth }
+  })
+  expect(field.height).toBeGreaterThanOrEqual(page.viewportSize()!.width < 960 ? 48 : 40)
+  expect(field.width).toBeCloseTo(field.wrapperWidth, 0)
+  expect(field.wrapperBorder).toBe('0px')
+  const help = page.getByRole('button', { name: 'About cube size', exact: true })
+  await help.click()
+  await expect(page.getByText('Higher cube sizes sample the transform more precisely', { exact: false })).toBeVisible()
+  await accessible(page)
+  await page.keyboard.press('Escape')
+  await expect(help).toBeFocused()
+  await expect(page.getByText('Higher cube sizes sample the transform more precisely', { exact: false })).toBeHidden()
+  await expect(camera).toHaveValue('Sony S-Log3')
+})
+
 test('disclosures, palette layout and keyboard controls @checks', async ({ page }) => {
   for (const title of ['Output settings', 'Save and reuse palettes']) {
     await panel(page, title === 'Output settings' ? 'Configure' : 'Palette')
@@ -396,7 +419,7 @@ test('mobile More menu is consistent and preset feedback floats above navigation
     return { height: node.getBoundingClientRect().height, padding: style.padding, radius: style.borderRadius, font: style.font, decoration: style.textDecorationLine }
   }))
   for (const style of styles) { expect(style).toEqual(styles[0]); expect(style.height).toBeGreaterThanOrEqual(48) }
-  const title = (await page.getByRole('heading', { name: 'More', exact: true }).boundingBox())!
+  const title = (await page.locator('.workspace-mobile-title').boundingBox())!
   expect((await rows.first().boundingBox())!.y - title.y - title.height).toBeLessThanOrEqual(40)
   const help = menu.getByRole('link', { name: /Help \/ Manual/ })
   await expect(help).toHaveAttribute('target', '_blank')

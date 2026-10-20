@@ -12,7 +12,7 @@ for(const key of ["window","document","Element","HTMLElement","Node"])globalThis
 Object.defineProperty(globalThis,"navigator",{value:dom.window.navigator})
 globalThis.IS_REACT_ACT_ENVIRONMENT=true
 after(()=>dom.window.close())
-const bundle=await build({bundle:true,external:["react","react/jsx-runtime","react-dom","react-dom/client"],format:"esm",jsx:"automatic",platform:"node",stdin:{contents:`export {ImportedLookSettings} from "./src/ImportedLookSettings.tsx";export {ImportedLookPreview} from "./src/ImportedLookPreview.tsx";export {CheckedImage,SdrViewDescription} from "./src/CameraVerification.tsx";export {default as React,act} from "react";export {createRoot} from "react-dom/client";`,resolveDir:process.cwd(),sourcefile:"imported-ui.ts"},write:false})
+const bundle=await build({bundle:true,external:["@base-ui/react/*","lucide-react","react","react/jsx-runtime","react-dom","react-dom/client"],format:"esm",jsx:"automatic",platform:"node",stdin:{contents:`export {ImportedLookSettings} from "./src/ImportedLookSettings.tsx";export {ImportedLookPreview} from "./src/ImportedLookPreview.tsx";export {CheckedImage,SdrViewDescription} from "./src/CameraVerification.tsx";export {default as React,act} from "react";export {createRoot} from "react-dom/client";`,resolveDir:process.cwd(),sourcefile:"imported-ui.ts"},write:false})
 stop()
 const directory=await mkdtemp(join(process.cwd(),"tests",".look-")),path=join(directory,"test.mjs")
 await writeFile(path,bundle.outputFiles[0].text)
@@ -77,7 +77,7 @@ test("sampled camera-code reference comparison is viewing only and stale workers
     // Effects launch after act flush; finish generation in a second act.
     await act(async()=>{await new Promise(r=>setTimeout(r,700))})
     const original=JSON.stringify(setup)
-    assert.equal(view.container.querySelectorAll("[style]").length,9)
+    assert.equal(view.container.querySelectorAll('[aria-label="Neutral camera patches at labeled stops"] [style]').length,9)
     await act(()=>view.button("Look").click())
     assert.equal(JSON.stringify(setup),original)
     assert.equal(view.button("Look").getAttribute("aria-pressed"),"true")

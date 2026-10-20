@@ -12,7 +12,12 @@
       "frontend/src/ImportedLookSettings.tsx",
       "frontend/src/WorkspaceTask.tsx",
       "frontend/src/workspaceNavigation.ts",
-      "frontend/src/components/ui/toast.tsx"
+      "frontend/src/components/ui/toast.tsx",
+      "frontend/src/components/ui/input.tsx",
+      "frontend/src/components/ui/native-select.tsx",
+      "frontend/src/components/ui/toggle-group.tsx",
+      "frontend/src/ContextHelp.tsx",
+      "docs/research/mobile-workspace-ui.md"
     ],
     "theme": "Unprefixed frontmatter colors describe light mode. Dark-prefixed entries describe prefers-color-scheme: dark overrides. Secondary and accent reuse muted; popover reuses card. Runtime CSS custom properties remain authoritative.",
     "breakpoints": [
