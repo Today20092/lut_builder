@@ -2,19 +2,19 @@
 name: LUT Builder Workspace
 description: A neutral editing bench for precise diagnostic exposure LUTs.
 colors:
-  background: "oklch(0.975 0 0)"
+  background: "oklch(1 0 0)"
   foreground: "oklch(0.145 0 0)"
   card: "oklch(1 0 0)"
   primary: "oklch(0.205 0 0)"
   primary-foreground: "oklch(0.985 0 0)"
   muted: "oklch(0.97 0 0)"
-  muted-foreground: "oklch(0.48 0 0)"
+  muted-foreground: "oklch(0.53 0 0)"
   border: "oklch(0.922 0 0)"
   ring: "oklch(0.708 0 0)"
   destructive: "oklch(0.577 0.245 27.325)"
   sidebar: "oklch(0.985 0 0)"
   preview-middle-grey: "oklch(0.55 0 0)"
-  dark-background: "oklch(0.17 0 0)"
+  dark-background: "oklch(0.145 0 0)"
   dark-foreground: "oklch(0.985 0 0)"
   dark-card: "oklch(0.205 0 0)"
   dark-primary: "oklch(0.922 0 0)"
@@ -27,28 +27,28 @@ colors:
   dark-destructive: "oklch(0.704 0.191 22.216)"
 typography:
   title:
-    fontFamily: "ui-sans-serif, system-ui, sans-serif"
+    fontFamily: "Roboto Variable, sans-serif"
     fontSize: "1rem"
     fontWeight: 650
     letterSpacing: "-0.025em"
   body:
-    fontFamily: "ui-sans-serif, system-ui, sans-serif"
+    fontFamily: "Roboto Variable, sans-serif"
     fontSize: "0.875rem"
     lineHeight: "1.25rem"
   label:
-    fontFamily: "ui-sans-serif, system-ui, sans-serif"
+    fontFamily: "Roboto Variable, sans-serif"
     fontSize: "0.75rem"
     lineHeight: "1rem"
   compact:
-    fontFamily: "ui-sans-serif, system-ui, sans-serif"
+    fontFamily: "Roboto Variable, sans-serif"
     fontSize: "0.6875rem"
   phone-input:
-    fontFamily: "ui-sans-serif, system-ui, sans-serif"
+    fontFamily: "Roboto Variable, sans-serif"
     fontSize: "1rem"
 rounded:
-  md: "0.4rem"
-  lg: "0.5rem"
-  xl: "0.7rem"
+  md: "0.5rem"
+  lg: "0.625rem"
+  xl: "0.875rem"
   preview: "0.375rem"
   phone-adjustments: "0.75rem 0.75rem 0 0"
 spacing:
@@ -63,15 +63,15 @@ components:
   button-primary:
     backgroundColor: "{colors.primary}"
     textColor: "{colors.primary-foreground}"
-    rounded: "{rounded.lg}"
-    height: "2.25rem"
-    padding: "0 0.625rem"
+    rounded: "1.125rem"
+    height: "2rem"
+    padding: "0 0.75rem"
   button-outline:
     backgroundColor: "{colors.background}"
     textColor: "{colors.foreground}"
-    rounded: "{rounded.lg}"
-    height: "2.25rem"
-    padding: "0 0.625rem"
+    rounded: "1.125rem"
+    height: "2rem"
+    padding: "0 0.75rem"
   field:
     rounded: "{rounded.md}"
     height: "2.25rem"
