@@ -273,8 +273,8 @@ details.border[open] > summary { margin-bottom: 0; }
 .workspace-panel-content { padding-bottom: max(2rem, env(safe-area-inset-bottom)); }
 .workspace-fields { min-width: 0; }
 .workspace-panel { min-width: 0; display: grid; gap: 1.5rem; outline-offset: -3px; }
-.workspace-panel > [data-slot="card"] { border: 0; border-radius: 0; box-shadow: none; background: transparent; }
-.workspace-panel > [data-slot="card"] > [data-slot="card-header"], .workspace-panel > [data-slot="card"] > [data-slot="card-content"], .workspace-panel > [data-slot="card"] > [data-slot="card-footer"] { padding-inline: 1.25rem; }
+.workspace-panel > [data-slot="card"], .workspace-panel > .workspace-task[data-inline="true"] > section > [data-slot="card"] { border: 0; border-radius: 0; box-shadow: none; background: transparent; }
+.workspace-panel > [data-slot="card"] > [data-slot="card-header"], .workspace-panel > [data-slot="card"] > [data-slot="card-content"], .workspace-panel > [data-slot="card"] > [data-slot="card-footer"], .workspace-panel > .workspace-task[data-inline="true"] > section > [data-slot^="card"] > [data-slot] { padding-inline: 1.25rem; }
 .workspace-panel > details, .workspace-panel > section, .workspace-preset-panel { margin: 1.25rem; }
 .workspace-panel > details { border-radius: .5rem; }
 .workspace-preset-panel { display: grid; gap: 1rem; }
@@ -300,6 +300,7 @@ details.border[open] > summary { margin-bottom: 0; }
 .workspace-more > button > svg:last-child { margin-left: auto; }
 .workspace-more > a { display: flex; align-items: center; min-height: 3rem; text-decoration: underline; text-underline-offset: .2em; }
 @media (min-width: 960px) {
+  .workspace-task[data-inline="true"], .workspace-task[data-inline="true"] > section { display: contents; }
   #exposure-bands > [data-slot="card-header"] > .workspace-band-actions { order: 1; }
   #exposure-bands > [data-slot="card-header"] > .workspace-task { order: 2; }
   .workspace-panel [class*="sm:grid-cols-2"] { grid-template-columns: 1fr; }
@@ -380,7 +381,7 @@ details.border[open] > summary { margin-bottom: 0; }
   #exposure-bands > [data-slot="card-content"] { order: 1; }
   #exposure-bands > .workspace-task { order: 2; margin: 0 1rem; }
   #exposure-bands > [data-slot="card-header"] > .workspace-task { order: 2; margin: 0 1rem; }
-  .workspace-panel > section, .workspace-panel > .workspace-task { margin: 1rem; }
+  .workspace-panel > section, .workspace-panel > details, .workspace-panel > .workspace-task { margin: 1rem; }
   .workspace-panel .band-table tr { grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 1rem .75rem; background: transparent; border: 0; }
   .workspace-panel .band-table td:last-child { grid-column: 1 / -1; justify-self: end; }
   .workspace-panel .band-table td > fieldset > div { flex-wrap: nowrap; }

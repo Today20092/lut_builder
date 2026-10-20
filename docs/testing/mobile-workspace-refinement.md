@@ -25,6 +25,8 @@ on `codex/workspace-composition-55-56`; desktop keeps its existing workspace lay
 Existing controls and domain state remain shared. LUT mathematics, source
 interpretation, draft application, undo and portable setup behavior are reused.
 The media file inputs explicitly shrink within their grids, including at 320px.
+Responsive disclosures retain their mounted content and desktop open state across
+viewport changes; an unconfirmed imported LUT draft survives the same transition.
 
 ## Verification
 
