@@ -3,18 +3,28 @@ title: Controls and colors
 description: What each configuration, band, graph, palette, and warning control does.
 ---
 
+## Finding your controls
+
+On a phone, use the bottom **Bands**, **Palette**, **Presets**, **Media**, and **More**
+navigation. **More** contains **Configure** and **Setups**; **Export LUT** is in the
+header. Occasional settings open their own screen with **Back**. Desktop retains
+the side navigation and preview beside the controls.
+
+The phone exposure graph scrolls with **Bands**. **Palette** has a compact preview;
+other tasks use the full screen without the exposure stage above their controls.
+
 ## Configuration
 
 | Control | What it changes |
 | --- | --- |
 | Camera recording | The input log decoder and camera gamut. Match both to the recording/export path. See [profiles](../profiles/). |
 | Target display | Rec.709 or SDR Rec.2020 diagnostic output. This is not the source gamut. |
-| Output settings | Opens cube size, base-image, range, and filename settings. |
+| Output settings | Contains cube size, base-image, range, and filename settings. These fields are already visible in Configure on a phone. |
 | Cube size | 17³, 33³, or 65³ samples. Larger cubes better resolve narrow bands; host interpolation still softens boundaries. |
 | Monochrome base | Makes uncovered portions of the base image gray. Disabled in Fill because zones cover the image. |
 | Output range: Full / Data or Video / Legal | Full uses 0–1 (10-bit-equivalent codes 0–1023); Legal packs output into 64–940. Does not change input range or warning thresholds. Avoid a second legal-range conversion in the host. |
 | Which should I use? | Explains how to match the device applying the LUT, distinguish input conversion from LUT output packing, and test a grayscale ramp. |
-| Customize output filename | Opens the filename template. `%inputgamma%`, `%targetgamma%`, and `%id%` expand to profile, target, and a settings-derived ID. A fixed name also works. |
+| Customize output filename | Contains the filename template. `%inputgamma%`, `%targetgamma%`, and `%id%` expand to profile, target, and a settings-derived ID. A fixed name also works. |
 | Use automatic filename | Restores the built-in template. The ID is stable for the same settings; it is not a unique camera or media identifier. |
 
 ## Exposure bands
@@ -34,7 +44,7 @@ Older setups can retain target-display IRE. Check the **Legacy setup** label bef
 | Control | How to use it |
 | --- | --- |
 | Exposure diagram | Shows band geometry and palette colors. It is not a measurement of uploaded footage or a test of the exported cube. |
-| Current exposure bands | Sticky summary of applied bands or the active palette draft while you scroll. It does not measure uploaded footage. |
+| Current exposure bands | Shows applied bands or the active palette draft. The desktop preview stays beside editing; the phone preview scrolls with its task. It does not measure uploaded footage. |
 | Band center / colored area | Select a band; drag to move its center. Double-click a band or zone to open its color picker. |
 | Band edges | Drag an edge to change width. Numeric fields are the alternative to dragging. |
 | Fill dividers | Move a boundary between neighboring colors. At the boundary, the higher zone wins. The final zone fills the rest. |
@@ -44,7 +54,7 @@ Older setups can retain target-display IRE. Check the **Legacy setup** label bef
 | Band preset / Fill preset + Apply preset | Replaces the arrangement and colors with Standard or Detailed. Choosing a preset alone does not apply it. Undo restores the previous arrangement. |
 | All band widths / All total widths | Sets every ordinary band's **total** width. “Mixed” means the individual widths differ. |
 | Drag step | Selects 1, ½, or ¼ stop movement. IRE editing uses its own increment. |
-| Visible range | Changes only the Stops diagram viewport, not the LUT. Values outside it remain editable in the table. |
+| Visible range | Changes only the Stops diagram viewport, not the LUT. Values outside it remain editable in numeric fields. |
 | Color | Opens the individual band's color picker. |
 | Position / Boundary to next color | Sets the band center or Fill boundary. |
 | Total width | Full span, not ± width. Width 0.6 means ±0.3. Fill has coverage labels instead. |

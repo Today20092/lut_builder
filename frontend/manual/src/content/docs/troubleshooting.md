@@ -61,7 +61,7 @@ Keep the tab open while generating, check browser download permissions and the D
 
 The manual supports narrow-screen navigation and keyboard access. Browser-engine tests and emulated phone widths are not physical phone testing. Real device file pickers, download/share behavior, touch input, memory pressure, and background/resume behavior can differ. See the [support matrix](https://github.com/Today20092/lut_builder/blob/main/docs/browser-support.md#deferred-physical-device-checks).
 
-Use numeric fields instead of dragging, and the [keyboard reference](../keyboard/) to navigate. The wide band table can scroll within its panel on a small screen. Manual search requires JavaScript and the generated search assets; topic navigation remains usable without search.
+Use numeric fields instead of dragging, and the [keyboard reference](../keyboard/) to navigate. On a phone, select a numbered band to show its color, position and width fields. The graph scrolls away so you can reach lower controls; other tasks do not keep it above their settings. Manual search requires JavaScript and the generated search assets; topic navigation remains usable without search.
 
 ## Report a reproducible problem
 
