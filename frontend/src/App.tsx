@@ -1011,7 +1011,7 @@ export function App() {
   </>
   return (
     <WorkspaceShell setup={setup} busy={isGenerating || isLoadingSetup || !sessionReady}
-      illustration={<details id="photo-result" className="workspace-photo"><summary>Photo illustration · optional</summary><ReferencePreview setup={palettePreview?.valid ? palettePreview.setup : setup} draft={Boolean(palettePreview?.valid)} /><a href="#exposure-bands" className="inline-flex min-h-11 items-center text-sm underline">Back to band editing</a></details>}
+      illustration={(openBands) => <details id="photo-result" className="workspace-photo"><summary>Photo illustration · optional</summary><ReferencePreview setup={palettePreview?.valid ? palettePreview.setup : setup} draft={Boolean(palettePreview?.valid)} /><a href="#exposure-bands" className="inline-flex min-h-11 items-center text-sm underline" onClick={openBands}>Back to band editing</a></details>}
       shortcuts={<KeyboardHelp canUndo={Boolean(undo)} onUndo={undoEdit} />}
       stage={(openBands) => <>
         <ExposurePreview setup={setup} preview={palettePreview} minimum={graphMinimum} maximum={graphMaximum} unit={graphPreview.unit} />

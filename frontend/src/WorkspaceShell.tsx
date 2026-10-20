@@ -20,7 +20,7 @@ export function WorkspacePanel({ value, children }: { value: string; children: R
 }
 
 export function WorkspaceShell({ setup, stage, illustration, feedback, shortcuts, children, busy }: {
-  setup: Setup; stage: (editBands: () => void) => ReactNode; illustration: ReactNode; feedback: ReactNode; shortcuts: ReactNode; children: ReactNode; busy: boolean
+  setup: Setup; stage: (editBands: () => void) => ReactNode; illustration: (editBands: () => void) => ReactNode; feedback: ReactNode; shortcuts: ReactNode; children: ReactNode; busy: boolean
 }) {
   const [requestedSection, setSection] = useState("bands")
   const [task, setTask] = useState("")
@@ -87,7 +87,7 @@ export function WorkspaceShell({ setup, stage, illustration, feedback, shortcuts
         {secondary && <Button type="button" variant="ghost" onClick={() => open(section === "export" ? "bands" : "more")}><ArrowLeft aria-hidden="true" />{section === "export" ? "Back to editing" : "More"}</Button>}
         <h2 id="workspace-screen-title" tabIndex={-1}>{section === "more" ? "More" : sections.find(item => item.value === section)?.label}</h2>
       </div>
-      <section className="workspace-stage" aria-label="Exposure workspace">{stage(() => { setSection("bands"); setTask("") })}{!mobile && illustration}</section>
+      <section className="workspace-stage" aria-label="Exposure workspace">{stage(() => { setSection("bands"); setTask("") })}{!mobile && illustration(() => { setSection("bands"); setTask("") })}</section>
       <aside id="workspace-adjustments" className="workspace-adjustments" aria-label="Workspace adjustments">
         <div className="workspace-panel-heading">
           <span>{sections.find((item) => item.value === section)?.label}</span>
@@ -106,7 +106,7 @@ export function WorkspaceShell({ setup, stage, illustration, feedback, shortcuts
             </fieldset>
           </Tabs.Panel>)}
           {Children.toArray(children).filter((child) => !isValidElement(child) || child.type !== WorkspacePanel)}
-          {mobile && <div hidden={!["bands", "palette"].includes(section) || Boolean(task)} className="workspace-mobile-photo">{illustration}</div>}
+          {mobile && <div hidden={!["bands", "palette"].includes(section) || Boolean(task)} className="workspace-mobile-photo">{illustration(() => { setSection("bands"); setTask("") })}</div>}
           {mobile && <div className="workspace-feedback-area">{feedback}</div>}
         </div>
       </aside>

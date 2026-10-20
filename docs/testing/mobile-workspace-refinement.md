@@ -50,8 +50,10 @@ viewport changes; an unconfirmed imported LUT draft survives the same transition
 The canonical Linux screenshot capture is
 [run 39345335576](https://github.com/Today20092/lut_builder/actions/runs/39345335576).
 All 32 mobile candidates (eight states in four width/theme projects) were reviewed
-and accepted. The final full gate runs with screenshot updates disabled; desktop
-baseline images remain unchanged.
+and accepted. The strict comparison passed in
+[run 39346873728](https://github.com/Today20092/lut_builder/actions/runs/39346873728),
+including both unchanged desktop baseline sets. The full behavior gate also runs
+with screenshot updates disabled.
 
 ## Baseline intent
 

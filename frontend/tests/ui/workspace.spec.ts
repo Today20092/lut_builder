@@ -376,6 +376,10 @@ test('phone navigation gives unrelated tasks the full viewport @checks', async (
   const inputBounds = (await file.boundingBox())!
   const cardBounds = (await file.locator('xpath=ancestor::*[@data-slot="card-content"]').boundingBox())!
   expect(inputBounds.x + inputBounds.width).toBeLessThanOrEqual(cardBounds.x + cardBounds.width)
+  await panel(page, 'Palette')
+  await page.locator('.workspace-photo > summary').click()
+  await page.getByRole('link', { name: 'Back to band editing', exact: true }).click()
+  await expect(page.locator('.workspace')).toHaveAttribute('data-section', 'bands')
   await panel(page, 'Bands')
   await disclosure(page, 'Band setup & graph settings')
   await expect(page.getByRole('textbox', { name: 'Band 1 stops', exact: true })).not.toBeVisible()
@@ -584,4 +588,7 @@ test('open configuration and imported draft survive responsive resizing @checks'
   await expect(output).toHaveAttribute('open', '')
   await expect(page.getByRole('combobox', { name: /^LUT camera input/ })).toHaveValue('Panasonic V-Log')
   await expect(page.getByRole('button', { name: 'Confirm and apply look', exact: true })).toBeVisible()
+  await page.locator('.workspace-photo > summary').click()
+  await page.getByRole('link', { name: 'Back to band editing', exact: true }).click()
+  await expect(page.locator('.workspace')).toHaveAttribute('data-section', 'bands')
 })
