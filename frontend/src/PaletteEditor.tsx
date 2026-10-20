@@ -139,7 +139,7 @@ export function PaletteEditor({ setup, palette, onApply, onPreview }: { setup: S
     }).catch((error: unknown) => setLibrary({ ...library, message: error instanceof Error ? error.message : "Could not save palettes in this browser." }))
   }
 
-  return <section aria-label="Band colors" className="grid gap-3 border-t pt-4" onKeyDown={(event) => {
+  return <section aria-label="Band colors" className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3 border-t pt-4" onKeyDown={(event) => {
     if (event.key === "Escape" && !event.defaultPrevented && !event.nativeEvent.isComposing && !isTypingTarget(event.target) && audition) {
       event.preventDefault()
       cancelPreview()
@@ -147,9 +147,9 @@ export function PaletteEditor({ setup, palette, onApply, onPreview }: { setup: S
   }}>
     <h3 className="text-sm font-semibold">Recolor all bands</h3>
     <p className="text-sm text-muted-foreground">Keep your colors, edit a band swatch above, or choose a method.</p>
-    <ToggleGroup className="w-full" variant="outline" value={[method]} onValueChange={(values) => { const value = values[0]; if (value === "palette" || value === "gradient") send({ type: "choose-method", method: value }) }} aria-label="Color editing method">
-      <ToggleGroupItem className="min-w-0 flex-1 whitespace-normal" value="palette"><Palette data-icon="inline-start" aria-hidden="true" />Choose a palette</ToggleGroupItem>
-      <ToggleGroupItem className="min-w-0 flex-1 whitespace-normal" value="gradient" onClick={(event) => { chooser.current = event.currentTarget }}><SlidersHorizontal data-icon="inline-start" aria-hidden="true" />Customize gradient</ToggleGroupItem>
+    <ToggleGroup className="w-full flex-wrap" variant="outline" value={[method]} onValueChange={(values) => { const value = values[0]; if (value === "palette" || value === "gradient") send({ type: "choose-method", method: value }) }} aria-label="Color editing method">
+      <ToggleGroupItem className="min-w-0 flex-1 basis-28 whitespace-normal" value="palette"><Palette data-icon="inline-start" aria-hidden="true" />Choose a palette</ToggleGroupItem>
+      <ToggleGroupItem className="min-w-0 flex-1 basis-28 whitespace-normal" value="gradient" onClick={(event) => { chooser.current = event.currentTarget }}><SlidersHorizontal data-icon="inline-start" aria-hidden="true" />Customize gradient</ToggleGroupItem>
     </ToggleGroup>
     {method === "palette" && <>
     <fieldset className="grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -170,7 +170,7 @@ export function PaletteEditor({ setup, palette, onApply, onPreview }: { setup: S
         return <Button key={preset.name} type="button" variant="outline" data-palette={preset.name} aria-pressed={active} className="h-auto min-w-0 flex-col items-stretch gap-2 whitespace-normal p-3 text-left" onClick={(event) => setDraft({ colors: [...preset.colors], brightness: "custom", intensity: 100, blend: "colorful", huePath: "shorter", mapping: "exposure" }, preset.name, event.currentTarget)}>
           <span className="sr-only">Start with </span>
           <span aria-hidden="true" className="h-5 w-full rounded-sm" style={{ background: `linear-gradient(to right, ${preview.join(",")})` }} />
-          <span className="flex items-center justify-between gap-2"><span>{preset.name}</span>{active && <span className="text-xs text-muted-foreground">{audition ? "Previewing" : pending ? "Starting point" : "Applied"}</span>}</span>
+          <span className="flex flex-wrap items-center justify-between gap-2"><span>{preset.name}</span>{active && <span className="text-xs text-muted-foreground">{audition ? "Previewing" : pending ? "Starting point" : "Applied"}</span>}</span>
           <span className="text-xs font-normal text-muted-foreground">{preset.description}</span>
         </Button>
       })}

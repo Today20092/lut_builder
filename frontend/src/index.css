@@ -228,6 +228,8 @@ details.border[open] > summary { margin-bottom: 0; }
   font-variant-numeric: tabular-nums;
 }
 .workspace [hidden] { display: none !important; }
+.workspace fieldset { min-width: 0; }
+.workspace legend { max-width: 100%; }
 .workspace [data-slot="input"], .workspace [data-slot="native-select"] { min-height: 2.5rem; }
 .workspace-preset-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 1rem; padding-block: .5rem; }
 .workspace-screen-heading { display: flex; align-items: center; gap: .625rem; }
@@ -295,7 +297,7 @@ details.border[open] > summary { margin-bottom: 0; }
 .workspace-session-status:empty { display: none; }
 .workspace-session-status { padding: .75rem 1.25rem 0; font-size: .6875rem; color: var(--muted-foreground); }
 .workspace-feedback { display: grid; gap: .5rem; padding: 1rem 1.25rem; border-bottom: 1px solid var(--border); }
-.workspace-skip { position: fixed; left: 1rem; top: -10rem; z-index: 60; padding: .75rem; background: var(--card); border: 1px solid var(--border); }
+.workspace-skip { position: fixed; left: 1rem; top: -10rem; z-index: 60; max-width: calc(100vw - 2rem); padding: .75rem; background: var(--card); border: 1px solid var(--border); }
 .workspace-skip:focus { top: .5rem; }
 .workspace input, .workspace select { caret-color: var(--foreground); scroll-margin-block: 15rem 6rem; }
 .workspace ::selection { color: var(--primary-foreground); background: var(--primary); }
@@ -303,7 +305,8 @@ details.border[open] > summary { margin-bottom: 0; }
 .workspace-task-link { width: 100%; justify-content: space-between; }
 .workspace-task-link > span { min-width: 0; flex: 1; text-align: left; white-space: normal; }
 .workspace-more { display: grid; gap: .75rem; padding: 1.25rem; }
-.workspace-more > :is(button, a) { justify-content: start; min-height: 3rem; gap: .75rem; }
+.workspace-more > :is(button, a) { justify-content: start; min-width: 0; min-height: 3rem; height: auto; gap: .75rem; white-space: normal; text-align: left; }
+.workspace-more > :is(button, a) > span:not(.sr-only) { min-width: 0; }
 .workspace-more > :is(button, a) > svg:last-of-type { margin-left: auto; }
 @media (max-width: 959px) {
   [data-slot="toast-viewport"] { bottom: calc(5.5rem + env(safe-area-inset-bottom)); }
@@ -327,6 +330,9 @@ details.border[open] > summary { margin-bottom: 0; }
   .workspace-body { grid-template-columns: minmax(0, 1fr); }
   .workspace [data-slot="input"], .workspace [data-slot="native-select"], .workspace [data-slot="toggle-group-item"] { min-height: 3rem; }
   .workspace-panel label, .workspace-panel [data-slot="field-label"] { font-size: .875rem; }
+  .workspace-panel [data-slot="card-content"].grid { grid-template-columns: minmax(0, 1fr); }
+  .workspace-panel button { max-width: 100%; white-space: normal; }
+  .workspace-panel [aria-label="Exposure palette legend"] > li { grid-template-columns: min(2rem, 32px) minmax(0, min(4.5rem, 72px)) minmax(0, 1fr); }
   .workspace-desktop-heading, .workspace-panel > [data-slot="card"] > [data-slot="card-header"] > [data-slot="card-title"]:not(.workspace-section-heading) { display: none; }
   .workspace-panel .workspace-disclosure { border: 0; border-radius: 0; padding: 0; }
   .workspace-panel .workspace-disclosure > h3 { font-size: 1rem; margin-bottom: .75rem; }
@@ -387,9 +393,9 @@ details.border[open] > summary { margin-bottom: 0; }
   .workspace[data-section="bands"] .workspace-stage > [aria-label="Persistent exposure preview"] > button > svg,
   .workspace[data-section="bands"] .workspace-stage > [aria-label="Persistent exposure preview"] > button > span:last-child { display: none; }
   .workspace-band-title { display: none; }
-  .workspace-band-toolbar { display: flex; align-items: center; gap: .5rem; min-width: 0; }
+  .workspace-band-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; min-width: 0; }
   .workspace-band-toolbar .workspace-band-picker { flex: 1; min-width: 0; }
-  .workspace-mobile-band-actions { display: flex; gap: .25rem; flex-shrink: 0; }
+  .workspace-mobile-band-actions { display: flex; flex-wrap: wrap; max-width: 100%; gap: .25rem; flex-shrink: 0; }
   .workspace-mobile-band-actions > button { min-height: 3rem; }
   .workspace[data-section="palette"] .workspace-band-toolbar,
   #exposure-bands > [data-slot="card-header"] > .workspace-band-actions { display: none; }

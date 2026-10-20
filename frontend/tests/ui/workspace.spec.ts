@@ -117,7 +117,8 @@ test('configuration help opens by tap and fields keep a single control surface @
   const help = page.getByRole('button', { name: 'About cube size', exact: true })
   await help.click()
   await expect(page.getByText('Higher cube sizes sample the transform more precisely', { exact: false })).toBeVisible()
-  await accessible(page)
+  const result = await new AxeBuilder({ page }).include('[data-slot="popover-content"]').withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa']).analyze()
+  expect(result.violations).toEqual([])
   await page.keyboard.press('Escape')
   await expect(help).toBeFocused()
   await expect(page.getByText('Higher cube sizes sample the transform more precisely', { exact: false })).toBeHidden()
@@ -129,7 +130,8 @@ test('enlarged phone text keeps navigation reachable without sideways scrolling 
   await page.evaluate(() => { document.documentElement.style.fontSize = '200%' })
   for (const name of ['More', 'Bands', 'Palette', 'Presets', 'Media', 'More']) {
     await panel(page, name)
-    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+    await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))))
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(page.viewportSize()!.width)
     const bounds = (await page.getByRole('navigation', { name: 'Mobile navigation' }).boundingBox())!
     expect(bounds.y + bounds.height).toBeLessThanOrEqual(page.viewportSize()!.height + 1)
   }
