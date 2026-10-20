@@ -4,6 +4,10 @@ import { Button } from "@/components/ui/button"
 
 import { WorkspaceNavigation } from "./workspaceNavigation"
 
+export function WorkspaceActionText({ desktop, mobile }: { desktop: string; mobile: string }) {
+  return <>{useContext(WorkspaceNavigation).mobile ? mobile : desktop}</>
+}
+
 /** A task gets a dedicated phone screen, while retaining its desktop disclosure. */
 export function WorkspaceTask({ id, title, children, lead, desktopInline = false, className = "rounded-lg border p-3" }: { id: string; title: string; children: ReactNode; lead?: ReactNode; desktopInline?: boolean; className?: string }) {
   const { mobile, task, openTask } = useContext(WorkspaceNavigation)

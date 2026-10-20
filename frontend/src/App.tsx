@@ -40,7 +40,7 @@ import { browserInterpretations, browserProfiles, browserTargets } from "@/lutEn
 import { defaultFilenameTemplate, outputFilename } from "./outputFilename"
 import { deleteSetupPreset, readSetupPresets, saveSetupPreset, readWorkspaceSession, writeWorkspaceSession, workspaceSessionBackup, setupPresetsBackup, type SetupPreset } from "@/setupPresets"
 import { WorkspaceShell, WorkspacePanel } from "./WorkspaceShell"
-import { WorkspaceDisclosure, WorkspaceTask } from "./WorkspaceTask"
+import { WorkspaceActionText, WorkspaceDisclosure, WorkspaceTask } from "./WorkspaceTask"
 import { ImportedLookSettings } from "./ImportedLookSettings"
 import { ImportedLookPreview } from "./ImportedLookPreview"
 import { createWorkspaceRuntime, type Preview } from "./workspaceRuntime"
@@ -1007,7 +1007,7 @@ export function App() {
 
   const bandActions = <>
     <Button type="button" variant="outline" disabled={isGenerating || isLoadingSetup || !sessionReady} onClick={addBand}>Add band</Button>
-    <Button type="button" variant="ghost" aria-label="Undo last band edit" disabled={!undo || isGenerating || isLoadingSetup || !sessionReady} onClick={undoEdit}><span className="workspace-undo-detail">Undo last band edit</span><span className="workspace-undo-short">Undo</span></Button>
+    <Button type="button" variant="ghost" aria-label="Undo last band edit" disabled={!undo || isGenerating || isLoadingSetup || !sessionReady} onClick={undoEdit}><WorkspaceActionText desktop="Undo last band edit" mobile="Undo" /></Button>
   </>
   return (
     <WorkspaceShell setup={setup} busy={isGenerating || isLoadingSetup || !sessionReady}
