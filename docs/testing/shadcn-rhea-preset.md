@@ -26,4 +26,6 @@ workspace. No clipping or horizontal overflow was found in the reviewed layouts.
 The mobile Presets page was separately reviewed at both phone widths and themes.
 
 Locked install, lint, UI typecheck, 109 unit tests and production build passed.
+The local layout/accessibility matrix passed 90 tests, with six intentional
+desktop skips for mobile-only checks.
 Physical-phone and screen-reader tests were not performed.
