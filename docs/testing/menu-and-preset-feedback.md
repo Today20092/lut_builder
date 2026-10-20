@@ -20,3 +20,7 @@ manual dismissal, automatic expiry and accessibility while the notification is
 open. Screenshots cover More and preset feedback at 320px and 390px in both themes,
 plus desktop notifications at 1280px. Existing baseline appearances are unchanged;
 the new screenshots are retained as test artifacts.
+
+The full Linux matrix has a 25-minute job budget. The prior 15-minute budget was
+exhausted during the Rhea migration run; assertions and screenshot tolerances
+remain unchanged.
