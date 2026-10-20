@@ -55,6 +55,17 @@ substituting a different look. No-look setups remain compatible with version 1.
 Large LUTs can exceed browser storage quota: heed save errors and export setup JSON
 before closing if restoration could not be saved.
 
+## Session status and recovery
+
+The workspace saves your setup on this device. Open **Setups** (**More → Setups**
+on a phone) to see its save status and **Restore previous setup** after a setup
+replacement. This recovery lasts for the current page session and is separate
+from band-edit undo. Camera media must be selected again after reopening.
+
+Save failures remain visible on your current screen. Follow the retry or backup
+actions before closing; routine save confirmations do not appear below editing
+controls.
+
 ## Palettes and setups are different
 
 | Saved item | Includes | Where it lives |

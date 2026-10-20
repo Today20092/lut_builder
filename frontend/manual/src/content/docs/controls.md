@@ -10,7 +10,10 @@ navigation. **More** contains **Configure** and **Setups**; **Export LUT** is in
 header. Occasional settings open their own screen with **Back**. Desktop retains
 the side navigation and preview beside the controls.
 
-On mobile, **Presets** shows separate **IRE**, **Fill**, and **Stops** sections.
+On mobile, **Presets** shows separate **IRE**, **Fill**, and **Stops** sections,
+with a colored exposure-strip preview for each choice. Stops use a −7 to +7 scale;
+IRE uses a 0–100 camera-log scale for your selected camera. The mode choices in
+**Band setup & graph settings** also show examples alongside their labels.
 Tap a preset’s **Use** button to apply it directly. Standard and Detailed options
 reuse the existing arrangements; **Undo last band edit** in Bands restores your
 previous bands and mode. Desktop keeps its preset picker.

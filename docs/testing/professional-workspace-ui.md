@@ -75,7 +75,20 @@ location. The visual matrix adds Presets, mode choices and Setups (18 additional
 baselines). Existing baseline changes remove the repeated session footer and
 replace the mode illustrations; LUT calculations and output formats are unchanged.
 
-Follow-up canonical acceptance is recorded after review of the new candidates.
+Follow-up candidates came from
+[39380463489](https://github.com/Today20092/lut_builder/actions/runs/39380463489).
+All 16 changed existing captures and 18 new captures were reviewed at the six
+configured width/theme combinations before acceptance. The resulting matrix has
+66 strict screenshot baselines. Enlarged-text checks also cover readable stacking
+of preset rows and mode cards; simulated storage exhaustion confirms that a save
+failure and Retry remain visible in Bands.
+
+Full follow-up acceptance passed in
+[39380994442](https://github.com/Today20092/lut_builder/actions/runs/39380994442):
+118 tests passed, including all 66 screenshot comparisons, with eight intentional
+phone-only cases skipped on desktop. Lint, UI type checking, 109 unit tests,
+production build and the updated manual build passed. The final documentation
+commit changes only the manual and this verification record.
 Physical-phone keyboard, screen-reader and calibrated display checks were not
 performed in this pass. The production bundle still reports the existing
 over-500KB chunk advisory; splitting it is separate performance work.
