@@ -1,7 +1,8 @@
 import { Children, isValidElement, useRef, useState, type ReactNode } from "react"
 import { Tabs } from "@base-ui/react/tabs"
-import { ArrowLeft, ChevronRight, Download, Ellipsis, FileJson, Image, Layers, Palette, SlidersHorizontal, WandSparkles } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { ArrowLeft, ArrowUpRight, BookOpen, ChevronRight, Download, Ellipsis, FileJson, Image, Layers, MessageSquareWarning, Palette, SlidersHorizontal, WandSparkles } from "lucide-react"
+import { Button, buttonVariants } from "@/components/ui/button"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import type { Setup } from "./editor"
 import { useMobileWorkspace, WorkspaceNavigation } from "./workspaceNavigation"
 
@@ -96,9 +97,16 @@ export function WorkspaceShell({ setup, stage, illustration, feedback, shortcuts
         <div id="workspace-panel-content" className="workspace-panel-content">
           {!mobile && feedback}
           {section === "more" && <section className="workspace-more" aria-label="More options">
-            {sections.filter(item => ["configuration", "files"].includes(item.value)).map(({ value, label, icon: Icon }) => <Button key={value} type="button" variant="ghost" disabled={busy} onClick={() => open(value)}><Icon aria-hidden="true" />{label}<ChevronRight aria-hidden="true" /></Button>)}
-            <a href={`${import.meta.env.BASE_URL}docs/`} target="_blank" rel="noreferrer">Help / Manual (opens in a new tab)</a>
-            <a href="https://github.com/Today20092/lut_builder/issues/new/choose" target="_blank" rel="noreferrer">Report an issue (GitHub, opens in a new tab)</a>
+            {sections.filter(item => ["configuration", "files"].includes(item.value)).map(({ value, label, icon: Icon }) => <Button key={value} type="button" variant="ghost" disabled={busy} onClick={() => open(value)}><Icon data-icon="inline-start" aria-hidden="true" />{label}<ChevronRight data-icon="inline-end" aria-hidden="true" /></Button>)}
+            {[
+              { label: "Help / Manual", href: `${import.meta.env.BASE_URL}docs/`, icon: BookOpen, hint: "Open the manual in a new tab" },
+              { label: "Report an issue", href: "https://github.com/Today20092/lut_builder/issues/new/choose", icon: MessageSquareWarning, hint: "Open GitHub Issues in a new tab" },
+            ].map(({ label, href, icon: Icon, hint }) => <Tooltip key={label}>
+              <TooltipTrigger render={<a className={buttonVariants({ variant: "ghost" })} href={href} target="_blank" rel="noreferrer" />}>
+                <Icon data-icon="inline-start" aria-hidden="true" /><span>{label}</span><ArrowUpRight data-icon="inline-end" aria-hidden="true" /><span className="sr-only"> (opens in a new tab)</span>
+              </TooltipTrigger>
+              <TooltipContent>{hint}</TooltipContent>
+            </Tooltip>)}
           </section>}
           {sections.map(({ value }) => <Tabs.Panel key={value} value={value} keepMounted tabIndex={0}>
             <fieldset disabled={busy} className="@container workspace-fields" hidden={section === "more"}>

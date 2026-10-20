@@ -1,5 +1,4 @@
 import { Button } from "@/components/ui/button"
-import { useState } from "react"
 import type { BandPreset, ExposurePreset } from "./editor"
 
 const groups = [
@@ -20,7 +19,6 @@ const groups = [
 ] satisfies { mode: string; presets: { id: ExposurePreset; arrangement?: BandPreset; name: string; detail: string }[] }[]
 
 export function MobileExposurePresets({ onApply }: { onApply: (preset: ExposurePreset, arrangement?: BandPreset) => void }) {
-  const [applied, setApplied] = useState("")
   return <div className="grid gap-7">
     {groups.map(({ mode, presets }) => <section key={mode} aria-label={`${mode} presets`} className="grid gap-3">
       <h3 className="text-lg font-semibold">{mode}</h3>
@@ -29,11 +27,7 @@ export function MobileExposurePresets({ onApply }: { onApply: (preset: ExposureP
           <h4 className="font-medium">{name}</h4>
           <p className="text-sm text-muted-foreground">{detail}</p>
         </div>
-        <Button type="button" variant="outline" className="w-full" onClick={() => {
-          onApply(id, arrangement)
-          setApplied(name)
-        }}>Use {name}</Button>
-        {applied === name && <p role="status" className="text-sm">Applied. Open Bands to adjust or undo.</p>}
+        <Button type="button" variant="outline" className="w-full" onClick={() => onApply(id, arrangement)}>Use {name}</Button>
       </div>)}
     </section>)}
     <p className="text-sm text-muted-foreground">Presets replace your bands and mode. Camera, output and warning settings stay the same. Undo in Bands restores your previous bands. Colors do not establish a universal safe skin exposure.</p>

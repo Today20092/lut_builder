@@ -11,7 +11,8 @@
       "frontend/src/components/ui/card.tsx",
       "frontend/src/ImportedLookSettings.tsx",
       "frontend/src/WorkspaceTask.tsx",
-      "frontend/src/workspaceNavigation.ts"
+      "frontend/src/workspaceNavigation.ts",
+      "frontend/src/components/ui/toast.tsx"
     ],
     "theme": "Unprefixed frontmatter colors describe light mode. Dark-prefixed entries describe prefers-color-scheme: dark overrides. Secondary and accent reuse muted; popover reuses card. Runtime CSS custom properties remain authoritative.",
     "breakpoints": [

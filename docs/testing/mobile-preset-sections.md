@@ -3,7 +3,7 @@
 The mobile Presets destination replaces its selector with three visible sections:
 IRE (Camera-log IRE and Detailed IRE), Fill (Contrast Checker, Standard Fill and
 Detailed Fill), and Stops (Three-band Exposure, Standard Stops and Detailed Stops).
-Each action shows its description and applies directly, with nearby live feedback.
+Each action shows its description and applies directly, with temporary toast feedback.
 Desktop retains its selector. All choices reuse existing editor preset operations
 in one undoable update; no exposure calculations or numeric presets were added.
 

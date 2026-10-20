@@ -221,8 +221,12 @@ show their content directly.
 Mobile Presets uses three visible sections: IRE, Fill and Stops. Each preset has
 a short description and a full-width Use button with at least a 48px touch target.
 Standard and Detailed choices reuse the existing arrangements. Apply feedback
-appears beside the chosen action; Bands provides editing and undo. Desktop retains
+uses a temporary shadcn toast above mobile navigation; Bands provides editing and undo. Desktop retains
 the compact preset selector.
+
+More uses matching ghost navigation rows for Configure, Setups, Help / Manual
+and Report an issue. External destinations retain link semantics, show an
+external-link icon, and explain the new tab in a tooltip and accessible name.
 
 The labeled stop scale, selected graph handle and numbered color swatches connect
 the artifact to its editor. Imported comparison labels distinguish camera exposure

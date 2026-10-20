@@ -32,6 +32,7 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { Spinner } from "@/components/ui/spinner"
+import { toast } from "@/components/ui/toast"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import referenceImage from "@/assets/lut-preview-reference.jpg"
 import { CameraVerification, type SourceInterpretations } from "@/CameraVerification"
@@ -969,7 +970,8 @@ export function App() {
       if (!arrangement) return next
       return next.fill_mode ? applyFillPreset(next, catalog.palette, arrangement) : applyBandPreset(next, catalog.palette, arrangement)
     }, 0)
-    setBandStatus("Exposure preset applied. Undo last band edit restores your previous bands.")
+    setBandStatus("")
+    toast.add({ title: "Preset applied", description: "Edit or undo in Bands.", type: "success" })
   }
 
   async function loadPreset() {

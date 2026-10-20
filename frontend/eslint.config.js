@@ -25,4 +25,10 @@ export default defineConfig([
       'react-refresh/only-export-components': ['error', { allowExportNames: ['buttonVariants'] }],
     },
   },
+  {
+    files: ['src/components/ui/toast.tsx'],
+    rules: {
+      'react-refresh/only-export-components': ['error', { allowExportNames: ['createToastManager', 'toast', 'useToastManager'] }],
+    },
+  },
 ])

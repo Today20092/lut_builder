@@ -385,6 +385,57 @@ test('phone graph supports touch editing and page scrolling @checks', async ({ p
   await session.detach()
 })
 
+test('mobile More menu is consistent and preset feedback floats above navigation @checks', async ({ page }) => {
+  if (page.viewportSize()!.width >= 960) await page.setViewportSize({ width: 390, height: 900 })
+  await page.getByRole('navigation', { name: 'Mobile navigation' }).getByRole('button', { name: 'More', exact: true }).click()
+  const menu = page.getByRole('region', { name: 'More options' })
+  const rows = menu.locator(':scope > button, :scope > a')
+  await expect(rows).toHaveCount(4)
+  const styles = await rows.evaluateAll(nodes => nodes.map(node => {
+    const style = getComputedStyle(node)
+    return { height: node.getBoundingClientRect().height, padding: style.padding, radius: style.borderRadius, font: style.font, decoration: style.textDecorationLine }
+  }))
+  for (const style of styles) { expect(style).toEqual(styles[0]); expect(style.height).toBeGreaterThanOrEqual(48) }
+  const title = (await page.getByRole('heading', { name: 'More', exact: true }).boundingBox())!
+  expect((await rows.first().boundingBox())!.y - title.y - title.height).toBeLessThanOrEqual(40)
+  const help = menu.getByRole('link', { name: /Help \/ Manual/ })
+  await expect(help).toHaveAttribute('target', '_blank')
+  // Base UI intentionally disables supplementary tooltips on touch devices.
+  if (!test.info().project.use.isMobile) {
+    await help.hover()
+    await expect(page.getByRole('tooltip')).toContainText('Open the manual in a new tab')
+    await page.mouse.move(0, 0)
+    await expect(page.getByRole('tooltip')).toHaveCount(0)
+  }
+  await accessible(page)
+  await page.screenshot({ path: test.info().outputPath('more-menu.png'), fullPage: true })
+  await panel(page, 'Presets')
+  const content = page.locator('.workspace-preset-panel')
+  const height = await content.evaluate(node => node.scrollHeight)
+  await applyPreset(page, 'contrast-checker')
+  const notification = page.locator('[data-slot="toast"]')
+  await expect(notification).toContainText('Preset applied')
+  expect(await content.evaluate(node => node.scrollHeight)).toBe(height)
+  await expect(content.getByText('Applied. Open Bands to adjust or undo.', { exact: true })).toHaveCount(0)
+  await expect(notification).not.toHaveAttribute('data-starting-style')
+  const nav = (await page.locator('.workspace-mobile-navigation').boundingBox())!
+  await expect.poll(async () => {
+    const bounds = (await notification.boundingBox())!
+    return bounds.y + bounds.height
+  }).toBeLessThanOrEqual(nav.y)
+  const close = notification.locator('[data-slot="toast-close"]')
+  expect((await close.boundingBox())!.height).toBeGreaterThanOrEqual(44)
+  await close.focus()
+  await expect(close).toHaveAccessibleName('Close toast')
+  await accessible(page)
+  await page.screenshot({ path: test.info().outputPath('preset-toast.png') })
+  await close.click()
+  await expect(notification).toHaveCount(0)
+  await applyPreset(page, 'three-band')
+  await page.mouse.move(0, 0)
+  await expect(page.locator('[data-slot="toast"]')).toHaveCount(0, { timeout: 7000 })
+})
+
 test('phone navigation gives unrelated tasks the full viewport @checks', async ({ page }) => {
   test.skip(page.viewportSize()!.width >= 960, 'Phone navigation only')
   const navigation = page.getByRole('navigation', { name: 'Mobile navigation' })
