@@ -40,7 +40,7 @@
     "shadows": [
       {
         "name": "field-focus",
-        "value": "0 0 0 2px color-mix(in oklch, var(--ring) 30%, transparent)",
+        "value": "0 0 0 3px color-mix(in oklch, var(--ring) 30%, transparent)",
         "purpose": "Shared text field focus ring."
       },
       {
@@ -74,7 +74,7 @@
       "refersTo": "field",
       "description": "Precise band position with accessible label.",
       "html": "<label class=\"ds-label\">Position (stops)<input class=\"ds-field\" type=\"number\" value=\"0\" step=\"any\"></label>",
-      "css": ".ds-label{display:grid;gap:.5rem;color:var(--foreground);font:.75rem/1rem 'Roboto Variable',sans-serif}.ds-field{height:2.25rem;min-width:0;border:1px solid var(--input);border-radius:calc(var(--radius)*.8);background:transparent;color:var(--foreground);padding:0 .75rem;font:.875rem/1.25rem 'Roboto Variable',sans-serif}.ds-field:focus-visible{border-color:var(--ring);outline:2px solid var(--foreground);outline-offset:2px;box-shadow:0 0 0 2px color-mix(in oklch,var(--ring) 30%,transparent)}.ds-field:disabled{opacity:.5;cursor:not-allowed}@media(max-width:959px){.ds-field{font-size:1rem;min-height:3rem}}"
+      "css": ".ds-label{display:grid;gap:.5rem;color:var(--foreground);font:.875rem/1.25rem 'Roboto Variable',sans-serif}.ds-field{height:2.5rem;min-width:0;border:1px solid transparent;border-radius:1.125rem;background:color-mix(in oklch,var(--input) 50%,transparent);color:var(--foreground);padding:0 .625rem;font:.875rem/1.25rem 'Roboto Variable',sans-serif}.ds-field:focus-visible{border-color:var(--ring);outline:2px solid var(--foreground);outline-offset:2px;box-shadow:0 0 0 3px color-mix(in oklch,var(--ring) 30%,transparent)}.ds-field:disabled{opacity:.5;cursor:not-allowed}@media(max-width:959px){.ds-field{font-size:1rem;min-height:3rem}}"
     },
     {
       "name": "Task navigation",

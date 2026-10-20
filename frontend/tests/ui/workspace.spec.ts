@@ -326,12 +326,33 @@ test('mobile preset sections apply existing standard and detailed arrangements @
   ] as const
   for (const [name, count] of cases) {
     await panel(page, 'Presets')
+    const preview = page.getByRole('img', { name: `${name} preview`, exact: true })
+    await expect(preview).toBeVisible()
+    const colors = await preview.locator('rect').evaluateAll(rects => rects.map(rect => rect.getAttribute('fill')))
+    expect(colors).toHaveLength(count)
     await page.getByRole('button', { name: `Use ${name}`, exact: true }).click()
     await panel(page, 'Bands')
     await expect(page.locator('table[aria-label="Band colors and positions"] tbody tr')).toHaveCount(count)
+    const applied = await page.locator('table[aria-label="Band colors and positions"] input[aria-label$=" hex value"]').evaluateAll(fields => fields.map(field => (field as HTMLInputElement).value))
+    expect(applied).toEqual(colors)
     await page.getByRole('button', { name: 'Undo last band edit', exact: true }).click()
     await expect(page.locator('table[aria-label="Band colors and positions"] tbody tr')).toHaveCount(1)
   }
+})
+
+test('mode choices have visible examples and routine recovery stays in Setups @checks', async ({ page }) => {
+  await expect(page.locator('.workspace-session-status')).toBeHidden()
+  await expect(page.getByRole('button', { name: 'Restore previous setup', exact: true })).toBeHidden()
+  await disclosure(page, 'Band setup & graph settings')
+  const choices = page.getByRole('group', { name: 'Band mode', exact: true })
+  await expect(choices.locator('.workspace-mode-preview svg')).toHaveCount(3)
+  for (const preview of await choices.locator('.workspace-mode-preview svg').all()) {
+    await expect(preview).toBeVisible()
+    expect(await preview.locator('rect').count()).toBeGreaterThanOrEqual(3)
+  }
+  await panel(page, 'Setups')
+  await expect(page.locator('.workspace-session-status')).toBeVisible()
+  await accessible(page)
 })
 
 test('complete presets lead into editable bands and undo without changing configuration @checks', async ({ page }) => {
@@ -544,13 +565,16 @@ test('selected band, panels, session restore and keyboard remain usable @checks'
     const navigation = (await page.getByRole('navigation', { name: 'Mobile navigation' }).boundingBox())!
     expect(bounds.y + bounds.height).toBeLessThanOrEqual(navigation.y)
   }
-  await expect(page.getByText(/^Session saved on this device/)).toBeVisible()
+  await expect(page.locator('.workspace-session-status')).toContainText('Session saved on this device.')
   await expect.poll(() => page.evaluate(() => {
     const raw = localStorage.getItem('lut-builder.workspace-session.v1')
     return raw ? JSON.parse(raw).bands?.[1]?.stop : null
   })).toBe(0.75)
   await page.reload()
+  await expect(page.getByText('Last session restored. Reselect any camera media to verify; media files are not stored.', { exact: true })).toBeHidden()
+  await panel(page, 'Setups')
   await expect(page.getByText('Last session restored. Reselect any camera media to verify; media files are not stored.', { exact: true })).toBeVisible()
+  await panel(page, 'Bands')
   await page.getByRole('button', { name: 'Select band 2', exact: true }).click()
   await expect(position).toHaveValue('0.75')
   await panel(page, 'Export')
@@ -592,7 +616,7 @@ test('corrupt sessions remain recoverable until explicit replacement @checks', a
   await page.getByRole('button', { name: 'Download saved session backup', exact: true }).click()
   expect((await backup).suggestedFilename()).toBe('lut-builder-session-backup.json')
   await page.getByRole('button', { name: 'Replace saved session with current setup', exact: true }).click()
-  await expect(page.getByText(/^Session saved on this device/)).toBeVisible()
+  await expect(page.locator('.workspace-session-status')).toContainText('Session saved on this device.')
   await page.reload()
   await expect(field).toHaveValue('1')
 })
@@ -654,7 +678,7 @@ test('confirmed imported look edits, compares and exports portably without chang
   expect(setup.version).toBe(3)
   expect(setup.imported_lut.cube).toBe(cube)
   expect(setup.imported_lut.source_profile).toBe('Panasonic V-Log')
-  await expect(page.getByText(/^Session saved on this device/)).toBeVisible()
+  await expect(page.locator('.workspace-session-status')).toContainText('Session saved on this device.')
   await page.reload()
   await expect(page.getByRole('region', { name: 'Imported look comparison', exact: true })).toBeVisible()
   await panel(page, 'Setups')
@@ -669,6 +693,13 @@ test('reviewed UI screenshots @visual', async ({ page }) => {
   test.setTimeout(120_000)
   test.skip(process.platform !== 'linux', 'Use pnpm test:ui:container for the canonical Linux screenshots; native checks still run.')
   await expect.soft(page).toHaveScreenshot('workspace.png', { fullPage: true })
+  await panel(page, 'Presets')
+  await expect.soft(page).toHaveScreenshot('presets.png', { fullPage: true })
+  await panel(page, 'Bands')
+  await disclosure(page, 'Band setup & graph settings')
+  await snapshot(page, page.getByRole('group', { name: 'Band mode', exact: true }), 'band-modes.png')
+  await panel(page, 'Setups')
+  await expect.soft(page).toHaveScreenshot('setups.png', { fullPage: true })
   await panel(page, 'Configure')
   await snapshot(page, page.locator('#configuration'), 'configuration.png')
   const output = page.locator('summary').filter({ hasText: 'Output settings' })

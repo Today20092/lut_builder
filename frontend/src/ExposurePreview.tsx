@@ -5,9 +5,9 @@ import { exposureReferenceValue, type Setup } from "./editor"
 import type { PalettePreview } from "./PaletteEditor"
 import { isTypingTarget } from "./keyboard"
 
-export function BandStrip({ setup, minimum, maximum, expanded = false }: { setup: Setup; minimum: number; maximum: number; expanded?: boolean }) {
+export function BandStrip({ setup, minimum, maximum, expanded = false, label = "Exposure band coverage" }: { setup: Setup; minimum: number; maximum: number; expanded?: boolean; label?: string }) {
   const position = (value: number) => Math.max(0, Math.min(1000, (value - minimum) / (maximum - minimum) * 1000))
-  return <svg viewBox="0 0 1000 60" preserveAspectRatio="none" role="img" aria-label="Exposure band coverage" className={`${expanded ? "h-40" : "h-10"} w-full rounded border bg-muted`}>
+  return <svg viewBox="0 0 1000 60" preserveAspectRatio="none" role="img" aria-label={label} className={`${expanded ? "h-40" : "h-10"} w-full rounded border bg-muted`}>
     {setup.bands.map((band, index) => {
       const left = position(setup.fill_mode ? index === 0 ? minimum : setup.bands[index - 1].stop : band.stop - band.width)
       const right = position(setup.fill_mode ? index === setup.bands.length - 1 ? maximum : band.stop : band.stop + band.width)

@@ -49,6 +49,8 @@ rounded:
   md: "0.5rem"
   lg: "0.625rem"
   xl: "0.875rem"
+  2xl: "1.125rem"
+  3xl: "1.375rem"
   preview: "0.375rem"
   phone-adjustments: "0.75rem 0.75rem 0 0"
 spacing:
@@ -73,9 +75,9 @@ components:
     height: "2rem"
     padding: "0 0.75rem"
   field:
-    rounded: "{rounded.md}"
-    height: "2.25rem"
-    padding: "0 0.75rem"
+    rounded: "{rounded.2xl}"
+    height: "2.5rem"
+    padding: "0 0.625rem"
   navigation:
     textColor: "{colors.muted-foreground}"
     rounded: "{rounded.lg}"
@@ -83,7 +85,7 @@ components:
   card:
     backgroundColor: "{colors.card}"
     textColor: "{colors.foreground}"
-    rounded: "{rounded.xl}"
+    rounded: "{rounded.3xl}"
     padding: "1rem"
 ---
 
@@ -179,8 +181,8 @@ the color track. Floating controls may retain their shared component elevation.
 
 ## Shapes
 
-Small rounded controls and softly rounded previews sit within straight workspace
-dividers. Shared fields use md, buttons use lg, and standalone shared cards use xl.
+Rounded controls and softly rounded previews sit within straight workspace
+dividers. Shared fields and buttons use Rhea's 2xl radius; standalone shared cards use 3xl.
 The phone adjustment surface uses straight edges. Numbered band buttons
 contain small bordered color swatches; colors retain their actual artifact values.
 
@@ -221,7 +223,10 @@ show their content directly.
 ### Exposure selection and comparison
 
 Mobile Presets uses three visible sections: IRE, Fill and Stops. Each preset has
-a short description and a trailing Use button with at least a 48px touch target.
+a named, scaled exposure-strip preview and a trailing Use button with at least a
+48px touch target. The preview uses the same setup function as Apply; camera-log
+IRE previews follow the selected camera. Mode choices show illustrative strips
+alongside their labels on phones as well as desktop.
 Standard and Detailed choices reuse the existing arrangements. Apply feedback
 uses a temporary shadcn toast above mobile navigation; Bands provides editing and undo. Desktop retains
 the compact preset selector.
@@ -229,6 +234,10 @@ the compact preset selector.
 More uses matching ghost navigation rows for Configure, Setups, Help / Manual
 and Report an issue. External destinations retain link semantics, show an
 external-link icon, and explain the new tab in a tooltip and accessible name.
+
+Routine autosave and setup-restoration details belong in Setups, including
+Restore previous setup. Editing screens do not repeat that footer. Storage
+failures retain visible recovery controls where they occur.
 
 Task headers pair a Lucide icon with a concise title and purpose. Action icons
 come from that same family and supplement visible labels; decorative icons are

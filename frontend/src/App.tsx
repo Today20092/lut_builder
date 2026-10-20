@@ -957,11 +957,7 @@ export function App() {
     setPalettePreview(null)
     setPaletteRevision((value) => value + 1)
     setRemovingBandIndex(null)
-    editSetup((current) => {
-      const next = applyExposurePreset(current, catalog.palette, preset)
-      if (!arrangement) return next
-      return next.fill_mode ? applyFillPreset(next, catalog.palette, arrangement) : applyBandPreset(next, catalog.palette, arrangement)
-    }, 0)
+    editSetup((current) => applyExposurePreset(current, catalog.palette, preset, arrangement), 0)
     setBandStatus("")
     toast.add({ title: "Preset applied", description: "Edit or undo in Bands.", type: "success" })
   }
@@ -1042,15 +1038,17 @@ export function App() {
         <p className="workspace-stage-hint">Select a band to edit its color and exposure range.</p>
       </>}
       feedback={<>
-        <p className="workspace-session-status" role="status">{sessionStatus || (!sessionReady ? "Restoring workspace…" : "")}</p>
+        {sessionReady && presetsBlocked && loadStatus && <p role="alert" className="p-3 text-sm">{loadStatus}</p>}
+        {(sessionBlocked || sessionStatus.startsWith("Could not")) && <p className="workspace-session-error" role="status">{sessionStatus}</p>}
         {sessionBlocked && <div className="grid gap-2 p-3"><Button type="button" variant="outline" onClick={downloadSessionBackup}><Download data-icon="inline-start" aria-hidden="true" />Download saved session backup</Button><Button type="button" variant="outline" onClick={() => { setSessionBlocked(false); setSessionRetry((value) => value + 1) }}><RefreshCw data-icon="inline-start" aria-hidden="true" />Replace saved session with current setup</Button></div>}
         {!sessionBlocked && sessionStatus.startsWith("Could not") && <Button type="button" variant="outline" onClick={() => setSessionRetry((value) => value + 1)}><RefreshCw data-icon="inline-start" aria-hidden="true" />Retry session save</Button>}
+      </>}>
+        <WorkspacePanel value="files">
+        <p className="workspace-session-status" role="status">{!sessionBlocked && !sessionStatus.startsWith("Could not") ? sessionStatus || (!sessionReady ? "Restoring workspace…" : "") : ""}</p>
         <div className={loadStatus || isLoadingSetup || previousSetup ? "workspace-feedback" : "hidden"} aria-label="Setup loading feedback">
           <p role="status" className="text-sm">{isLoadingSetup ? "Loading setup…" : loadStatus}</p>
           {previousSetup && <Button type="button" variant="outline" onClick={setupReplacement.restore}><History data-icon="inline-start" aria-hidden="true" />Restore previous setup</Button>}
         </div>
-      </>}>
-        <WorkspacePanel value="files">
         <WorkspaceDisclosure className="rounded-lg border p-4" title="Load setup · optional">
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
             <label className="grid gap-1 text-sm font-medium">Saved setup in this browser
@@ -1138,7 +1136,7 @@ export function App() {
         <WorkspacePanel value="presets">
           <div className="workspace-preset-panel">
             <h2 className="workspace-desktop-heading font-semibold">Exposure presets</h2>
-            {mobileWorkspace ? <MobileExposurePresets onApply={applySelectedExposurePreset} /> : <section className="grid gap-2" aria-label="Exposure presets">
+            {mobileWorkspace ? <MobileExposurePresets setup={setup} palette={catalog.palette} onApply={applySelectedExposurePreset} /> : <section className="grid gap-2" aria-label="Exposure presets">
               <div className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-2">
                 <label className="grid min-w-0 gap-1.5 text-sm font-medium">Start with a preset
                   <NativeSelect className={fieldClass} value={exposurePreset} onChange={(event) => setExposurePreset(event.target.value as ExposurePreset)}>
@@ -1176,13 +1174,13 @@ export function App() {
             <fieldset className="grid grid-cols-3 gap-2" aria-label="Band mode">
               <legend className="sr-only">Band mode</legend>
               {([
-                ["stops", "Stops", "Mark exposure", "−3   0   +3"],
+                ["stops", "Stops", "Mark exposure", "−7   0   +7"],
                 ["ire", "IRE", "Camera log level", "0   50   100"],
                 ["fill", "Fill", "Color every zone", "Low → High"],
               ] as const).map(([value, title, description, scale]) => <label key={value} className={`relative grid min-w-0 cursor-pointer gap-2 rounded-lg border p-2.5 has-focus-visible:ring-2 has-focus-visible:ring-ring ${mode === value ? "border-foreground bg-muted" : "hover:bg-muted/50"}`}>
                 <input className="absolute inset-0 size-full cursor-pointer opacity-0" type="radio" name="band-mode" value={value} checked={mode === value} onChange={() => editSetup((current) => changeMode(current, value, catalog.palette))} />
-                <span aria-hidden="true" className="flex h-8 overflow-hidden rounded border bg-background">
-                  {(value === "fill" ? ["#5b21b6", "#2563eb", "#22c55e", "#facc15", "#dc2626"] : ["transparent", "#2563eb", "transparent", "#22c55e", "transparent", "#dc2626", "transparent"]).map((color, index) => <span key={index} className="flex-1" style={{ backgroundColor: color }} />)}
+                  <span aria-hidden="true" className="workspace-mode-preview block">
+                    <BandStrip setup={applyExposurePreset(setup, catalog.palette, value === "ire" ? "camera-ire" : value === "fill" ? "contrast-checker" : "three-band")} minimum={value === "ire" ? 0 : -7} maximum={value === "ire" ? 100 : 7} />
                 </span>
                 <span aria-hidden="true" className="flex justify-between text-[10px] tabular-nums text-muted-foreground"><span>{scale}</span><span>{mode === value ? "✓" : ""}</span></span>
                 <span className="text-sm font-semibold">{title}</span>

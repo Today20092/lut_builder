@@ -439,10 +439,9 @@ export function applyBandPreset(setup: Setup, palette: PaletteColor[], preset: B
 
 export type ExposurePreset = "three-band" | "contrast-checker" | "camera-ire"
 
-export function applyExposurePreset(setup: Setup, palette: PaletteColor[], preset: ExposurePreset): Setup {
-  if (preset === "camera-ire") return applyBandPreset({ ...setup, band_mode: "ire", ire_basis: "camera", monochrome: !setup.imported_lut }, palette, "standard")
+export function applyExposurePreset(setup: Setup, palette: PaletteColor[], preset: ExposurePreset, arrangement?: BandPreset): Setup {
   const contrast = preset === "contrast-checker"
-  return {
+  const next: Setup = preset === "camera-ire" ? applyBandPreset({ ...setup, band_mode: "ire", ire_basis: "camera", monochrome: !setup.imported_lut }, palette, "standard") : {
     ...setup,
     band_mode: "stops",
     fill_mode: contrast,
@@ -451,6 +450,7 @@ export function applyExposurePreset(setup: Setup, palette: PaletteColor[], prese
       ? ["#216638", "#78ff64", "#a6a6a6", "#f2d5e5", "#ff00b7"].map((color, index) => ({ stop: index - 1.5, width: 0, color }))
       : [-2, 0, 2].map((stop, index) => ({ stop, width: 0.3, color: ["#2563eb", "#22c55e", "#f97316"][index] })),
   }
+  return arrangement ? next.fill_mode ? applyFillPreset(next, palette, arrangement) : applyBandPreset(next, palette, arrangement) : next
 }
 
 const creationOrder = new WeakMap<Band, number>()

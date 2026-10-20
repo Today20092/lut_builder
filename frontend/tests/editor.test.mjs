@@ -441,6 +441,14 @@ test("complete exposure presets replace geometry and colors while preserving rec
     const original = { ...setup, profile, target: "Rec.2020", cube_size: 33, legal_range: true, low_signal_warning: true, ire_basis: "target" }
     for (const preset of ["three-band", "contrast-checker", "camera-ire"]) {
       const next = applyExposurePreset(original, palette, preset)
+      for (const arrangement of ["standard", "detailed"]) {
+        const arranged = applyExposurePreset(original, palette, preset, arrangement)
+        assert.equal(arranged.bands.length, arrangement === "standard" ? preset === "contrast-checker" ? 5 : 7 : preset === "three-band" ? 10 : 9)
+        assert.equal(arranged.profile, original.profile)
+        assert.equal(arranged.output, original.output)
+        assert.equal(arranged.fill_mode, preset === "contrast-checker")
+        assert.ok(arranged.bands.every(band => /^#[0-9a-f]{6}$/i.test(band.color)))
+      }
       for (const key of ["profile", "target", "cube_size", "legal_range", "output", "low_signal_warning", "high_signal_warning", "low_signal_hex", "high_signal_hex"]) assert.equal(next[key], original[key], `${preset}: ${key}`)
       const state = reduceEditor(createEditorState(original), { type: "edit", edit: current => applyExposurePreset(current, palette, preset) })
       assert.deepEqual(reduceEditor(state, { type: "undo" }).setup, original)

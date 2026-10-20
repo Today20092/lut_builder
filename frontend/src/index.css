@@ -364,8 +364,8 @@ details.border[open] > summary { margin-bottom: 0; }
   .workspace-panel .band-table input { font-size: 1rem; min-height: 2.75rem; }
   .workspace-panel-content input, .workspace-panel-content select { font-size: 1rem; }
   .workspace-panel .band-table td { padding: 0; }
-  .workspace-panel fieldset[aria-label="Band mode"] label > [aria-hidden] { display: none; }
-  .workspace-panel fieldset[aria-label="Band mode"] label > span:last-child { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .workspace-mode-preview > svg { height: 2.5rem; }
+  .workspace-panel fieldset[aria-label="Band mode"] label { align-content: start; }
   .workspace-panel fieldset[aria-label="Band mode"] label { min-height: 2.75rem; align-content: center; padding-block: .5rem; }
   .workspace { padding-bottom: calc(5.5rem + env(safe-area-inset-bottom)); }
   .workspace-header-actions > a { display: none; }

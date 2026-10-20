@@ -57,7 +57,25 @@ themes without horizontal overflow or page errors. Navigation also worked at
 scrolling. The short viewport is an emulation of reduced available space, not a
 physical soft-keyboard test.
 
-Full canonical acceptance is recorded after the reviewed-baseline run.
+The consistency pass passed full canonical acceptance in
+[39378184173](https://github.com/Today20092/lut_builder/actions/runs/39378184173).
+
+## Follow-up: visual presets and quieter editing screens
+
+Preset rows now render the existing BandStrip from the same applyExposurePreset
+function used to commit a selection, including Standard/Detailed arrangements.
+The strips show stops or camera-log IRE and follow the selected profile. Mode
+choices retain labels and add visible illustrative strips on mobile. Routine
+session status and Restore previous setup now live in Setups; corrupt-session
+backup and replacement actions remain available on the active screen.
+
+Regression checks compare all rendered preset colors with the applied editor
+fields, check the three mode examples, and exercise session recovery in its new
+location. The visual matrix adds Presets, mode choices and Setups (18 additional
+baselines). Existing baseline changes remove the repeated session footer and
+replace the mode illustrations; LUT calculations and output formats are unchanged.
+
+Follow-up canonical acceptance is recorded after review of the new candidates.
 Physical-phone keyboard, screen-reader and calibrated display checks were not
 performed in this pass. The production bundle still reports the existing
 over-500KB chunk advisory; splitting it is separate performance work.
