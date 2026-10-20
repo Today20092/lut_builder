@@ -124,6 +124,17 @@ test('configuration help opens by tap and fields keep a single control surface @
   await expect(camera).toHaveValue('Sony S-Log3')
 })
 
+test('enlarged phone text keeps navigation reachable without sideways scrolling @checks', async ({ page }) => {
+  test.skip(page.viewportSize()!.width >= 960, 'Phone navigation contract')
+  await page.evaluate(() => { document.documentElement.style.fontSize = '200%' })
+  for (const name of ['More', 'Bands', 'Palette', 'Presets', 'Media', 'More']) {
+    await panel(page, name)
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+    const bounds = (await page.getByRole('navigation', { name: 'Mobile navigation' }).boundingBox())!
+    expect(bounds.y + bounds.height).toBeLessThanOrEqual(page.viewportSize()!.height + 1)
+  }
+})
+
 test('disclosures, palette layout and keyboard controls @checks', async ({ page }) => {
   for (const title of ['Output settings', 'Save and reuse palettes']) {
     await panel(page, title === 'Output settings' ? 'Configure' : 'Palette')
