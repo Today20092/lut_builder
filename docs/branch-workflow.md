@@ -62,12 +62,13 @@ covering those actions. Workflow setup alone does not authorize a promotion.
 
 | Event | Effect |
 | --- | --- |
-| Any push or PR | `python.yml` runs Python quality/tests and browser/Python numerical parity. Its unrestricted push trigger also includes tags. |
-| Push to `development` or `main`, or PR targeting either | `deploy-pages.yml` runs Python, frontend lint/test/build, browser/manual acceptance, and the reusable full UI gate. |
+| PR targeting `development` or `main`, or push to `main` | `deploy-pages.yml` runs Python once, frontend lint/test/build, browser/manual acceptance, and the reusable full UI gate across three parallel shards. |
+| Push to `development` or a feature branch | Backup only; open/update a PR or manually dispatch Pages on that ref for validation. |
 | Successful push to `main` | Pages deploys the built website and manual. |
 | Manual Pages workflow | Runs the checks; deployment is allowed only when the selected ref is `main`. |
 | Manual UI-quality workflow | Runs the selected UI suite; the visual-only mode does not replace the full gate. |
-| Version tag | No configured package publication or GitHub Release automation. Tag pushes can still run Python checks. |
+| Manual Python workflow | Runs Python quality/tests and browser/Python numerical parity independently when needed. |
+| Version tag | No configured checks, package publication or GitHub Release automation. Validate the source through Pages before tagging. |
 
 The workflows live in [.github/workflows](../.github/workflows). Branch protection
 and rulesets are separate GitHub settings; CI triggers do not enforce PR review

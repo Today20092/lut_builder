@@ -16,7 +16,11 @@ permissions:
 jobs:
   check:
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
     container:
       image: mcr.microsoft.com/playwright:v1.61.1-noble
       options: --ipc=host
@@ -33,17 +37,18 @@ jobs:
       - name: Run UI quality suite
         env:
           UI_SUITE: ${{ inputs.suite || 'all' }}
+          UI_SHARD: ${{ matrix.shard }}/3
         run: |
           if [ "$UI_SUITE" = visual ]; then
-            pnpm test:ui --grep '@visual'
+            pnpm test:ui --grep '@visual' --shard="$UI_SHARD"
           else
-            pnpm test:ui
+            pnpm test:ui --shard="$UI_SHARD"
           fi
       - name: Upload UI report, screenshot differences and traces
         if: always()
         uses: actions/upload-artifact@v6
         with:
-          name: ui-quality-report
+          name: ui-quality-report-${{ matrix.shard }}
           path: |
             frontend/playwright-report/
             frontend/test-results/
