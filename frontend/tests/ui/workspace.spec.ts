@@ -623,7 +623,7 @@ test('damaged named library offers accessible backup and deliberate recovery @ch
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem('lut-builder.named-setups.v1')!).presets)).toEqual([])
 })
 
-test('corrupt sessions remain recoverable until explicit replacement @checks', async ({ page }) => {
+test('corrupt sessions remain recoverable until explicit replacement @checks @behavior', async ({ page }) => {
   await page.evaluate(() => localStorage.setItem('lut-builder.workspace-session.v1', '{unreadable'))
   await page.reload()
   await expect(page.getByText(/Your saved session could not be recovered/)).toBeVisible()

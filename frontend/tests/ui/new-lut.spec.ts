@@ -38,7 +38,7 @@ test('first visit creates a LUT and return visits resume it @checks', async ({ p
   await page.screenshot({ path: `test-results/s5iix-${test.info().project.name}.png`, fullPage: true })
 })
 
-test('starting over can be cancelled and incompatible camera exports are blocked @checks', async ({ page }) => {
+test('starting over can be cancelled and incompatible camera exports are blocked @checks @behavior', async ({ page }) => {
   await page.goto('./')
   await page.getByRole('button', { name: 'Skip setup', exact: true }).click()
   await page.getByRole('button', { name: 'Export LUT', exact: true }).click()

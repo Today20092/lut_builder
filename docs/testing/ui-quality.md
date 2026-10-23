@@ -50,6 +50,23 @@ pnpm test:ui:checks --project=390-dark --grep disclosures
 pnpm test:ui:container --project=390-dark --grep '@visual'
 ```
 
+During editing, select the changed test and one phone/desktop layout before running
+the full gate. For example, this checks recovery without Docker:
+
+```sh
+pnpm test:ui:checks --project=390-light --project=1280-light --grep 'corrupt sessions|starting over'
+```
+
+Use `--list` first to inspect the selection. A focused pass is feedback,
+not release acceptance; CI still runs the complete gate. For theme/contrast changes,
+include both themes. For responsive changes, include both phone widths and desktop.
+
+Only tests tagged `@behavior` omit repeated themes and the second phone width:
+corrupt-session recovery and starting over/camera export compatibility. They retain
+390-light and 1280-light to exercise both navigation layouts. Keep all screenshot,
+geometry, enlarged-text and axe accessibility tests in the complete six-project
+matrix; do not tag them `@behavior` to shorten CI.
+
 Native `pnpm test:ui` skips image comparisons on Windows/macOS; use the container
 for the complete gate. Linux screenshot comparisons are authoritative only in the
 versioned image, because OS, browser and fonts affect rendering. Existing optional
@@ -91,10 +108,19 @@ fix violations rather than broadly disabling rules to make the suite pass.
 ## CI and maintenance
 
 [UI quality](../../.github/workflows/ui-quality.yml) runs through the Pages
-workflow on pull requests targeting `development` or `main` and pushes to either
-branch; only `main` can deploy Pages, and deployment waits for this gate. Its
-report artifact contains failure screenshots and traces and is retained for 14
-days. It can also be dispatched manually. Repository branch protection is a
+workflow on pull requests targeting `development` or `main` and pushes to `main`;
+only `main` can deploy Pages, and deployment waits for this gate. Development
+backup pushes do not validate automatically: open/update a PR or dispatch the
+Pages workflow on `development` for the full checks. Python runs once through
+Pages rather than also starting an independent push/PR workflow.
+
+The UI gate splits individual tests across three parallel jobs using Playwright
+sharding and `fullyParallel`. Each shard keeps one worker and the pinned container
+for stable screenshots. All shards must pass; one failure does not cancel the
+others. Each `ui-quality-report-1`, `-2` and `-3` artifact contains its own HTML/JSON
+report, failure screenshots and traces, retained for 14 days. Inspect all three
+reports for full-suite results. Manual full/visual runs use the same sharding.
+Repository branch protection is a
 separate GitHub setting; this change does not configure it.
 
 Keep `@playwright/test` pinned and update the workflow container image to the same

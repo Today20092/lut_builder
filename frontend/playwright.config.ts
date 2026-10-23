@@ -23,6 +23,8 @@ export default defineConfig({
   },
   projects: [devices['iPhone 13'].viewport, devices['iPhone 14 Pro Max'].viewport, { width: 1280, height: 900 }].flatMap(viewport => (['light', 'dark'] as const).map(colorScheme => ({
     name: `${viewport.width}-${colorScheme}`,
+    // Pure recovery behavior needs each navigation layout, not every theme/phone width.
+    grepInvert: colorScheme === 'light' && viewport.width !== 430 ? undefined : /@behavior/,
     use: { viewport, colorScheme, hasTouch: viewport.width < 960, isMobile: viewport.width < 960, deviceScaleFactor: 1 },
   }))),
   webServer: {
