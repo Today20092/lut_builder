@@ -59,23 +59,29 @@ HTML metadata, browser assets, and corresponding unit/browser acceptance checks.
 
 ## Prioritized remaining findings
 
-Unresolved: **0 P0, 0 P1, 3 P2, 1 P3** within this review's scope.
+Unresolved: **0 P0, 0 P1, 2 P2, 1 P3** within this review's scope.
 
-### P2 — Linux visual acceptance remains outstanding
+### Resolved during promotion — Linux screenshot references
 
 Location: `frontend/playwright.config.ts`, `docs/testing/ui-quality.md`.
 
-Docker Desktop's Linux engine is unavailable on this machine. Native Chromium
-layout/accessibility checks and screenshots provide useful evidence, but cannot
-replace the repository's pinned Linux image, browser, and fonts. No committed
-goldens were changed or accepted from Windows.
+Docker Desktop's Linux engine remains unavailable locally. Canonical candidates
+were instead captured and reviewed in the pinned GitHub Linux environment using
+[run 39992738099](https://github.com/Today20092/lut_builder/actions/runs/39992738099),
+source `c47dfb7d228e1724b4e4feebcf7cbd59481a6828`. All 66 current references were
+reviewed; 64 match the preceding capture byte for byte, and the two new 430px
+initial-workspace captures were reviewed separately. No Windows captures were
+adopted as Linux references.
 
-Before deployment, generate affected candidates in the pinned Linux environment,
-review them, and run the full UI-quality gate. Expected intentional differences:
+Accepted intentional differences:
 the footer, removal toolbar/dialog, three-column band table, aligned phone fields,
 destructive-action contrast, and imported-view preview-link positioning. Other
-pixel changes need separate explanation. The existing UI-quality workflow is the
-documented fallback; it was not dispatched against unpublished local changes.
+pixel changes need separate explanation. The `ui-quality-report` artifact is
+`12517769923`, digest
+`sha256:599c83b5fec04c680ebc8b50a18ef1166b9ab1a928caa31bc4cfd54837893491`.
+The complete UI-quality gate remains required before merging; its final result is
+recorded in the promotion PR. The visual capture run deliberately failed on the
+old/missing references and is not itself a passing gate.
 
 Suggested follow-up: `$impeccable polish` after canonical screenshot review.
 
@@ -160,10 +166,11 @@ page was unavailable; no donation or purchase was attempted. The public GitHub
 repository confirms the diagnostic-LUT purpose and MIT license.
 
 Squirrel was not installed. The local review used the repository's Playwright and
-axe infrastructure and Impeccable instead. Docker repair, Linux baseline updates,
-deployment, physical-phone testing, assistive-technology testing, and Python/media
-regression runs were not performed. Python implementation and media semantics did
-not change.
+axe infrastructure and Impeccable instead. Docker repair, physical-phone testing
+and assistive-technology testing were not performed. Linux references were updated
+through CI during promotion; Python CI passed on the capture source revision.
+Python implementation and media semantics did not change. Deployment and final
+merge-gate results are tracked in the promotion PR.
 
 ## Maintenance notes
 
