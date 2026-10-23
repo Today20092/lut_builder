@@ -61,7 +61,7 @@ export function WorkspaceShell({ setup, stage, illustration, feedback, shortcuts
             {value === "media" && <div className="mx-5 mb-6">{illustration(editBands)}</div>}
             {value === "bands" ? <><div hidden={section !== "bands"}>{content("bands")}</div><div hidden={section !== "palette"}>{content("palette")}</div></> : content(value)}
             {value === "configuration" && <>
-              <details className="workspace-settings-group"><summary>Saved setups<span>Save, load and recover your work</span></summary><div>{content("files")}</div></details>
+              <section className="workspace-saved-setups" aria-label="Saved setups"><h3 className="text-sm font-semibold">Saved setups</h3><p className="text-xs text-muted-foreground">Save, load and recover your work</p>{content("files")}</section>
               <section className="workspace-settings-actions" aria-label="Workspace actions"><Button type="button" variant="outline" onClick={onNew}><WandSparkles aria-hidden="true" />New LUT</Button>{[{ label: "Help / Manual", href: `${import.meta.env.BASE_URL}docs/`, icon: BookOpen }, { label: "Report an issue", href: "https://github.com/Today20092/lut_builder/issues/new/choose", icon: MessageSquareWarning }].map(({ label, href, icon: Icon }) => <a key={label} className={buttonVariants({ variant: "ghost" })} href={href} target="_blank" rel="noreferrer"><Icon data-icon="inline-start" aria-hidden="true" />{label}<ArrowUpRight data-icon="inline-end" aria-hidden="true" /><span className="sr-only"> (opens in a new tab)</span></a>)}</section>
             </>}
           </fieldset>

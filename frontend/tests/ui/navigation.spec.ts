@@ -22,11 +22,8 @@ test('four destinations and inline settings preserve context @checks', async ({ 
   await navigate(page, 'Settings')
   await expect(page.getByRole('heading', { name: 'Settings', exact: true })).toBeVisible()
   await expect(page.getByRole('button', { name: /^Back/ })).toHaveCount(0)
-  const imported = page.locator('details[data-task-id="import"]')
-  await expect(imported).not.toHaveAttribute('open')
-  await imported.locator('summary').click()
   await expect(page.getByLabel('Import .cube LUT', { exact: true })).toBeVisible()
-  await expect(page.getByRole('heading', { name: 'Imported creative LUT', exact: true })).toHaveCount(0)
+  await expect(page.getByRole('heading', { name: 'Imported creative LUT', exact: true })).toBeVisible()
   await page.locator('details[data-task-id="signal-warnings"] > summary').click()
   await expect(page.getByLabel('Import .cube LUT', { exact: true })).toBeVisible()
   await expect(page.getByLabel('Camera recording', { exact: true })).toBeVisible()
@@ -42,7 +39,7 @@ test('four destinations and inline settings preserve context @checks', async ({ 
   await expect(page.locator('.workspace')).toHaveAttribute('data-section', 'palette')
   expect((await tools.boundingBox())!.y).toBeCloseTo(toolsTop, 0)
   await navigate(page, 'Settings')
-  await expect(imported).toHaveAttribute('open', '')
+  await expect(page.getByLabel('Import .cube LUT', { exact: true })).toBeVisible()
   await page.goBack()
   await expect(page.locator('.workspace')).toHaveAttribute('data-section', 'palette')
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
@@ -62,15 +59,17 @@ test('fill coverage aligns with its boundary field on phones @checks', async ({ 
   const coverage = page.locator('.band-table tbody tr[data-selected="true"] td').nth(2).locator('span').last()
   const field = (await boundary.boundingBox())!
   const value = (await coverage.boundingBox())!
-  expect(value.y).toBeCloseTo(field.y, 0)
-  expect(value.height).toBeGreaterThanOrEqual(44)
+  expect(value.y + value.height / 2).toBeGreaterThanOrEqual(field.y)
+  expect(value.y + value.height / 2).toBeLessThanOrEqual(field.y + field.height)
+  await expect(coverage).toHaveText('Until next boundary')
+  await expect(coverage.locator('input, select, button')).toHaveCount(0)
   await page.screenshot({ path: `test-results/fill-fields-${test.info().project.name}.png` })
 })
 
 test('OKLCH picker size and slider positions stay stable across gamut changes @checks', async ({ page }) => {
   await page.getByRole('button', { name: 'Open Band 1 color picker', exact: true }).click()
   const picker = page.locator('[data-color-picker]')
-  await picker.getByRole('combobox', { name: 'Color model', exact: true }).selectOption('oklch')
+  await picker.getByRole('group', { name: 'Color model', exact: true }).getByRole('button', { name: 'OKLCH · perceptual', exact: true }).click()
   const channels = ['lightness', 'chroma', 'hue'] as const
   const slider = (name: typeof channels[number]) => picker.getByRole('slider', { name: `Color ${name}`, exact: true })
   await slider('chroma').press('Home')
@@ -100,7 +99,7 @@ test('OKLCH picker size and slider positions stay stable across gamut changes @c
 test('OKLCH color controls fit and remain operable @checks', async ({ page }) => {
   await page.getByRole('button', { name: 'Open Band 1 color picker', exact: true }).click()
   const picker = page.locator('[data-color-picker]')
-  await picker.getByRole('combobox', { name: 'Color model', exact: true }).selectOption('oklch')
+  await picker.getByRole('group', { name: 'Color model', exact: true }).getByRole('button', { name: 'OKLCH · perceptual', exact: true }).click()
   const lightness = picker.getByRole('textbox', { name: 'Color lightness value', exact: true })
   await lightness.fill('60')
   await lightness.press('Enter')
@@ -121,7 +120,7 @@ test('OKLCH color controls fit and remain operable @checks', async ({ page }) =>
   expect(bounds.x + bounds.width).toBeLessThanOrEqual(page.viewportSize()!.width + 1)
   await page.screenshot({ path: `test-results/oklch-${test.info().project.name}.png` })
   const hex = await page.locator('input[aria-label="Band 1 color hex value"]').inputValue()
-  await picker.getByRole('combobox', { name: 'Color model', exact: true }).selectOption('hsv')
+  await picker.getByRole('group', { name: 'Color model', exact: true }).getByRole('button', { name: 'HSV', exact: true }).click()
   await expect(picker.getByRole('textbox', { name: 'Band 1 color hex color', exact: true })).toHaveValue(hex)
   await picker.getByRole('button', { name: 'Done', exact: true }).click()
   await expect(picker).not.toBeVisible()
@@ -142,7 +141,7 @@ test('export recovery opens the preserved palette draft @checks', async ({ page 
 
 test('export and import sheets dismiss with browser Back and restore focus @checks', async ({ page }) => {
   await navigate(page, 'Settings')
-  await page.locator('details[data-task-id="import"] > summary').click()
+
   const input = page.getByLabel('Import .cube LUT', { exact: true })
   await input.focus()
   await input.setInputFiles({ name: 'test.cube', mimeType: 'text/plain', buffer: Buffer.from(cube) })
@@ -160,7 +159,7 @@ test('export and import sheets dismiss with browser Back and restore focus @chec
   await page.getByRole('button', { name: 'Confirm and apply look', exact: true }).click()
   await expect(confirmation).not.toBeVisible()
   await expect(page.getByRole('button', { name: 'Remove imported look', exact: true })).toBeVisible()
-  await expect(page.getByRole('combobox', { name: /^Cube size/ })).toBeVisible()
+  await expect(page.getByRole('group', { name: 'Cube size', exact: true })).toBeVisible()
   await page.evaluate(() => window.scrollTo(0, 250))
   const trigger = page.getByRole('button', { name: 'Export LUT', exact: true })
   await trigger.focus()

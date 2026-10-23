@@ -9,8 +9,10 @@ import { ContextHelp } from "./ContextHelp"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { GradientPicker } from "./GradientPicker"
 import { WorkspaceTask } from "./WorkspaceTask"
+import { ChoiceField } from "./ChoiceField"
+import { BandNumberInput } from "./BandNumberInput"
 import { isTypingTarget } from "./keyboard"
-import { applyColorPreset, applyLightnessProfile, exposurePaletteScale, exposureReferenceValue, hexToOklch, isHexColor, sampleOklabRamp, type GradientBlend, type HuePath, type PaletteColor, type Setup } from "./editor"
+import { applyColorPreset, applyLightnessProfile, exposurePaletteScale, exposureReferenceValue, hexToOklch, isHexColor, sampleOklabRamp, type PaletteColor, type Setup } from "./editor"
 
 type SavedPalette = Draft & { name: string }
 export type PalettePreview = { setup: Setup; label: string; valid: boolean; apply: () => void; cancel: () => void }
@@ -185,20 +187,12 @@ export function PaletteEditor({ setup, palette, onApply, onPreview }: { setup: S
     {method === "gradient" && <>
     <h4 className="text-sm font-medium">Shape your gradient</h4>
     <div className="grid grid-cols-2 items-end gap-3">
-      <label className="grid min-w-0 gap-1 text-sm font-medium">Blend
-        <NativeSelect aria-label="Gradient blend" className={fieldClass} value={blend} onChange={(event) => setDraft({ ...draft, blend: event.target.value as GradientBlend })}>
-          <option value="colorful">Colorful</option><option value="direct">Direct</option>
-        </NativeSelect>
-      </label>
-      {blend === "colorful" && <label className="grid min-w-0 gap-1 text-sm font-medium">Hue path
-        <NativeSelect aria-label="Hue path" className={fieldClass} value={huePath} onChange={(event) => setDraft({ ...draft, huePath: event.target.value as HuePath })}>
-          <option value="shorter">Shorter</option><option value="longer">Longer</option>
-        </NativeSelect>
-      </label>}
+      <ChoiceField label="Gradient blend" value={blend} onChange={blend => setDraft({ ...draft, blend })} options={[{ value: "colorful", label: "Colorful" }, { value: "direct", label: "Direct" }]} />
+      {blend === "colorful" && <ChoiceField label="Hue path" value={huePath} onChange={huePath => setDraft({ ...draft, huePath })} options={[{ value: "shorter", label: "Shorter" }, { value: "longer", label: "Longer" }]} />}
     </div>
     <p className="text-xs text-muted-foreground">{blend === "colorful" ? "Colorful blends around the color wheel. Longer passes through more hues; colors are fitted to sRGB." : "Direct blends straight between colors and may pass through gray. Hue path does not affect this blend."}</p>
     <GradientPicker displayColors={ramp} colors={draft.colors} positions={positions} blend={blend} huePath={huePath} exposureScale={mapping === "exposure" ? exposurePaletteScale(setup) : undefined} exposureUnit={setup.band_mode === "stops" ? "stops" : "IRE"} onChange={(colors, positions) => setDraft({ ...draft, colors, positions })} />
-    <WorkspaceTask id="palette-adjustments" title="Advanced: adjust all colors" icon={SlidersHorizontal} className="rounded-md border p-3">
+    <WorkspaceTask id="palette-adjustments" title={`Advanced: adjust all colors${draft.intensity !== 100 || draft.brightness !== "custom" ? ` · ${draft.intensity}% · ${draft.brightness === "ascending" ? "dark to light" : draft.brightness === "even" ? "same lightness" : "chosen lightness"}` : ""}`} icon={SlidersHorizontal} className="rounded-md border p-3">
     <div className="mt-3 grid gap-3">
     <p className="text-xs text-muted-foreground">Optional finishing controls for the whole palette. They change the preview and applied colors, while your individual dots keep their chosen colors.</p>
     <fieldset className="flex flex-wrap gap-2">
@@ -211,7 +205,7 @@ export function PaletteEditor({ setup, palette, onApply, onPreview }: { setup: S
     <label className="grid gap-2 text-sm font-medium">
       <span className="sr-only">Overall color strength</span>
       <input className="pointer-adjustment" id="palette-intensity" aria-label="Color intensity" aria-describedby="palette-intensity-help" type="range" min="0" max="200" value={draft.intensity} onChange={(event) => setDraft({ ...draft, intensity: Number(event.target.value) })} />
-      <NativeSelect className={`${fieldClass} touch-adjustment`} aria-label="Color intensity" value={draft.intensity} onChange={(event) => setDraft({ ...draft, intensity: Number(event.target.value) })}>{Array.from(new Set([...Array.from({ length: 21 }, (_, i) => i * 10), draft.intensity])).sort((a, b) => a - b).map((value) => <option key={value} value={value}>{value}%</option>)}</NativeSelect>
+      <BandNumberInput className={`${fieldClass} touch-adjustment`} aria-label="Color intensity" value={draft.intensity} min={0} max={200} step={10} onChange={intensity => setDraft({ ...draft, intensity })} />
     </label>
     <p id="palette-intensity-help" className="text-xs text-muted-foreground">100% keeps your chosen color strength. 0% makes the palette gray.</p>
     <Button type="button" variant="outline" size="sm" className="justify-self-start" disabled={draft.brightness === "custom" && draft.intensity === 100} onClick={() => setDraft({ ...draft, brightness: "custom", intensity: 100 })}><RotateCcw data-icon="inline-start" aria-hidden="true" />Reset adjustments</Button>

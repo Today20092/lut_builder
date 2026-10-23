@@ -1,5 +1,6 @@
 import { Input } from "@/components/ui/input"
 import { NativeSelect } from "@/components/ui/native-select"
+import { ChoiceField } from "./ChoiceField"
 import { Scan, Download, Expand, Minimize, X } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 import { Data, Effect, Schema } from "effect"
@@ -303,14 +304,17 @@ export function CameraVerification({ setup, interpretations, video }: { setup: S
         ] as const).map(([label, value, setter, options, fact]) => {
           const reported = fact === "bit_depth" ? video.source.precision_bits : video.facts.frame[fact] ?? video.facts.stream[fact]
           const suggestion = fact === "color_range" ? ({ tv: "limited", pc: "full" } as Record<string, string>)[String(reported)] : String(reported ?? "unknown")
-          return <label key={label} className="grid gap-1 text-sm">{label}<span className="text-xs text-muted-foreground">Suggestion from metadata: {options.some((option) => option === String(suggestion)) ? suggestion : "unknown"}</span><NativeSelect className={field} value={value} onChange={(e) => { setter(e.target.value); setConfirmed(false) }}><option value="">Unknown / unconfirmed</option>{options.map((option) => <option key={option}>{option}</option>)}</NativeSelect></label>
+          return <div key={label} className="grid gap-1">
+            <ChoiceField label={label} value={value} onChange={next => { setter(next); setConfirmed(false) }} options={[{ value: "", label: "Unconfirmed" }, ...options.map(value => ({ value, label: value }))]} />
+            <p className="text-xs text-muted-foreground">Suggestion from metadata: {options.some((option) => option === String(suggestion)) ? suggestion : "unknown"}</p>
+          </div>
         })}
         <p className="text-xs">Native YCbCr is expanded using the confirmed transport range and matrix exactly once into float RGB. Transfer decoding belongs to the cube. Excursions remain intact until its declared input boundary.</p>
       </>}
       <p className="text-xs text-muted-foreground">The file cannot prove its camera profile. Confirm these facts from the recording/export workflow. Unknowns prevent verification.</p>
       <label className="grid gap-1 text-sm">Source transfer function<NativeSelect className={field} value={transfer} onChange={(e) => { setTransfer(e.target.value); setConfirmed(false) }}><option value="">Unknown</option>{[...new Set(Object.values(interpretations).map((v) => v.transfer))].map((v) => <option key={v}>{v}</option>)}</NativeSelect></label>
       <label className="grid gap-1 text-sm">Source gamut<NativeSelect className={field} value={gamut} onChange={(e) => { setGamut(e.target.value); setConfirmed(false) }}><option value="">Unknown</option>{[...new Set(Object.values(interpretations).map((v) => v.gamut))].map((v) => <option key={v}>{v}</option>)}</NativeSelect></label>
-      {!video && <><label className="grid gap-1 text-sm">RGB range convention<NativeSelect className={field} value={range} onChange={(e) => { setRange(e.target.value); setConfirmed(false) }}><option value="">Unknown</option><option value="camera-code-values">Normalized camera code values</option></NativeSelect></label>
+      {!video && <><label className="flex items-start gap-2 text-sm"><input type="checkbox" aria-label="Normalized camera code values" checked={range === "camera-code-values"} onChange={event => { setRange(event.target.checked ? "camera-code-values" : ""); setConfirmed(false) }} />Normalized camera code values</label>
       <p className="text-xs text-muted-foreground">PNG codes are divided by 65535. PFM values are unchanged. No YCbCr matrix or input range expansion is applied. Resolve any transport conversion before export. Excursions are clamped only at the cube's [0, 1] boundary and reported.</p></>}
       <label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} />{video ? "I confirm the recording transfer/gamut, matrix, transport range, chroma location and component depth. This is camera-encoded media with no viewing transform." : "I confirm unchanged camera-encoded RGB, this transfer/gamut and range, with no viewing transform or additional range scaling."}</label>
       {mismatch && <p role="alert" className="text-sm text-destructive">Source interpretation does not match {setup.profile}. Correct the source interpretation or LUT camera profile.</p>}

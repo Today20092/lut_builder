@@ -4,7 +4,6 @@ import { Minus, Plus, ChevronLeft, ChevronRight, Trash2 } from "lucide-react"
 import { useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { BandNumberInput } from "./BandNumberInput"
-import { WorkspaceDisclosure } from "./WorkspaceTask"
 import { hexToOklch, isHexColor, maxSrgbChroma, oklchToHex, sampleOklabRamp, type GradientBlend, type HuePath, type OklchAnchor } from "./editor"
 
 const fieldClass = "w-full min-w-0"
@@ -47,13 +46,13 @@ export function OklchPicker({ color, onChange }: { color: string; onChange: (col
       <p className="col-start-1 row-start-1" style={{ visibility: outsideGamut ? "visible" : "hidden" }} aria-hidden={!outsideGamut}>Outside sRGB: chroma is reduced in the saved color. This is a file-gamut limit, not a measurement of your screen.</p>
       <p className="col-start-1 row-start-1" style={{ visibility: outsideGamut ? "hidden" : "visible" }} aria-hidden={outsideGamut}>Within sRGB. The swatch previews the saved color; screen accuracy varies.</p>
     </div>
-    <WorkspaceDisclosure title="Exact hex color" summaryClassName="cursor-pointer text-xs font-medium">
+    <div>
       <label className="mt-2 grid gap-1 text-sm">Hex color
         <Input aria-label="Selected color hex" className={fieldClass} value={color} aria-invalid={!isHexColor(color)} spellCheck={false} onChange={(event) => onChange(event.target.value)}
           onFocus={() => { if (isHexColor(color)) originalHex.current = color }}
           onKeyDown={(event) => { if (event.key === "Escape" && !event.nativeEvent.isComposing) { event.preventDefault(); event.stopPropagation(); onChange(originalHex.current) } }} />
       </label>
-    </WorkspaceDisclosure>
+    </div>
   </div>
 }
 

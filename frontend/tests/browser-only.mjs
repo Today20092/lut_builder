@@ -51,10 +51,10 @@ try {
     const graph = page.getByLabel("Editable exposure graph from -7 to 7 stops", { exact: true })
     await graph.waitFor()
     const stopField = page.getByLabel("Band 1 stops", { exact: true })
-    await page.locator("summary").filter({ hasText: "Band setup & graph settings" }).click()
-    const increment = page.getByRole("combobox", { name: /^Movement increment/ })
+
+    const increment = page.getByRole("group", { name: "Movement increment", exact: true })
     for (const [step, expected] of [[1, 2.25], [0.5, 1.75], [0.25, 1.5]]) {
-      await increment.selectOption(String(step))
+      await increment.getByRole("button", { name: step === 1 ? "1 stop" : step === 0.5 ? "½ stop" : "¼ stop", exact: true }).click()
       const marker = graph.getByRole("button", { name: /^Band 1,/ })
       await marker.focus()
       await page.keyboard.press("ArrowRight")
@@ -94,7 +94,7 @@ try {
     })
     await page.reload()
     await panel("Setups")
-    await page.locator("summary").filter({ hasText: "Load setup · optional" }).click()
+
     await page.getByRole("combobox", { name: /^Saved setup/ }).selectOption("Acceptance")
     await activate(button("Load setup"))
     await page.waitForFunction(() => document.querySelector('[aria-label="Band 1 stops"]')?.value === "1.25")
@@ -112,12 +112,12 @@ try {
     await panel("Configure")
     await page.getByRole("combobox", { name: /^Camera/ }).focus()
     await page.keyboard.press("Tab")
-    assert.equal(await page.getByRole("combobox", { name: /^Target display/ }).evaluate((element) => element === document.activeElement), true)
+    assert.equal(await page.getByRole("group", { name: "Target display", exact: true }).evaluate((element) => element.contains(document.activeElement)), true)
     const timings = {}
     const heapSamples = []
     for (const size of [17, 33, 65]) {
       await panel("Configure")
-      await page.getByRole("combobox", { name: /^Cube size/ }).selectOption(String(size))
+      await page.getByRole("group", { name: "Cube size", exact: true }).getByRole("button", { name: `${size}³`, exact: true }).click()
       await panel("Export")
       const start = performance.now()
       const cube = await download("Download LUT")
