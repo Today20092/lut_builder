@@ -710,6 +710,7 @@ test('confirmed imported look edits, compares and exports portably without chang
 test('reviewed UI screenshots @visual', async ({ page }) => {
   test.setTimeout(120_000)
   test.skip(process.platform !== 'linux', 'Use pnpm test:ui:container for the canonical Linux screenshots; native checks still run.')
+  await page.screenshot({ path: test.info().outputPath('workspace.png'), fullPage: true, animations: 'disabled' })
   await expect.soft(page).toHaveScreenshot('workspace.png', { fullPage: true })
   await panel(page, 'Presets')
   await page.screenshot({ path: test.info().outputPath('presets.png'), fullPage: true, animations: 'disabled' })
