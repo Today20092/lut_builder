@@ -56,7 +56,7 @@ This release merge has the same source tree as the initially inspected `8a9fc8f`
   were visually inspected. Local evidence is in
   `.scratch/visible-controls-review/`; these host captures are not Linux baselines.
 - Docker Desktop fails during startup with an inaccessible `sailor-ingest.sock`.
-  The canonical Linux screenshot comparison/update gate is therefore pending.
+  The initial canonical Linux screenshot comparison/update gate was therefore pending.
   No baseline PNGs were replaced with Windows screenshots. Before integration,
   regenerate and inspect the affected Linux baselines, then pass the complete
   container UI gate. Expected changes include visible band controls, preset
@@ -64,6 +64,32 @@ This release merge has the same source tree as the initially inspected `8a9fc8f`
 - Physical-phone/Safari and fresh end-to-end FFmpeg media acceptance were not
   performed. No Python implementation changed; the standalone Python suite was
   not rerun.
+
+## Promotion verification
+
+The owner approved the phone preview on 2026-10-23. The feature was integrated
+with the latest development changes, including main's CI selection workflow.
+The shared static-browser navigation helper now loads the directly visible
+saved setups without attempting to open the removed disclosure.
+
+Canonical baseline candidates came from Ubuntu Playwright 1.61.1 in
+[visual capture run 40011223506](https://github.com/Today20092/lut_builder/actions/runs/40011223506)
+at integrated commit `777f0f8`. All 58 changed images were reviewed across
+390px, 430px and 1280px, in light and dark themes. Unchanged palette baselines
+were preserved. The intentional differences are:
+
+- Workspace and imported workspace: visible band controls change vertical flow.
+- Phone band modes: the controls now sit in the visible band section.
+- Presets: explained preset cards now serve every viewport.
+- Setups: saved setup loading and import controls remain visible.
+- Configuration and expanded configuration: display and cube-size choice groups.
+- Gradient and invalid/focused gradient: visible blend/hue choices and hex entry.
+- Imported interpretation: visible output primaries, transfer and range choices.
+
+No screenshot tolerance or accessibility requirement was relaxed. The full
+promotion checks, including static Chromium, Firefox and WebKit acceptance,
+Python, and the complete Linux UI matrix, are tracked on
+[promotion PR #61](https://github.com/Today20092/lut_builder/pull/61).
 
 ## Private preview
 
@@ -75,7 +101,7 @@ Tailscale Serve uses HTTPS port 8457 and a loopback production preview on 5179;
 existing Serve/Funnel routes are preserved. The preview requires the user's
 Tailscale connection. Browser storage is specific to this preview origin; saved
 work on another URL is not automatically copied. Import/export setup files to
-transfer it. Development has not been merged or published.
+  transfer it. This preview was approved for promotion to main.
 
 This host has Tailscale DNS disabled, so its system DNS resolves the hostname to
 the public Funnel addresses. Tailnet HTTPS and the manual were verified with
