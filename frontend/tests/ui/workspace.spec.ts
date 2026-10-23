@@ -350,8 +350,7 @@ test('output summary shares the committed preview and shows ranges without hex c
   await page.screenshot({ path: `../.scratch/output-summary-${test.info().project.name}.png`, fullPage: true, clip: (await output.boundingBox())! })
 })
 
-test('mobile preset sections apply existing standard and detailed arrangements @checks', async ({ page }) => {
-  test.skip(page.viewportSize()!.width >= 960, 'Mobile grouped preset browser')
+test('preset sections apply existing standard and detailed arrangements @checks', async ({ page }) => {
   const cases = [
     ['Detailed IRE', 9], ['Standard Fill', 5], ['Detailed Fill', 9],
     ['Standard Stops', 7], ['Detailed Stops', 10],
@@ -412,24 +411,16 @@ test('complete presets lead into editable bands and undo without changing config
   await page.getByLabel('Color hue value', { exact: true }).fill('240')
   await panel(page, 'Presets')
   await applyPreset(page, 'contrast-checker')
-  if (page.viewportSize()!.width >= 960) {
-    const details = page.getByRole('region', { name: 'Exposure presets' }).locator('details')
-    await expect(details).not.toHaveAttribute('open')
-    await details.locator('summary').click()
-    await expect(details.getByText(/Dark green → light green/)).toBeVisible()
-    await details.locator('summary').click()
-  } else {
-    await expect(page.getByRole('combobox', { name: /^Start with a preset/ })).toHaveCount(0)
-    for (const mode of ['IRE', 'Fill', 'Stops']) {
-      const group = page.getByRole('region', { name: `${mode} presets`, exact: true })
-      await expect(group).toBeVisible()
-      for (const button of await group.getByRole('button').all()) {
-        expect((await button.boundingBox())!.height).toBeGreaterThanOrEqual(44)
-      }
+  await expect(page.getByRole('combobox', { name: /^Start with a preset/ })).toHaveCount(0)
+  for (const mode of ['IRE', 'Fill', 'Stops']) {
+    const group = page.getByRole('region', { name: `${mode} presets`, exact: true })
+    await expect(group).toBeVisible()
+    for (const button of await group.getByRole('button').all()) {
+      expect((await button.boundingBox())!.height).toBeGreaterThanOrEqual(44)
     }
-    await accessible(page)
-    await page.screenshot({ path: test.info().outputPath('mobile-presets.png'), fullPage: true })
   }
+  await accessible(page)
+  await page.screenshot({ path: test.info().outputPath('presets.png'), fullPage: true })
   await panel(page, 'Bands')
   await bandMode(page, 'Fill Color every zone')
   const table = page.getByRole('table', { name: 'Band colors and positions' })
@@ -677,7 +668,7 @@ test('confirmed imported look edits, compares and exports portably without chang
   await accessible(page)
   await page.getByRole('button', { name: 'Confirm and apply look', exact: true }).click()
   await expect(page.getByRole('combobox', { name: /^Camera recording/ })).toBeDisabled()
-  await expect(page.getByRole('combobox', { name: /^Target display/ })).toBeDisabled()
+  for (const choice of await page.getByRole('group', { name: 'Target display', exact: true }).getByRole('button').all()) await expect(choice).toBeDisabled()
   await expect(page.getByRole('radio', { name: 'Full / Data', exact: true })).toBeDisabled()
   await expect(page.getByRole('checkbox', { name: 'Monochrome base', exact: true })).toBeDisabled()
   const comparison = page.getByRole('region', { name: 'Imported look comparison', exact: true })

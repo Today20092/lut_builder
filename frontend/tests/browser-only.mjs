@@ -112,7 +112,7 @@ try {
     await panel("Configure")
     await page.getByRole("combobox", { name: /^Camera/ }).focus()
     await page.keyboard.press("Tab")
-    assert.equal(await page.getByRole("combobox", { name: /^Target display/ }).evaluate((element) => element === document.activeElement), true)
+    assert.equal(await page.getByRole("group", { name: "Target display", exact: true }).evaluate((element) => element.contains(document.activeElement)), true)
     const timings = {}
     const heapSamples = []
     for (const size of [17, 33, 65]) {

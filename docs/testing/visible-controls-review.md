@@ -1,7 +1,8 @@
 # Visible workspace controls review
 
 Branch: `codex/visible-workspace-controls`  
-Base: `development` / `origin/development` at `8a9fc8f` (matching after fetch on 2026-10-23).
+Base: `development` / `origin/development` at `c9faf14` on 2026-10-23.
+This release merge has the same source tree as the initially inspected `8a9fc8f`.
 
 ## Changes for review
 
@@ -11,7 +12,7 @@ Base: `development` / `origin/development` at `8a9fc8f` (matching after fetch on
 - Presets uses the existing explained, previewed IRE / Fill / Stops browser on
   desktop as well as phones. Arrangement replacement is no longer duplicated in
   Edit; explicit Use and band-edit undo remain.
-- Color model, cube size, gradient blend, hue path and imported-look output
+- Color model, display color space, cube size, gradient blend, hue path and imported-look output
   interpretation use visible exclusive choices built from the shared ToggleGroup.
   A selected value cannot be accidentally cleared by pressing it again.
 - Export shows all destinations with explanations and preserves compatibility

@@ -1120,12 +1120,7 @@ export function App() {
                 {catalog.profiles.map((profile) => <option key={profile} value={profile}>{profile} · {browserInterpretations[profile]?.gamut ?? "Profile gamut"}</option>)}
               </NativeSelect>
             </Field>
-            <Field>
-              <FieldLabel htmlFor="target-display">Target display</FieldLabel>
-              <NativeSelect id="target-display" className={fieldClass} value={setup.target} disabled={Boolean(setup.imported_lut)} onChange={(e) => patchSetup({ target: e.target.value })}>
-                {catalog.targets.map((target) => <option key={target}>{target}</option>)}
-              </NativeSelect>
-            </Field>
+            <ChoiceField label="Target display" value={setup.target} disabled={Boolean(setup.imported_lut)} onChange={target => patchSetup({ target })} options={catalog.targets.map(value => ({ value, label: value }))} />
             <section className="flex flex-col gap-4 border-t pt-6 sm:col-span-2" aria-label="Output settings">
               <h3 className="text-base font-semibold">LUT output</h3>
               <FieldGroup className="grid gap-4 sm:grid-cols-2">
