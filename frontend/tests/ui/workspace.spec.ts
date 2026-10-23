@@ -217,7 +217,7 @@ test('accessibility in default, expanded and invalid states @checks', async ({ p
   await accessible(page)
 })
 
-test('band editor uses selected phone fields and a desktop table with inline removal @checks', async ({ page }) => {
+test('band editor uses selected phone fields and a desktop table with confirmed removal @checks', async ({ page }) => {
   const table = page.getByRole('table', { name: 'Band colors and positions' })
   if (page.viewportSize()!.width >= 960) await expect(table.getByRole('columnheader', { name: 'Color', exact: true })).toBeVisible()
   await expect(table.getByRole('columnheader', { name: 'Band', exact: true })).toHaveCount(0)
@@ -710,6 +710,7 @@ test('confirmed imported look edits, compares and exports portably without chang
 test('reviewed UI screenshots @visual', async ({ page }) => {
   test.setTimeout(120_000)
   test.skip(process.platform !== 'linux', 'Use pnpm test:ui:container for the canonical Linux screenshots; native checks still run.')
+  await page.screenshot({ path: test.info().outputPath('workspace.png'), fullPage: true, animations: 'disabled' })
   await expect.soft(page).toHaveScreenshot('workspace.png', { fullPage: true })
   await panel(page, 'Presets')
   await page.screenshot({ path: test.info().outputPath('presets.png'), fullPage: true, animations: 'disabled' })

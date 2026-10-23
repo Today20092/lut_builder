@@ -32,6 +32,17 @@ The project matrix and exact settings live in
 fresh browser context; palette edits do not affect the user's dev-server storage.
 The suite starts its own Pages-mode Vite server on port 4187 and stops it afterward.
 
+Routine coverage uses two representative phone browser viewports from Playwright's
+device registry: iPhone 13 at 390×664 CSS pixels and iPhone 14 Pro Max at 430×740,
+plus a 1280×900 desktop viewport. Both themes run at each size. These phone widths
+span compact and large contemporary layouts, with common 412px Android widths
+between them. The suite uses Chromium with mobile/touch behavior; matching an
+iPhone viewport does not establish Safari or physical-device coverage. Screenshots
+use device scale factor 1 for reproducibility. Do not add a full project for every
+phone model or retain 320px as a routine legacy-device case without a concrete need.
+Keep enlarged-text checks: larger text is an ordinary accessibility preference,
+not an additional device model. See [Playwright emulation](https://playwright.dev/docs/emulation).
+
 Focused examples:
 
 ```sh
@@ -80,7 +91,8 @@ fix violations rather than broadly disabling rules to make the suite pass.
 ## CI and maintenance
 
 [UI quality](../../.github/workflows/ui-quality.yml) runs through the Pages
-workflow on pull requests and main pushes; Pages deployment waits for it. Its
+workflow on pull requests targeting `development` or `main` and pushes to either
+branch; only `main` can deploy Pages, and deployment waits for this gate. Its
 report artifact contains failure screenshots and traces and is retained for 14
 days. It can also be dispatched manually. Repository branch protection is a
 separate GitHub setting; this change does not configure it.

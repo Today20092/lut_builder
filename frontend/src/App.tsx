@@ -47,6 +47,8 @@ import { browserInterpretations, browserProfiles, browserTargets } from "@/lutEn
 import { defaultFilenameTemplate, outputFilename } from "./outputFilename"
 import { deleteSetupPreset, readSetupPresets, saveSetupPreset, readWorkspaceSession, writeWorkspaceSession, workspaceSessionBackup, setupPresetsBackup, type SetupPreset } from "@/setupPresets"
 import { WorkspaceShell, WorkspacePanel } from "./WorkspaceShell"
+import { WorkspaceSheet } from "./WorkspaceSheet"
+import { SiteFooter } from "./SiteFooter"
 import { WorkspaceActionText, WorkspaceDisclosure, WorkspaceTask } from "./WorkspaceTask"
 import { ImportedLookSettings } from "./ImportedLookSettings"
 import { ImportedLookPreview } from "./ImportedLookPreview"
@@ -1043,6 +1045,7 @@ export function App() {
   const bandActions = <>
     <Button type="button" variant="outline" disabled={isGenerating || isLoadingSetup || !sessionReady} onClick={addBand}><Plus data-icon="inline-start" aria-hidden="true" />Add band</Button>
     <Button type="button" variant="ghost" aria-label="Undo last band edit" disabled={!undo || isGenerating || isLoadingSetup || !sessionReady} onClick={undoEdit}><Undo2 data-icon="inline-start" aria-hidden="true" /><WorkspaceActionText desktop="Undo last band edit" mobile="Undo" /></Button>
+    <Button type="button" variant="ghost" aria-label={`Remove band ${selectedBand + 1}`} disabled={!setup.bands[selectedBand] || (setup.fill_mode && setup.bands.length <= 2) || isGenerating || isLoadingSetup || !sessionReady} onClick={() => setRemovingBandIndex(selectedBand)}><Trash2 data-icon="inline-start" aria-hidden="true" /><WorkspaceActionText desktop="Remove" mobile="" /></Button>
   </>
   const newLut = startingLut ? <NewLut returning={returningToEditor} setup={setup} profiles={catalog.profiles} targets={catalog.targets} palette={catalog.palette} busy={isLoadingSetup} error={newLutError} onCancel={() => {
     setStartingLut(false)
@@ -1071,7 +1074,7 @@ export function App() {
           <ExposureGraph setup={setup} preview={graphPreview} increment={movementIncrement} selectedBand={selectedBand}
             onSelect={(index) => { selectBand(index); openBands() }}
             onFocusSelect={selectBand}
-            onRemove={(index) => { editSetup((current) => removeBand(current, index)); setRemovingBandIndex(null); setBandStatus(`Removed band ${index + 1}. Undo last band edit restores it.`) }}
+            onRemove={setRemovingBandIndex}
             onEditColor={(index) => { selectBand(index); openBands(); requestAnimationFrame(() => colorTriggers.current.get(bandId(setup.bands[index]))?.click()) }}
             onEditStart={() => dispatch({ type: "begin" })} onEditEnd={() => dispatch({ type: "end" })}
             onChange={(index, stop) => editSetup((current) => setup.fill_mode ? updateFillBoundary(current, index, stop, movementIncrement) : updateBand(current, index, { stop }), index)}
@@ -1214,7 +1217,7 @@ export function App() {
             <div className="workspace-band-title">
               <CardTitle className="text-lg font-semibold"><h2>Exposure bands</h2></CardTitle>
             </div>
-            <div className="workspace-band-actions flex items-center justify-between gap-2">
+            <div className="workspace-band-actions flex flex-wrap items-center gap-2">
               {bandActions}
             </div>
             <WorkspaceTask id="band-settings" title="Band setup & graph settings" icon={SlidersHorizontal} lead={<>
@@ -1299,8 +1302,8 @@ export function App() {
               <>
                 <div className="relative overflow-x-auto">
                   <table className="band-table w-full table-fixed min-w-[29rem] text-sm" role="table" aria-label="Band colors and positions">
-                    <caption className="caption-bottom pt-2 text-left text-xs text-muted-foreground sm:hidden">Scroll sideways for position, width, and remove.</caption>
-                    <thead className="text-left text-xs text-muted-foreground"><tr><th className="w-44 px-3 py-2">Color</th><th className="px-3 py-2">{setup.fill_mode ? "Boundary to next color" : mode === "ire" ? "Position (IRE)" : "Position (stops)"}</th><th className="px-3 py-2">{setup.fill_mode ? "Coverage" : `Total width (${mode === "ire" ? "IRE" : "stops"})`}</th><th className="w-16 px-3 py-2"><span className="sr-only">Actions</span></th></tr></thead>
+                    <caption className="caption-bottom pt-2 text-left text-xs text-muted-foreground sm:hidden">Scroll sideways for position and width.</caption>
+                    <thead className="text-left text-xs text-muted-foreground"><tr><th className="w-44 px-3 py-2">Color</th><th className="px-3 py-2">{setup.fill_mode ? "Boundary to next color" : mode === "ire" ? "Position (IRE)" : "Position (stops)"}</th><th className="px-3 py-2">{setup.fill_mode ? "Coverage" : `Total width (${mode === "ire" ? "IRE" : "stops"})`}</th></tr></thead>
                     <tbody>{setup.bands.map((band, index) => (
                       <tr className={`border-t ${selectedBand === index ? "bg-accent/60" : ""}`} data-selected={selectedBand === index} key={bandId(band)} onFocus={() => selectBand(index)} onClick={() => selectBand(index)}>
                         <td className="p-2"><span className="band-field-label" aria-hidden="true">Color</span><ColorPicker hideLabel triggerRef={(element) => { if (element) colorTriggers.current.set(bandId(band), element); else colorTriggers.current.delete(bandId(band)) }} label={`Band ${index + 1} color`} value={band.color} onChange={(color) => editSetup((current) => updateBand(current, index, { color }), index)} /></td>
@@ -1310,19 +1313,6 @@ export function App() {
                         <td className="p-2"><span className="band-field-label" aria-hidden="true">{setup.fill_mode ? "Coverage" : `Total width (${mode === "ire" ? "IRE" : "stops"})`}</span>{setup.fill_mode
                           ? <span className="flex min-h-12 items-center rounded-2xl bg-muted px-3 text-sm text-muted-foreground">{index === setup.bands.length - 1 ? "Fills the rest" : "Until boundary"}</span>
                           : <BandNumberInput aria-label={`Band ${index + 1} total width`} className={fieldClass} min={0} step={0.2} value={band.width * 2} onChange={(width) => editSetup((current) => updateBand(current, index, { width: width / 2 }), index)} />}</td>
-                        <td className="p-2"><Button
-                          aria-label={removingBandIndex === index ? `Confirm remove band ${index + 1}` : `Remove band ${index + 1}`}
-                          type="button"
-                          size="sm"
-                          className="h-11 w-11 !px-0"
-                          variant={removingBandIndex === index ? "destructive" : "ghost"}
-                          onClick={(event) => {
-                            event.stopPropagation()
-                            if (removingBandIndex !== index) return setRemovingBandIndex(index)
-                            editSetup((current) => removeBand(current, index))
-                            setRemovingBandIndex(null)
-                          }}
-                        >{removingBandIndex === index ? <Check aria-hidden="true" /> : <Trash2 aria-hidden="true" />}</Button></td>
                       </tr>
                     ))}</tbody>
                   </table>
@@ -1426,7 +1416,19 @@ export function App() {
         </WorkspacePanel>
       {browserOnly && isGenerating && <Button type="button" variant="outline" onClick={() => workerRef.current?.abort()}><X data-icon="inline-start" aria-hidden="true" />Cancel generation</Button>}
     </WorkspaceShell>
-    </div></>
+    <WorkspaceSheet open={removingBandIndex !== null} title={`Remove band ${(removingBandIndex ?? 0) + 1}?`} onClose={() => setRemovingBandIndex(null)}>
+      <p className="text-sm text-muted-foreground">Remove this band and its color from the LUT? Undo last band edit can restore it.</p>
+      <div className="mt-6 flex flex-wrap justify-end gap-2">
+        <Button type="button" variant="outline" onClick={() => setRemovingBandIndex(null)}>Cancel</Button>
+        <Button type="button" variant="destructive" aria-label={`Confirm remove band ${(removingBandIndex ?? 0) + 1}`} onClick={() => {
+          if (removingBandIndex === null) return
+          editSetup((current) => removeBand(current, removingBandIndex))
+          setBandStatus(`Removed band ${removingBandIndex + 1}. Undo last band edit restores it.`)
+          setRemovingBandIndex(null)
+        }}>Remove band</Button>
+      </div>
+    </WorkspaceSheet>
+    </div><SiteFooter /></>
   )
 }
 

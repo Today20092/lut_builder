@@ -59,16 +59,8 @@ layout/accessibility checks, reviewed screenshots at the configured widths and
 themes, and an explanation for every changed baseline. Pages deployment also
 requires the [UI quality workflow](.github/workflows/ui-quality.yml).
 
-Use Effect 4.0.5 as the standard for maintained TypeScript application code in
-`frontend/src/`. Use `Schema` at untrusted JSON boundaries, `Data.TaggedError` for
-failures shown to users, `Effect.tryPromise` for Promise APIs, and `Effect.callback`
-for callback APIs such as workers and `FileReader`. Run effects at the React/browser
-boundary and connect cancellation with `AbortSignal`. Keep `editor.ts` state
-transitions, LUT/color calculations and data, and presentational components as plain
-TypeScript; they stay pure or describe React/DOM rendering. Consult current Effect 4
-documentation before using its APIs; do not copy Effect 3 patterns.
-Use `Context.Service` and `Layer` when dependencies need shared provisioning or
-replacement; keep one-off browser APIs at their Effect boundary.
+For maintained TypeScript changes in `frontend/src/`, read the
+[TypeScript and Effect conventions](docs/agents/typescript.md).
 
 For workspace behavior or browser acceptance checks, read
 [integration verification](docs/testing/integration.md) for launch commands,
@@ -84,6 +76,14 @@ Before changing camera profiles, diagnostic outputs, or LUT semantics, read
 [Contributing.md](Contributing.md) for source evidence, numerical coverage, range
 conventions, and PR requirements. Keep generated LUTs and saved setup files out of
 commits, as specified by `.gitignore`.
+
+### Git and releases
+
+For branch setup, integration, promotion, synchronization or cleanup, read the
+[Git workflow](docs/branch-workflow.md).
+
+For version selection, release-status wording or release preparation, read the
+[versioning policy](docs/releasing.md).
 
 ### Issue tracker
 
