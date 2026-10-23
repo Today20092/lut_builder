@@ -2,9 +2,9 @@ name: GitHub Pages
 
 on:
   push:
-    branches: [main]
+    branches: [main, development]
   pull_request:
-    branches: [main]
+    branches: [main, development]
   workflow_dispatch:
 
 permissions:
@@ -72,7 +72,7 @@ jobs:
           path: src/lut_builder/static
 
   deploy:
-    if: github.event_name != 'pull_request'
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     needs: [build, python, ui]
     runs-on: ubuntu-latest
     permissions:

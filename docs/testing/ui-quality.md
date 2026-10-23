@@ -80,7 +80,8 @@ fix violations rather than broadly disabling rules to make the suite pass.
 ## CI and maintenance
 
 [UI quality](../../.github/workflows/ui-quality.yml) runs through the Pages
-workflow on pull requests and main pushes; Pages deployment waits for it. Its
+workflow on pull requests targeting `development` or `main` and pushes to either
+branch; only `main` can deploy Pages, and deployment waits for this gate. Its
 report artifact contains failure screenshots and traces and is retained for 14
 days. It can also be dispatched manually. Repository branch protection is a
 separate GitHub setting; this change does not configure it.

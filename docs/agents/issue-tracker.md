@@ -1,6 +1,13 @@
 # Issue tracker: GitHub
 
-Issues and PRDs for this repo live as GitHub issues. Use the `gh` CLI for all operations.
+Issues and PRDs for this repo live as GitHub issues. Prefer the connected GitHub
+tools for supported operations. Use the `gh` CLI when the connector lacks the
+required operation or is unavailable; the examples below describe that route.
+
+Before using the CLI, check `gh --version` and `gh auth status`. It requires an
+installed GitHub CLI authenticated for this repository. If neither route is
+available, report the blocked operation and preserve any prepared draft locally.
+Tool availability does not authorize posting or changing issues by itself.
 
 ## Conventions
 
@@ -11,7 +18,9 @@ Issues and PRDs for this repo live as GitHub issues. Use the `gh` CLI for all op
 - **Apply/remove labels**: `gh issue edit <number> --add-label "..."` or `--remove-label "..."`
 - **Close**: `gh issue close <number> --comment "..."`
 
-Infer the repository from `git remote -v`; `gh` does this automatically inside the clone.
+Infer the repository from `git remote -v`; pass its owner/name to connector tools.
+The CLI infers it automatically inside the clone. Keep multiline bodies in a
+structured connector argument or a UTF-8 file passed with `--body-file`.
 
 ## Pull requests as a triage surface
 
@@ -20,7 +29,8 @@ Infer the repository from `git remote -v`; `gh` does this automatically inside t
 ## Skill conventions
 
 - “Publish to the issue tracker” means create a GitHub issue.
-- “Fetch the relevant ticket” means run `gh issue view <number> --comments`.
+- “Fetch the relevant ticket” means read the issue and its comments through the
+  connector or `gh issue view <number> --comments`.
 
 ## Wayfinding operations
 

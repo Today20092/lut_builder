@@ -179,6 +179,10 @@ This means the validator will catch your typo before it ever silently generates 
 
 ## Pull request guidelines
 
+Target external contributions at `development`. Read the
+[Git workflow](docs/branch-workflow.md) for integration, checks and promotion,
+and the [versioning policy](docs/releasing.md) for compatibility and releases.
+
 - **One camera per PR** where possible — it keeps reviews focused and makes it easy to revert if a value turns out to be wrong.
 - **Include the source URL** for encoded-signal warning thresholds in both the `"sources"` list and the PR description.
 - **If updating an existing profile** with more accurate values, explain what the previous value was based on and why yours is more accurate.
