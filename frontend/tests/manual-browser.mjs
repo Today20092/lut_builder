@@ -86,8 +86,11 @@ try {
     assert.ok((await result.getAttribute("href")).includes("/docs/"))
     await result.click()
     await docs.waitForLoadState()
+    await docs.locator('.pagefind-ui__search-input').waitFor({ state: 'attached' })
     for (const path of pages) {
       await docs.goto(manual + path)
+      // Starlight initializes search at idle; do not navigate away during its module import.
+      await docs.locator('.pagefind-ui__search-input').waitFor({ state: 'attached' })
       assert.equal(await docs.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true, `Overflow at ${width}: ${path}`)
       if (path === "about/") {
         await docs.getByRole("heading", { name: "About LUT Builder", exact: true }).waitFor()
@@ -121,6 +124,7 @@ try {
       }
     }
     await docs.goto(manual + "first-lut/")
+    await docs.locator('.pagefind-ui__search-input').waitFor({ state: 'attached' })
     await docs.locator("main img").scrollIntoViewIfNeeded()
     await docs.waitForFunction(() => [...document.querySelectorAll("main img")].every(img => img.complete && img.naturalWidth > 0))
     assert.equal(await docs.locator("main img").evaluateAll(images => images.every(img => img.complete && img.naturalWidth > 0)), true)
@@ -130,6 +134,7 @@ try {
       await docs.screenshot({ path: `${process.env.MANUAL_EVIDENCE}/manual-${width}.png`, fullPage: true })
     }
     await docs.goto(manual + "signal-limits/#how-are-these-limits-calculated")
+    await docs.locator('.pagefind-ui__search-input').waitFor({ state: 'attached' })
     await docs.locator("#how-are-these-limits-calculated").waitFor()
     if (width < 960) await docs.getByRole("button", { name: "Menu", exact: true }).click()
     await docs.getByRole("link", { name: /Return to LUT Builder/ }).click()
