@@ -241,6 +241,16 @@ details.border[open] > summary { margin-bottom: 0; }
 }
 .workspace [hidden] { display: none !important; }
 .workspace fieldset { min-width: 0; }
+.workspace-choices[data-slot="toggle-group"] { display: grid; width: 100%; min-width: 0; grid-template-columns: repeat(auto-fit, minmax(min(100%, 5rem), 1fr)); align-items: stretch; }
+.workspace-choices > button { min-width: 0; min-height: 2.75rem; height: auto; white-space: normal; overflow-wrap: anywhere; padding: .625rem; }
+.workspace-choices > button[aria-pressed="true"] { background: var(--accent); border-color: var(--foreground); font-weight: 650; }
+.workspace-visible-section, .workspace-saved-setups { display: grid; gap: .75rem; padding-block: 1.25rem; border-top: 1px solid var(--border); }
+.workspace-saved-setups { margin: 1.25rem; }
+.workspace-radio-choice { display: flex; align-items: flex-start; gap: .75rem; padding: .75rem; border: 1px solid var(--border); border-radius: var(--radius-md); cursor: pointer; }
+.workspace-radio-choice:has(:checked) { border-color: var(--foreground); background: var(--accent); }
+.workspace-radio-choice:has(:focus-visible) { outline: 2px solid var(--ring); outline-offset: 2px; }
+.workspace-radio-choice input { margin-top: .25rem; flex-shrink: 0; }
+.workspace-radio-choice > span { min-width: 0; }
 .workspace legend { max-width: 100%; }
 .workspace [data-slot="input"], .workspace [data-slot="native-select"] { min-height: 2.5rem; }
 .workspace-preset-row { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; padding-block: .5rem; }
@@ -406,8 +416,8 @@ details.border[open] > summary { margin-bottom: 0; }
   .workspace[data-section="bands"] .workspace-stage > [aria-label="Persistent exposure preview"] > button > span:nth-child(2) > span:first-child { display: none; }
   #exposure-bands > [data-slot="card-header"] { display: contents; }
   #exposure-bands > [data-slot="card-content"] { order: 1; }
-  #exposure-bands > .workspace-task { order: 2; margin: 0 1rem; }
-  #exposure-bands > [data-slot="card-header"] > .workspace-task { order: 2; margin: 0 1rem; }
+  #exposure-bands > [data-slot="card-header"] > .workspace-band-controls { order: 2; margin: 0 1rem 1rem; }
+  .workspace-choices > button { min-height: 3rem; }
   .workspace-panel > section, .workspace-panel > details, .workspace-panel > .workspace-task { margin: 1rem; }
   .workspace-panel .band-table tr { grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 1rem .75rem; background: transparent; border: 0; }
   .workspace-panel .band-table td > fieldset > div { flex-wrap: nowrap; }

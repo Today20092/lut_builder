@@ -1,7 +1,8 @@
 import { HelpLink } from "./HelpLink"
 import { Input } from "@/components/ui/input"
 import { NativeSelect } from "@/components/ui/native-select"
-import { ImagePlus, VideoIcon, ImageIcon, X, Check, ChevronLeft, ChevronRight, Expand, Minimize, Plus, Download, RefreshCw, History, FolderOpen, Upload, RotateCcw, Trash2, SlidersHorizontal, TriangleAlert, Undo2, Save } from "lucide-react"
+import { ChoiceField } from "./ChoiceField"
+import { ImagePlus, VideoIcon, ImageIcon, X, Check, ChevronLeft, ChevronRight, Expand, Minimize, Plus, Download, RefreshCw, History, FolderOpen, Upload, RotateCcw, Trash2, TriangleAlert, Undo2, Save } from "lucide-react"
 import {
   Fragment,
   useCallback,
@@ -52,7 +53,7 @@ import { SiteFooter } from "./SiteFooter"
 import { WorkspaceActionText, WorkspaceDisclosure, WorkspaceTask } from "./WorkspaceTask"
 import { ImportedLookSettings } from "./ImportedLookSettings"
 import { ImportedLookPreview } from "./ImportedLookPreview"
-import { MobileExposurePresets } from "./MobileExposurePresets"
+import { ExposurePresets } from "./ExposurePresets"
 import { NewLut } from "./NewLut"
 import { ExportHandoff } from "./ExportHandoff"
 import { destinationFilename, exportCompatibility, type ExportDestination } from "./exportDestination"
@@ -60,8 +61,6 @@ import { useMobileWorkspace } from "./workspaceNavigation"
 import { createWorkspaceRuntime, type Preview } from "./workspaceRuntime"
 import { createSetupReplacement, createSetupWorkspace, reduceSetupWorkspace } from "./setupReplacement"
 import {
-  applyBandPreset,
-  applyFillPreset,
   applyExposurePreset,
   bandId,
   changeMode,
@@ -79,7 +78,6 @@ import {
   stepBandValue,
   updateBand,
   updateFillBoundary,
-  type FillPreset,
   type BandPreset,
   type ExposurePreset,
   type Mode,
@@ -420,7 +418,7 @@ export function ColorPicker({
                 </div>
                 </div>
                 <div className={showPresets ? "hidden" : "grid min-w-0 gap-3"}>
-                <label className="grid gap-2 text-sm">Color model<NativeSelect value={colorModel} onChange={event => { setColorModel(event.target.value); setHue(hexToHsv(isHexColor(value) ? value : "#000000").hue) }}><option value="oklch">OKLCH · perceptual</option><option value="hsv">HSV</option></NativeSelect></label>
+                <ChoiceField label="Color model" value={colorModel} onChange={model => { setColorModel(model); setHue(hexToHsv(isHexColor(value) ? value : "#000000").hue) }} options={[{ value: "oklch", label: "OKLCH · perceptual" }, { value: "hsv", label: "HSV" }]} />
                 {colorModel === "oklch" ? <OklchPicker color={value} onChange={onChange} /> : <>
               <div
                 aria-label={`${label} saturation and brightness`}
@@ -787,7 +785,6 @@ function InfoTooltip({ text }: { text: string }) {
 }
 
 export function App() {
-  const mobileWorkspace = useMobileWorkspace()
   const [runtime] = useState(() => createWorkspaceRuntime(window.LUT_BUILDER_TOKEN))
   const { browserOnly } = runtime
   const catalog = window.LUT_BUILDER_CATALOG ?? browserCatalog
@@ -862,10 +859,7 @@ export function App() {
   const replacingPreset = setupPresets.some((preset) => preset.name.toLocaleLowerCase() === presetName.trim().toLocaleLowerCase())
   const [stopIncrement, setStopIncrement] = useState<1 | 0.5 | 0.25>(0.25)
   const [graphRange, setGraphRange] = useState(7)
-  const [fillPreset, setFillPreset] = useState<FillPreset>("standard")
-  const [bandPreset, setBandPreset] = useState<BandPreset>("standard")
   const [paletteRevision, setPaletteRevision] = useState(0)
-  const [exposurePreset, setExposurePreset] = useState<ExposurePreset>("contrast-checker")
   const [removingBandIndex, setRemovingBandIndex] = useState<number | null>(null)
   const importInput = useRef<HTMLInputElement>(null)
   const colorTriggers = useRef(new Map<number, HTMLButtonElement>())
@@ -984,7 +978,6 @@ export function App() {
   }
 
   function applySelectedExposurePreset(preset: ExposurePreset, arrangement?: BandPreset) {
-    setExposurePreset(preset)
     setPalettePreview(null)
     setPaletteRevision((value) => value + 1)
     setRemovingBandIndex(null)
@@ -1098,7 +1091,7 @@ export function App() {
           <p role="status" className="text-sm">{isLoadingSetup ? "Loading setup…" : loadStatus}</p>
           {previousSetup && <Button type="button" variant="outline" onClick={setupReplacement.restore}><History data-icon="inline-start" aria-hidden="true" />Restore previous setup</Button>}
         </div>
-        <WorkspaceDisclosure className="rounded-lg border p-4" title="Load setup · optional">
+        <section aria-label="Load setup">
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
             <label className="grid gap-1 text-sm font-medium">Saved setup in this browser
                 <NativeSelect className={fieldClass} value={selectedPreset} onChange={(event) => { setSelectedPreset(event.target.value); setDeletingPreset(false) }}><option value="">Choose a setup</option>{setupPresets.map((preset) => <option key={preset.name} value={preset.name}>{preset.name}</option>)}</NativeSelect>
@@ -1112,7 +1105,7 @@ export function App() {
             </div>
               {deletingPreset && <p className="text-sm sm:col-span-2">Delete “{selectedPreset}” from this browser? This cannot be undone. Your current editing setup will stay open.</p>}
           </div>
-        </WorkspaceDisclosure>
+        </section>
         </WorkspacePanel>
         <WorkspacePanel value="configuration">
         <Card id="configuration" className="scroll-mt-6">
@@ -1137,10 +1130,8 @@ export function App() {
               <h3 className="text-base font-semibold">LUT output</h3>
               <FieldGroup className="grid gap-4 sm:grid-cols-2">
             <Field>
-              <div className="flex items-center gap-1.5"><FieldLabel htmlFor="cube-size">Cube size</FieldLabel><InfoTooltip text="Higher cube sizes sample the transform more precisely but produce larger LUT files and take longer to generate." /></div>
-              <NativeSelect id="cube-size" className={fieldClass} value={setup.cube_size} onChange={(e) => patchSetup({ cube_size: Number(e.target.value) })}>
-                {[17, 33, 65].map((size) => <option key={size} value={size}>{size}³</option>)}
-              </NativeSelect>
+              <div className="flex items-center gap-1.5"><span className="text-sm font-medium">Sampling precision</span><InfoTooltip text="Higher cube sizes sample the transform more precisely but produce larger LUT files and take longer to generate." /></div>
+              <ChoiceField label="Cube size" value={String(setup.cube_size)} onChange={value => patchSetup({ cube_size: Number(value) })} options={[17, 33, 65].map(size => ({ value: String(size), label: `${size}³` }))} />
             </Field>
             <label className="flex items-center gap-2 text-sm font-medium">
                   <input type="checkbox" checked={setup.monochrome} disabled={setup.fill_mode || Boolean(setup.imported_lut)} onChange={(e) => patchSetup({ monochrome: e.target.checked })} />
@@ -1177,38 +1168,17 @@ export function App() {
             </section>
           </FieldGroup></CardContent>
         </Card>
-        <div className="workspace-import-settings"><WorkspaceTask id="import" title="Imported creative LUT" icon={Upload}>
+        <div className="workspace-import-settings"><section className="workspace-visible-section" aria-label="Imported creative LUT settings">
+            <h3 className="text-sm font-semibold">Imported creative LUT</h3>
           {setup.imported_lut && <p className="mb-3 text-xs text-muted-foreground">Input, display encoding, output range and color base belong to the confirmed look. Replace the imported file and confirm its interpretation to change them, or remove the look to use standard settings.</p>}
           <ImportedLookSettings setup={setup} onChange={patchSetup} />
-        </WorkspaceTask></div>
+        </section></div>
 
         </WorkspacePanel>
         <WorkspacePanel value="presets">
           <div className="workspace-preset-panel">
             <h2 className="workspace-desktop-heading font-semibold">Exposure presets</h2>
-            {mobileWorkspace ? <MobileExposurePresets setup={setup} palette={catalog.palette} onApply={applySelectedExposurePreset} /> : <section className="grid gap-2" aria-label="Exposure presets">
-              <div className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-2">
-                <label className="grid min-w-0 gap-1.5 text-sm font-medium">Start with a preset
-                  <NativeSelect className={fieldClass} value={exposurePreset} onChange={(event) => setExposurePreset(event.target.value as ExposurePreset)}>
-                    <option value="contrast-checker">Contrast Checker · 5 fill zones</option>
-                    <option value="three-band">Three-band Exposure · Stops</option>
-                    <option value="camera-ire">Camera-log IRE · 7 bands</option>
-                  </NativeSelect>
-                </label>
-                <Button type="button" variant="outline" onClick={() => applySelectedExposurePreset(exposurePreset)}><Check data-icon="inline-start" aria-hidden="true" />Use preset</Button>
-              </div>
-              <WorkspaceDisclosure className="text-xs text-muted-foreground" title="Details">
-                <div className="grid gap-2 pb-2">
-              <p>{exposurePreset === "contrast-checker"
-                ? "Dark green → light green → gray → light pink → bright pink. Boundaries: −1.5, −0.5, +0.5, +1.5 stops from 18% gray. Compare face and scene contrast; colors do not establish a universal safe skin exposure."
-                : exposurePreset === "three-band" ? "Blue at −2, green at 0, orange at +2 stops. Each band is 0.6 stops wide on monochrome."
-                  : `Seven standard false-color bands on monochrome, anchored to ${setup.profile} camera-log levels.`}</p>
-              <p>Presets replace mode, positions, widths, and colors. Camera, output, and warning settings are preserved. Undo restores your bands.</p>
-              <p>{setup.fill_mode ? "Drag dividers to resize zones. Edit colors in the table." : "Drag bands to move them, or edit values in the table."}</p>
-              <p>Stops measure scene exposure; IRE measures camera-log levels; Fill colors every zone. <HelpLink className="underline" href={`${import.meta.env.BASE_URL}docs/controls/#exposure-bands`} target="_blank" rel="noreferrer">Bands and palette guide</HelpLink></p>
-                </div>
-              </WorkspaceDisclosure>
-            </section>}
+            <ExposurePresets setup={setup} palette={catalog.palette} onApply={applySelectedExposurePreset} />
           </div>
         </WorkspacePanel>
         <WorkspacePanel value="bands">
@@ -1220,7 +1190,7 @@ export function App() {
             <div className="workspace-band-actions flex flex-wrap items-center gap-2">
               {bandActions}
             </div>
-            <WorkspaceTask id="band-settings" title="Band setup & graph settings" icon={SlidersHorizontal} lead={<>
+            <div className="workspace-band-controls">
             <fieldset className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,5rem),1fr))] gap-2" aria-label="Band mode">
               <legend className="sr-only">Band mode</legend>
               {([
@@ -1238,33 +1208,7 @@ export function App() {
               </label>)}
             </fieldset>
             {mode === "ire" && <p className="text-xs text-muted-foreground">{setup.ire_basis === "camera" ? `${setup.profile} · camera-log input · full-code-range scale` : "Legacy setup · target-display IRE"}{setup.ire_basis !== "camera" && <> · <button type="button" className="font-medium text-foreground underline" onClick={() => editSetup((current) => changeMode(current, "ire", catalog.palette))}>Switch to camera-log IRE</button></>}</p>}
-            </>}>
             <div className="mt-4 grid min-w-0 gap-5">
-              <section className="grid gap-3" aria-label="Replace arrangement">
-                <div className="grid grid-cols-1 items-end gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
-                {!setup.fill_mode && (
-                  <>
-                    <label className="grid min-w-0 gap-1.5 text-xs font-medium">Band preset
-                      <NativeSelect className={fieldClass} value={bandPreset} onChange={(event) => setBandPreset(event.target.value as BandPreset)}>
-                        <option value="standard">Standard · 7 bands</option>
-                        <option value="detailed">Detailed · {mode === "ire" ? "9" : "10"} bands</option>
-                      </NativeSelect>
-                    </label>
-                    <Button type="button" className="w-full sm:w-auto" variant="outline" onClick={() => editSetup((current) => applyBandPreset(current, catalog.palette, bandPreset))}><Check data-icon="inline-start" aria-hidden="true" />Apply preset</Button>
-                  </>
-                )}
-                {setup.fill_mode && <>
-                  <label className="grid min-w-0 gap-1.5 text-xs font-medium">Fill preset
-                    <NativeSelect className={fieldClass} value={fillPreset} onChange={(event) => setFillPreset(event.target.value as FillPreset)}>
-                      <option value="standard">Standard · 5 zones</option>
-                      <option value="detailed">Detailed · 9 zones</option>
-                    </NativeSelect>
-                  </label>
-                  <Button type="button" className="w-full sm:w-auto" variant="outline" onClick={() => editSetup((current) => applyFillPreset(current, catalog.palette, fillPreset))}><Check data-icon="inline-start" aria-hidden="true" />Apply preset</Button>
-                </>}
-                </div>
-                <p className="text-xs text-muted-foreground">Replaces positions and colors. Undo restores them.</p>
-              </section>
               {(!setup.fill_mode || setup.band_mode === "stops") && <section className="grid gap-3 border-t pt-4" aria-label="Adjust bands and graph">
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 {!setup.fill_mode && (
@@ -1282,20 +1226,18 @@ export function App() {
                 </label>
                 )}
                 {mode === "stops" && (
-                  <label className="grid min-w-0 gap-1.5 text-xs font-medium">Drag step
-                    <NativeSelect aria-label="Movement increment" className={fieldClass} value={stopIncrement} onChange={(event) => setStopIncrement(Number(event.target.value) as 1 | 0.5 | 0.25)}>
-                      <option value="1">1 stop</option><option value="0.5">½ stop</option><option value="0.25">¼ stop</option>
-                    </NativeSelect>
-                  </label>
+                  <ChoiceField label="Movement increment" value={String(stopIncrement)} onChange={value => setStopIncrement(Number(value) as 1 | 0.5 | 0.25)} options={[{ value: "1", label: "1 stop" }, { value: "0.5", label: "½ stop" }, { value: "0.25", label: "¼ stop" }]} />
                 )}
-              {setup.band_mode === "stops" && <label className="grid min-w-0 gap-1.5 text-xs font-medium sm:col-span-2">Visible range (± stops)
-                <NativeSelect aria-label="Graph range in stops" className={fieldClass} value={graphRange} onChange={(event) => setGraphRange(Number(event.target.value))}>{Array.from({ length: 20 }, (_, index) => index + 1).map((value) => <option key={value} value={value}>±{value} stops</option>)}</NativeSelect>
-                <span className="text-xs font-normal text-muted-foreground">Zooms the graph; your bands stay unchanged.</span>
-              </label>}
+              {setup.band_mode === "stops" && <WorkspaceDisclosure className="sm:col-span-2" title={`Graph view · ±${graphRange} stops`}>
+                <label className="grid gap-2 text-sm">Visible range (± stops)
+                  <BandNumberInput aria-label="Graph range in stops" className={fieldClass} value={graphRange} min={1} max={20} step={1} onChange={value => setGraphRange(Math.round(value))} />
+                  <span className="text-xs text-muted-foreground">1–20 stops. Zooms the graph; your bands stay unchanged.</span>
+                </label>
+              </WorkspaceDisclosure>}
                 </div>
               </section>}
             </div>
-            </WorkspaceTask>
+            </div>
           </CardHeader>
           <CardContent className="grid gap-4">
             {graphPreview ? (
@@ -1311,12 +1253,12 @@ export function App() {
                           ? <span className="text-muted-foreground">—</span>
                           : <BandNumberInput aria-label={setup.fill_mode ? `Boundary after color ${index + 1}` : `Band ${index + 1} ${mode === "ire" ? "IRE" : "stops"}`} className={fieldClass} step={movementIncrement} min={mode === "ire" ? 0 : undefined} max={mode === "ire" ? 100 : undefined} value={band.stop} onChange={(stop) => editSetup((current) => setup.fill_mode ? updateFillBoundary(current, index, stop, movementIncrement) : updateBand(current, index, { stop }), index)} />}</td>
                         <td className="p-2"><span className="band-field-label" aria-hidden="true">{setup.fill_mode ? "Coverage" : `Total width (${mode === "ire" ? "IRE" : "stops"})`}</span>{setup.fill_mode
-                          ? <span className="flex min-h-12 items-center rounded-2xl bg-muted px-3 text-sm text-muted-foreground">{index === setup.bands.length - 1 ? "Fills the rest" : "Until boundary"}</span>
+                          ? <span className="text-sm text-muted-foreground">{index === setup.bands.length - 1 ? "Fills the rest" : "Until next boundary"}</span>
                           : <BandNumberInput aria-label={`Band ${index + 1} total width`} className={fieldClass} min={0} step={0.2} value={band.width * 2} onChange={(width) => editSetup((current) => updateBand(current, index, { width: width / 2 }), index)} />}</td>
                       </tr>
                     ))}</tbody>
                   </table>
-                  {setup.bands.length === 0 && <p className="p-4 text-sm text-muted-foreground">No bands yet. Choose Add band to start, or apply a preset above.</p>}
+                  {setup.bands.length === 0 && <p className="p-4 text-sm text-muted-foreground">No bands yet. Choose Add band to start, or choose an arrangement in Presets.</p>}
                 </div>
                 <p role="status" className="empty:hidden text-sm">{bandStatus}</p>
                 {preview?.warnings.map((warning) => <p className="text-sm text-amber-700 dark:text-amber-300" key={warning}>{warning}</p>)}

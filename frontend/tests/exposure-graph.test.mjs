@@ -259,8 +259,15 @@ test("camera video selection confirms decoding, verifies, invalidates and reject
   const button = (name) => [...container.querySelectorAll("button")].find((b) => b.textContent === name)
   const click = (name) => act(() => button(name).click())
   const set = async (label, value) => {
-    const input = [...container.querySelectorAll("label")].find((e) => e.textContent.startsWith(label)).querySelector("select")
-    await act(() => { input.value = value; input.dispatchEvent(new window.Event("change", { bubbles: true })) })
+    const group = container.querySelector(`[role="group"][aria-label="${label}"]`)
+    if (group) {
+      const choice = [...group.querySelectorAll("button")].find(button => button.textContent === value)
+      assert.ok(choice)
+      await act(() => choice.click())
+    } else {
+      const input = [...container.querySelectorAll("label")].find((e) => e.textContent.startsWith(label)).querySelector("select")
+      await act(() => { input.value = value; input.dispatchEvent(new window.Event("change", { bubbles: true })) })
+    }
   }
   const confirm = () => act(() => container.querySelector("input[type=checkbox]").click())
   const finish = (job) => act(() => job.resolve({ ok: true, json: async () => ({ request_id: job.payload.request_id, image: "data:image/png;base64,verified", width: 16, height: 16, provenance: { warnings: [], comparison_unavailable: "No camera reference viewing transform.", source: { frame: job.payload.frame } } }) }))
@@ -580,7 +587,10 @@ test("custom palettes draft, persist, reload, and reach generation without chang
     await mount()
     assert.match(container.textContent, /Saved palettes could not be read/)
     const ramp = () => field("Add color on gradient").style.background
-    const chooseField = async (label, value) => { await act(() => { field(label).value = value; field(label).dispatchEvent(new window.Event("change", { bubbles: true })) }) }
+    const chooseField = async (label, value) => {
+      const names = { direct: "Direct", colorful: "Colorful", shorter: "Shorter", longer: "Longer" }
+      await click([...field(label).querySelectorAll("button")].find(button => button.textContent === names[value]))
+    }
     assert.equal(field("Gradient blend"), null, "gradient editing is optional")
     const persistent = field("Persistent exposure preview")
     const previewColors = () => [...persistent.querySelectorAll("svg:first-of-type rect")].slice(0, initial.bands.length).map((rect) => rect.getAttribute("fill"))
@@ -724,8 +734,8 @@ test("custom palettes draft, persist, reload, and reach generation without chang
     await mount()
     await choose("Neutral renamed")
     await click(button("Customize gradient"))
-    assert.equal(field("Gradient blend").value, "colorful")
-    assert.equal(field("Hue path").value, "longer")
+    assert.equal(field("Gradient blend").querySelector('[aria-pressed="true"]').textContent, "Colorful")
+    assert.equal(field("Hue path").querySelector('[aria-pressed="true"]').textContent, "Longer")
     await click(field("Color stop 2"))
     assert.equal(field("Selected color hex").value, "#00ff00")
     assert.equal(field("Color stop 2").getAttribute("aria-valuenow"), "90")
@@ -754,7 +764,7 @@ test("custom palettes draft, persist, reload, and reach generation without chang
     await mount()
     await choose("Legacy")
     await click(button("Customize gradient"))
-    assert.equal(field("Gradient blend").value, "direct")
+    assert.equal(field("Gradient blend").querySelector('[aria-pressed="true"]').textContent, "Direct")
     assert.equal(field("Hue path"), null)
     assert.equal(container.querySelectorAll("[aria-label^='Color stop ']").length, 3)
     assert.equal(field("Color stop 2").getAttribute("aria-valuenow"), "50")
@@ -896,7 +906,7 @@ test("band editing preserves valid generation data, selection, and one-step reco
     assert.notDeepEqual((await generate()).bands.map(({ color }) => color), ["#ff0000", "#ffffff"])
     await click(button("Undo last band edit"))
     assert.deepEqual((await generate()).bands.map(({ color }) => color), ["#ff0000", "#ffffff"])
-    await click(button("Apply preset"))
+    await click(field("Use Standard Stops"))
     assert.equal((await generate()).bands.length, 7)
     await click(button("Undo last band edit"))
     assert.equal((await generate()).bands.length, 2)
@@ -1120,8 +1130,8 @@ test("browser-only app generates and downloads through a local worker without ba
     const range = container.querySelector('[aria-label="Graph range in stops"]')
     const setRange = async (value) => {
       await act(() => {
-        range.value = value
-        range.dispatchEvent(new window.Event("change", { bubbles: true }))
+        Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set.call(range, value)
+        range.dispatchEvent(new window.Event("input", { bubbles: true }))
       })
       await act(() => range.dispatchEvent(new window.KeyboardEvent("keydown", { key: "Enter", bubbles: true })))
     }
@@ -1131,7 +1141,7 @@ test("browser-only app generates and downloads through a local worker without ba
       assert.ok(container.querySelector('[aria-label="stops scale"]').children.length <= 17)
     }
     await setRange("12")
-    assert.equal([...range.options].some(option => option.value === '0'), false)
+    await setRange("0")
     assert.equal(range.value, "12")
     assert.equal(container.querySelector('[aria-label="Output filename preview"]').textContent, filenameBefore)
     await act(() => marker.dispatchEvent(new window.KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true })))

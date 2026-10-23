@@ -1,4 +1,5 @@
 import { NativeSelect } from "@/components/ui/native-select"
+import { ChoiceField } from "./ChoiceField"
 import { Trash2, Check, X } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 import { Data, Effect } from "effect"
@@ -73,9 +74,9 @@ export function ImportedLookSettings({setup,onChange}:{setup:Setup;onChange:(cha
       <p className="break-all text-sm">{draft.name} · {draft.size}³</p>
       <p className="text-xs text-muted-foreground">Choose the actual input/output of this LUT. Filenames do not establish colorimetry. Applying also selects source-camera IRE and turns monochrome off to preserve the look.</p>
       <label className="grid gap-1 text-sm">LUT camera input<NativeSelect className={field} value={profile} onChange={e=>setProfile(e.target.value)}>{browserProfiles.map(p=><option key={p}>{p}</option>)}</NativeSelect></label>
-      <label className="grid gap-1 text-sm">LUT output primaries<NativeSelect className={field} value={gamut} onChange={e=>setGamut(e.target.value as ImportedLut["output_gamut"])}>{browserTargets.map(p=><option key={p}>{p}</option>)}</NativeSelect></label>
-      <label className="grid gap-1 text-sm">LUT output transfer<NativeSelect className={field} value={transfer} onChange={e=>setTransfer(e.target.value as OutputTransfer)}><option value="gamma2.2">Gamma 2.2</option><option value="gamma2.4">Gamma 2.4</option><option value="sRGB">sRGB</option><option value="BT.709">BT.709 OETF</option></NativeSelect></label>
-      <label className="grid gap-1 text-sm">LUT output range<NativeSelect className={field} value={range} onChange={e=>setRange(e.target.value as "full"|"legal")}><option value="full">Full (0–1023)</option><option value="legal">Legal (64–940)</option></NativeSelect></label>
+      <ChoiceField label="LUT output primaries" value={gamut} onChange={value => setGamut(value as ImportedLut["output_gamut"])} options={browserTargets.map(value => ({ value, label: value }))} />
+      <ChoiceField label="LUT output transfer" value={transfer} onChange={setTransfer} options={[{ value: "gamma2.2", label: "Gamma 2.2" }, { value: "gamma2.4", label: "Gamma 2.4" }, { value: "sRGB", label: "sRGB" }, { value: "BT.709", label: "BT.709 OETF" }]} />
+      <ChoiceField label="LUT output range" value={range} onChange={setRange} options={[{ value: "full", label: "Full (0–1023)" }, { value: "legal", label: "Legal (64–940)" }]} />
       <Button onClick={()=>void confirm()}><Check data-icon="inline-start" aria-hidden="true" />Confirm and apply look</Button>
     </fieldset>}
     {draft && <Button variant="outline" onClick={cancel}><X data-icon="inline-start" aria-hidden="true" />Cancel LUT import</Button>}
