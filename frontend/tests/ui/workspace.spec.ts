@@ -217,7 +217,7 @@ test('accessibility in default, expanded and invalid states @checks', async ({ p
   await accessible(page)
 })
 
-test('band editor uses selected phone fields and a desktop table with inline removal @checks', async ({ page }) => {
+test('band editor uses selected phone fields and a desktop table with confirmed removal @checks', async ({ page }) => {
   const table = page.getByRole('table', { name: 'Band colors and positions' })
   if (page.viewportSize()!.width >= 960) await expect(table.getByRole('columnheader', { name: 'Color', exact: true })).toBeVisible()
   await expect(table.getByRole('columnheader', { name: 'Band', exact: true })).toHaveCount(0)

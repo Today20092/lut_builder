@@ -77,7 +77,9 @@ test('OKLCH picker size and slider positions stay stable across gamut changes @c
   const measure = async () => {
     const box = (await picker.boundingBox())!
     const tracks = await Promise.all(channels.map(async name => (await slider(name).boundingBox())!))
-    return [box.x, box.y, box.width, box.height, ...tracks.flatMap(track => [track.x, track.y, track.width, track.height])]
+    const scrollTop = await picker.evaluate(element => element.scrollTop)
+    // Keyboard focus can scroll a short phone sheet; its content geometry must stay stable.
+    return [box.x, box.y, box.width, box.height, ...tracks.flatMap(track => [track.x - box.x, track.y - box.y + scrollTop, track.width, track.height])]
   }
   const initial = await measure()
   await expect(picker.getByText(/^Within sRGB\./)).toBeVisible()

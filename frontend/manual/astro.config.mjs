@@ -11,11 +11,16 @@ export default defineConfig({
   integrations: [starlight({
     title: "LUT Builder manual",
     description: "Make and understand diagnostic false-color LUTs for your camera.",
+    social: [
+      { icon: "github", label: "GitHub project", href: "https://github.com/Today20092/lut_builder" },
+      { icon: "heart", label: "Support this project on Ko-fi", href: "https://ko-fi.com/ayoubab1" },
+    ],
     customCss: ["./src/styles/manual.css"],
     components: { Sidebar: "./src/components/Sidebar.astro" },
     sidebar: [
       { label: "Start here", items: [
         { label: "About this manual", slug: "" },
+        { label: "About LUT Builder & support", slug: "about" },
         { label: "Make your first LUT", slug: "first-lut" },
       ] },
       { label: "Using the builder", items: [

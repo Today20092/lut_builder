@@ -37,7 +37,7 @@ export function KeyboardHelp({ canUndo, onUndo }: { canUndo: boolean; onUndo: ()
       <dl className="grid gap-3 text-sm">
         <div><dt className="font-semibold">Tab / Shift+Tab · Enter / Space</dt><dd>Move between controls and activate buttons. Native selects, sliders and radio groups use arrow keys.</dd></div>
         <div><dt className="font-semibold">? · Ctrl/Cmd+Z</dt><dd>Open this help · Undo the most recent band edit. Text fields keep their own typing and undo shortcuts. Band undo is one step; redo is unavailable.</dd></div>
-        <div><dt className="font-semibold">Graph: Delete / Backspace</dt><dd>Remove the selected band while the graph has focus. Undo restores it. Fill mode keeps at least two colors.</dd></div>
+        <div><dt className="font-semibold">Graph: Delete / Backspace</dt><dd>Ask to remove the selected band while the graph has focus. Confirm removal in the dialog; Undo restores it. Fill mode keeps at least two colors.</dd></div>
         <div><dt className="font-semibold">Graph: arrows · Shift+arrows · Alt+Left/Right</dt><dd>Move a center or resize an edge · Adjust by ten steps · Select the previous/next band.</dd></div>
         <div><dt className="font-semibold">Gradient dots: arrows · Shift+arrows · Home / End</dt><dd>Move a color stop · Move ten steps · Move to its allowed limits. The exposure reference stop stays fixed.</dd></div>
         <div><dt className="font-semibold">Preview: F · Video: Left/Right · Shift+Left/Right</dt><dd>Expand the focused image preview · Select the previous/next decoded frame · Jump ten frames. Focus the preview or a button, rather than a field or slider. Frame shortcuts pause while decoding.</dd></div>

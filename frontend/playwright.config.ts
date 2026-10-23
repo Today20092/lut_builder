@@ -1,4 +1,4 @@
-import { defineConfig } from '@playwright/test'
+import { defineConfig, devices } from '@playwright/test'
 
 export default defineConfig({
   testDir: './tests/ui',
@@ -21,9 +21,9 @@ export default defineConfig({
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
   },
-  projects: [320, 390, 1280].flatMap(width => (['light', 'dark'] as const).map(colorScheme => ({
-    name: `${width}-${colorScheme}`,
-    use: { viewport: { width, height: 900 }, colorScheme, hasTouch: width < 640, isMobile: width < 640, deviceScaleFactor: 1 },
+  projects: [devices['iPhone 13'].viewport, devices['iPhone 14 Pro Max'].viewport, { width: 1280, height: 900 }].flatMap(viewport => (['light', 'dark'] as const).map(colorScheme => ({
+    name: `${viewport.width}-${colorScheme}`,
+    use: { viewport, colorScheme, hasTouch: viewport.width < 960, isMobile: viewport.width < 960, deviceScaleFactor: 1 },
   }))),
   webServer: {
     command: 'pnpm exec vite --host 127.0.0.1 --port 4187 --strictPort',
