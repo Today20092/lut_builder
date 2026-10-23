@@ -718,6 +718,8 @@ test('reviewed UI screenshots @visual', async ({ page }) => {
   await disclosure(page, 'Band setup & graph settings')
   await snapshot(page, page.getByRole('group', { name: 'Band mode', exact: true }), 'band-modes.png')
   await panel(page, 'Setups')
+  await page.evaluate(() => window.scrollTo(0, 0))
+  await expect(page).toHaveJSProperty('scrollY', 0)
   await page.screenshot({ path: test.info().outputPath('setups.png'), fullPage: true, animations: 'disabled' })
   await expect.soft(page).toHaveScreenshot('setups.png', { fullPage: true })
   await panel(page, 'Configure')
