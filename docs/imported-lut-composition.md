@@ -107,7 +107,7 @@ float32 + seven-decimal export tolerance is approximately `5.1e-8 + 6e-8*abs(val
 This is a **nodal** bound; resampling a nonlinear look between export nodes adds a
 separate approximation error. Large supported excursions require relative tolerance.
 
-`frontend/tests/imported-lut-parity.test.mjs` compares every serialized channel in
+`frontend/tests/imported-lut-parity.mjs` compares every serialized channel in
 19 Python/browser cases: a 33³ nonlinear base, all four transfers × both gamuts
 × full/legal with overlapping bands and warnings, plus 33³/65³ finite markers.
 Measured maximum absolute channel

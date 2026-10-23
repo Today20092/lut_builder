@@ -47,10 +47,12 @@ combined commit, rather than treating an isolated branch's results as sufficient
    source SHA, verification results, artifact identities, material changes and
    known limitations. Keep any tested artifacts that later builds would replace.
    Done: the reviewed commit and its evidence are identifiable.
-3. After review and passing Python, build/browser and full UI checks, merge using
+3. After review and passing the selected PR checks, merge using
    **Create a merge commit**. Squash and rebase merging are disabled for this
    repository to preserve promotion ancestry. Done: the reviewed source is in
-   `main` and the resulting Pages deployment has been checked.
+   `main`, the complete release gate has passed, and the resulting Pages deployment
+   has been checked. The main-push gate always runs Python, build/browser and full
+   UI checks, including checks intentionally omitted from the focused PR run.
 4. Merge `main` back into `development` before the next batch. This also applies
    to urgent main-only fixes. Done: development contains the release merge and
    all main-only changes; rebuild affected local artifacts before using them.
@@ -62,7 +64,8 @@ covering those actions. Workflow setup alone does not authorize a promotion.
 
 | Event | Effect |
 | --- | --- |
-| PR targeting `development` or `main`, or push to `main` | `deploy-pages.yml` runs Python once, frontend lint/test/build, browser/manual acceptance, and the reusable full UI gate across three parallel shards. |
+| PR targeting `development` or `main` | `deploy-pages.yml` selects checks for affected Python, frontend, published manual and shared boundaries, with a stable aggregate `CI checks` status. Configuration/dependency/unknown changes select the full suite. |
+| Push to `main` | Runs Python once, frontend lint/test/build, browser/manual acceptance and the full UI gate across three parallel shards. |
 | Push to `development` or a feature branch | Backup only; open/update a PR or manually dispatch Pages on that ref for validation. |
 | Successful push to `main` | Pages deploys the built website and manual. |
 | Manual Pages workflow | Runs the checks; deployment is allowed only when the selected ref is `main`. |
@@ -73,6 +76,8 @@ covering those actions. Workflow setup alone does not authorize a promotion.
 The workflows live in [.github/workflows](../.github/workflows). Branch protection
 and rulesets are separate GitHub settings; CI triggers do not enforce PR review
 or block direct pushes by themselves.
+See [CI selection](testing/ci.md) for the mapping, conservative fallback and
+required-status guidance.
 
 ## Cleanup
 
