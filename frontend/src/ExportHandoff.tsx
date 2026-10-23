@@ -1,5 +1,4 @@
 import { HelpLink } from "./HelpLink"
-import { NativeSelect } from "@/components/ui/native-select"
 import { Button } from "@/components/ui/button"
 import { exportCompatibility, type ExportDestination } from "./exportDestination"
 import type { Setup } from "./editor"
@@ -9,9 +8,18 @@ export function ExportHandoff({ setup, destination, onDestination, onCameraSetti
 }) {
   const issues = exportCompatibility(setup, destination)
   return <section className="export-handoff" aria-label="Use your LUT">
-    <label className="grid gap-2 font-medium">Where will you use this LUT?<NativeSelect value={destination} onChange={event => onDestination(event.target.value as ExportDestination)}>
-      <option value="general">Choose a destination · general .cube</option><option value="s5iix">Lumix S5IIX · V-Log View Assist</option><option value="monitor">External monitor</option><option value="editor">Editing software</option>
-    </NativeSelect></label>
+    <fieldset className="grid gap-2">
+      <legend className="mb-3 font-medium">Where will you use this LUT?</legend>
+      {([
+        ["general", "General .cube", "Keep a general-purpose file; check your device’s requirements."],
+        ["s5iix", "Lumix S5IIX", "V-Log View Assist · camera size, range and filename checks."],
+        ["monitor", "External monitor", "Load into a user LUT slot for your camera log signal."],
+        ["editor", "Editing software", "Inspect exposure before a display conversion or creative grade."],
+      ] as const).map(([value, label, description]) => <label key={value} className="workspace-radio-choice">
+        <input type="radio" name="export-destination" value={value} checked={destination === value} onChange={() => onDestination(value)} />
+        <span><span className="font-medium">{label}</span><span className="block text-xs text-muted-foreground">{description}</span></span>
+      </label>)}
+    </fieldset>
     {issues.length > 0 && <div className="export-compatibility" role="status"><h3 className="font-semibold">Before exporting for the S5IIX</h3><ul className="list-disc pl-5">{issues.map(issue => <li key={issue}>{issue}</li>)}</ul><Button variant="outline" onClick={onCameraSettings} disabled={Boolean(setup.imported_lut)}>Use V-Log, 33³ and full range</Button><p>Changing camera keeps your bands. Review their exposure thresholds.</p>{setup.imported_lut && <p>Remove or replace the imported look in Configure before changing its camera input.</p>}</div>}
     {destination === "s5iix" && <p className="text-muted-foreground">The camera download uses an eight-character settings ID as its filename, compatible with SD / SDHC cards.</p>}
     <details open={downloaded || undefined}><summary>{destination === "s5iix" ? "Load it into your S5IIX" : "After download"}</summary><div className="grid gap-3 pt-3">

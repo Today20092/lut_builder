@@ -23,5 +23,4 @@ export async function navigateWorkspace(page, name, activate = locator => locato
     : page.getByRole('tab', { name: destination, exact: true })
   await activate(control)
   if (['Bands', 'Palette'].includes(name)) await activate(page.getByRole('group', { name: 'Edit tools' }).getByRole('button', { name, exact: true }))
-  if (name === 'Setups') await openDisclosure(page, 'Saved setups')
 }

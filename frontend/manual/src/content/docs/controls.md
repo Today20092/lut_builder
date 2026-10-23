@@ -8,16 +8,18 @@ description: What each configuration, band, graph, palette, and warning control 
 Use **Presets**, **Edit**, **Preview**, and **Settings** in the bottom navigation on
 a phone or side navigation on desktop. **Edit** contains **Bands** and **Palette**.
 **Preview** contains the photo illustration and camera verification. **Settings**
-contains camera, output, optional tools and saved setups; optional controls expand
-in place. **Export LUT** opens from the header and uses **Close** to return.
+contains camera, output, imported looks and saved setups. Frequently used choices
+stay visible; advanced settings and explanations expand in place. **Export LUT**
+opens from the header and uses **Close** to return.
 
-On mobile, **Presets** shows separate **IRE**, **Fill**, and **Stops** sections,
+**Presets** shows separate **IRE**, **Fill**, and **Stops** sections at every width,
 with a colored exposure-strip preview for each choice. Stops use a −7 to +7 scale;
 IRE uses a 0–100 camera-log scale for your selected camera. The mode choices in
-**Band setup & graph settings** also show examples alongside their labels.
+**Edit → Bands** also show examples alongside their labels.
 Tap a preset’s **Use** button to apply it directly. Standard and Detailed options
 reuse the existing arrangements; **Undo last band edit** in Bands restores your
-previous bands and mode. Desktop keeps its preset picker.
+previous bands and mode. Arrangement replacement belongs in Presets rather than
+inside the band editor.
 
 The phone exposure graph scrolls with **Bands**. **Palette** has a compact preview;
 other tasks use the full screen without the exposure stage above their controls.
@@ -59,11 +61,10 @@ Older setups can retain target-display IRE. Check the **Legacy setup** label bef
 | Fill dividers | Move a boundary between neighboring colors. At the boundary, the higher zone wins. The final zone fills the rest. |
 | Add band | Adds a band or color zone. Fill retains at least two colors. |
 | Undo last band edit | Restores the last band edit and selection, including a drag as one edit. Unrelated configuration changes are preserved. No redo or long history. |
-| Band setup & graph settings | Opens arrangement presets, shared width, drag step, and graph range. |
-| Band preset / Fill preset + Apply preset | Replaces the arrangement and colors with Standard or Detailed. Choosing a preset alone does not apply it. Undo restores the previous arrangement. |
+| Presets → Standard / Detailed → Use | Replaces the arrangement and colors. Each named option has an exposure preview. Undo restores the previous arrangement. |
 | All band widths / All total widths | Sets every ordinary band's **total** width. “Mixed” means the individual widths differ. |
-| Drag step | Selects 1, ½, or ¼ stop movement. IRE editing uses its own increment. |
-| Visible range | Changes only the Stops diagram viewport, not the LUT. Values outside it remain editable in numeric fields. |
+| Movement increment | Visible choices select 1, ½, or ¼ stop movement. IRE editing uses its own increment. |
+| Graph view → Visible range | Enter 1–20 for the ± Stops diagram viewport, not the LUT. Values outside it remain editable in numeric fields. |
 | Color | Opens the individual band's color picker. |
 | Position / Boundary to next color | Sets the band center or Fill boundary. |
 | Total width | Full span, not ± width. Width 0.6 means ±0.3. Fill has coverage labels instead. |

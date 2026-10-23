@@ -172,8 +172,9 @@ band controls together; Palette retains a compact exposure preview without the
 graph or band picker. Other destinations and dedicated tasks hide the stage.
 Imported-look phone previews show their comparison in place of the editable graph.
 Only the selected band appears in the phone band editor. Swatch, hexadecimal color,
-position and width stay directly available. Band/graph settings, creative LUT
-import, recorded-signal warnings and saved palettes expand inline at every width.
+position and width stay directly available. Band modes, shared widths and movement
+increments remain visible. Graph view, recorded-signal warnings and saved palettes
+expand inline; imported looks and saved setup loading stay directly available.
 Main destinations have no Back action. Import confirmation and export use shared
 modal sheets with a visible Close action, Escape and browser Back dismissal.
 
@@ -232,7 +233,8 @@ overrides apply to these shared primitives.
 
 ### Inputs / Fields
 
-Text and number fields use the shared shadcn Input; selectors use NativeSelect.
+Text and number fields use the shared shadcn Input. Short exclusive choices use
+ChoiceField with the shared ToggleGroup; longer lists use NativeSelect.
 Both use the Rhea input surface and focus treatment. Layout classes belong on the
 select wrapper, which has no second border. Controls are at least 40px high on
 desktop and 48px on phones. Invalid drafts remain visible with error feedback;
@@ -263,8 +265,8 @@ a named, scaled exposure-strip preview and a trailing Use button with at least a
 IRE previews follow the selected camera. Mode choices show illustrative strips
 alongside their labels on phones as well as desktop.
 Standard and Detailed choices reuse the existing arrangements. Apply feedback
-uses a temporary shadcn toast above mobile navigation; Bands provides editing and undo. Desktop retains
-the compact preset selector.
+uses a temporary shadcn toast above mobile navigation; Bands provides editing and
+undo. Desktop uses the same visible, explained preset browser.
 
 Settings includes Saved setups and workspace actions: New LUT, Help / Manual
 and Report an issue. External destinations retain link semantics, show an
@@ -295,7 +297,7 @@ their heading to keyboard and screen-reader users. Continue editing skips setup;
 New LUT is available in the desktop header and Settings. Valid saved work
 resumes immediately. Starting a new LUT retains the existing setup for recovery.
 
-Export keeps destination selection and compatibility feedback visible, with
+Export presents destinations as explained radio choices and keeps compatibility feedback visible, with
 loading instructions in a disclosure that opens after a successful download.
 The S5IIX option requires Panasonic V-Log input, at most 33³ and full range. It
 links Panasonic's instructions and distinguishes V-Log View Assist monitoring

@@ -5,13 +5,8 @@ import { readFile } from 'node:fs/promises'
 const constantLookCube = 'TITLE "Constant camera look"\nLUT_3D_SIZE 2\n' + Array(8).fill('0.125 0.25 0.5').join('\n') + '\n'
 
 async function applyPreset(page: Page, preset: string) {
-  if (page.viewportSize()!.width < 960) {
-    const names: Record<string, string> = { 'contrast-checker': 'Contrast Checker', 'three-band': 'Three-band Exposure', 'camera-ire': 'Camera-log IRE' }
-    await page.getByRole('button', { name: `Use ${names[preset]}`, exact: true }).click()
-  } else {
-    await page.getByLabel('Start with a preset', { exact: false }).selectOption(preset)
-    await page.getByRole('button', { name: 'Use preset', exact: true }).click()
-  }
+  const names: Record<string, string> = { 'contrast-checker': 'Contrast Checker', 'three-band': 'Three-band Exposure', 'camera-ire': 'Camera-log IRE' }
+  await page.getByRole('button', { name: `Use ${names[preset]}`, exact: true }).click()
 }
 
 test.beforeEach(async ({ page }) => {
@@ -39,12 +34,12 @@ async function panel(page: Page, name: string) {
     await expect(page.getByRole('tab', { name: destination, exact: true })).toHaveAttribute('aria-selected', 'true')
   }
   if (['Bands', 'Palette'].includes(name)) await page.getByRole('group', { name: 'Edit tools' }).getByRole('button', { name, exact: true }).click()
-  if (name === 'Setups') { await disclosure(page, 'Saved setups'); await disclosure(page, 'Load setup · optional') }
-  if (name === 'Configure') await disclosure(page, 'Imported creative LUT')
+  if (name === 'Setups') await expect(page.getByRole('region', { name: 'Saved setups', exact: true })).toBeVisible()
+  if (name === 'Configure') await expect(page.getByLabel('Import .cube LUT', { exact: true })).toBeVisible()
 }
 
 async function disclosure(page: Page, title: string) {
-  if (title === 'Output settings') { await expect(page.getByRole('combobox', { name: /^Cube size/ })).toBeVisible(); return }
+  if (title === 'Output settings') { await expect(page.getByRole('group', { name: 'Cube size', exact: true })).toBeVisible(); return }
   const summary = page.locator('summary').filter({ hasText: title })
   await expect(summary).toBeVisible()
   if (await summary.locator('..').getAttribute('open') === null) await summary.click()
@@ -52,8 +47,6 @@ async function disclosure(page: Page, title: string) {
 }
 
 async function bandMode(page: Page, name: string, change = false) {
-  const mobile = page.viewportSize()!.width < 960
-  if (mobile) await disclosure(page, 'Band setup & graph settings')
   const radio = page.getByRole('radio', { name, exact: true })
   if (change) await radio.check()
   else await expect(radio).toBeChecked()
@@ -128,6 +121,36 @@ test('configuration help opens by tap and fields keep a single control surface @
   await expect(help).toBeFocused()
   await expect(page.getByText('Higher cube sizes sample the transform more precisely', { exact: false })).toBeHidden()
   await expect(camera).toHaveValue('Sony S-Log3')
+})
+
+test('frequent choices stay visible and numeric graph preferences preserve valid work @checks', async ({ page }) => {
+  await expect(page.getByRole('textbox', { name: 'All total widths', exact: true })).toBeVisible()
+  const steps = page.getByRole('group', { name: 'Movement increment', exact: true })
+  await expect(steps).toBeVisible()
+  await steps.getByRole('button', { name: '½ stop', exact: true }).click()
+  await expect(steps.getByRole('button', { name: '½ stop', exact: true })).toHaveAttribute('aria-pressed', 'true')
+  await steps.getByRole('button', { name: '½ stop', exact: true }).click()
+  await expect(steps.getByRole('button', { name: '½ stop', exact: true })).toHaveAttribute('aria-pressed', 'true')
+  await disclosure(page, 'Graph view')
+  const range = page.getByRole('textbox', { name: 'Graph range in stops', exact: true })
+  await range.fill('20')
+  await range.press('Enter')
+  await expect(page.getByRole('group', { name: 'Editable exposure graph from -20 to 20 stops', exact: true })).toBeVisible()
+  await range.fill('21')
+  await expect(range).toHaveAttribute('aria-invalid', 'true')
+  await range.press('Escape')
+  await expect(range).toHaveValue('20')
+  await panel(page, 'Configure')
+  const sizes = page.getByRole('group', { name: 'Cube size', exact: true })
+  await sizes.getByRole('button', { name: '17³', exact: true }).click()
+  await expect(sizes.getByRole('button', { name: '17³', exact: true })).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.getByRole('combobox', { name: /^Cube size/ })).toHaveCount(0)
+  await expect(page.getByRole('region', { name: 'Saved setups', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Import setup file', exact: true })).toBeVisible()
+  await panel(page, 'Export')
+  await page.getByRole('radio', { name: /^External monitor/ }).check()
+  await expect(page.getByRole('radio', { name: /^External monitor/ })).toBeChecked()
+  await accessible(page)
 })
 
 test('enlarged phone text keeps navigation reachable without sideways scrolling @checks', async ({ page }) => {
@@ -327,8 +350,7 @@ test('output summary shares the committed preview and shows ranges without hex c
   await page.screenshot({ path: `../.scratch/output-summary-${test.info().project.name}.png`, fullPage: true, clip: (await output.boundingBox())! })
 })
 
-test('mobile preset sections apply existing standard and detailed arrangements @checks', async ({ page }) => {
-  test.skip(page.viewportSize()!.width >= 960, 'Mobile grouped preset browser')
+test('preset sections apply existing standard and detailed arrangements @checks', async ({ page }) => {
   const cases = [
     ['Detailed IRE', 9], ['Standard Fill', 5], ['Detailed Fill', 9],
     ['Standard Stops', 7], ['Detailed Stops', 10],
@@ -352,7 +374,7 @@ test('mobile preset sections apply existing standard and detailed arrangements @
 test('mode choices have visible examples and routine recovery stays in Setups @checks', async ({ page }) => {
   await expect(page.locator('.workspace-session-status')).toBeHidden()
   await expect(page.getByRole('button', { name: 'Restore previous setup', exact: true })).toBeHidden()
-  await disclosure(page, 'Band setup & graph settings')
+
   const choices = page.getByRole('group', { name: 'Band mode', exact: true })
   await expect(choices.locator('.workspace-mode-preview svg')).toHaveCount(3)
   for (const preview of await choices.locator('.workspace-mode-preview svg').all()) {
@@ -389,24 +411,16 @@ test('complete presets lead into editable bands and undo without changing config
   await page.getByLabel('Color hue value', { exact: true }).fill('240')
   await panel(page, 'Presets')
   await applyPreset(page, 'contrast-checker')
-  if (page.viewportSize()!.width >= 960) {
-    const details = page.getByRole('region', { name: 'Exposure presets' }).locator('details')
-    await expect(details).not.toHaveAttribute('open')
-    await details.locator('summary').click()
-    await expect(details.getByText(/Dark green → light green/)).toBeVisible()
-    await details.locator('summary').click()
-  } else {
-    await expect(page.getByRole('combobox', { name: /^Start with a preset/ })).toHaveCount(0)
-    for (const mode of ['IRE', 'Fill', 'Stops']) {
-      const group = page.getByRole('region', { name: `${mode} presets`, exact: true })
-      await expect(group).toBeVisible()
-      for (const button of await group.getByRole('button').all()) {
-        expect((await button.boundingBox())!.height).toBeGreaterThanOrEqual(44)
-      }
+  await expect(page.getByRole('combobox', { name: /^Start with a preset/ })).toHaveCount(0)
+  for (const mode of ['IRE', 'Fill', 'Stops']) {
+    const group = page.getByRole('region', { name: `${mode} presets`, exact: true })
+    await expect(group).toBeVisible()
+    for (const button of await group.getByRole('button').all()) {
+      expect((await button.boundingBox())!.height).toBeGreaterThanOrEqual(page.viewportSize()!.width < 960 ? 48 : 24)
     }
-    await accessible(page)
-    await page.screenshot({ path: test.info().outputPath('mobile-presets.png'), fullPage: true })
   }
+  await accessible(page)
+  await page.screenshot({ path: test.info().outputPath('presets.png'), fullPage: true })
   await panel(page, 'Bands')
   await bandMode(page, 'Fill Color every zone')
   const table = page.getByRole('table', { name: 'Band colors and positions' })
@@ -521,10 +535,10 @@ test('phone destinations keep inline controls and direct access @checks', async 
   }
   await panel(page, 'Configure')
   await disclosure(page, 'Output settings')
-  await expect(page.getByRole('combobox', { name: /^Cube size/ })).toBeVisible()
+  await expect(page.getByRole('group', { name: 'Cube size', exact: true })).toBeVisible()
   await disclosure(page, 'Recorded-signal limit warnings')
   await expect(page.getByRole('combobox', { name: /^Camera recording/ })).toBeVisible()
-  await disclosure(page, 'Imported creative LUT')
+
   await expect(page.locator('details[data-task-id="signal-warnings"] > summary')).toBeVisible()
   await expect(page.getByRole('button', { name: 'Back', exact: true })).toHaveCount(0)
   await panel(page, 'Media')
@@ -538,10 +552,10 @@ test('phone destinations keep inline controls and direct access @checks', async 
   await panel(page, 'Bands')
   await expect(page.locator('.workspace')).toHaveAttribute('data-section', 'bands')
   await panel(page, 'Bands')
-  await disclosure(page, 'Band setup & graph settings')
+
   await expect(page.getByRole('textbox', { name: 'Band 1 stops', exact: true })).toBeVisible()
   await expect(page.getByRole('radio', { name: 'Stops Mark exposure', exact: true })).toBeVisible()
-  const advanced = page.locator('details[data-task-id="band-settings"] > summary')
+  const advanced = page.locator('summary').filter({ hasText: 'Graph view' })
   await advanced.focus()
   await advanced.press('Enter')
   await expect(advanced).toBeFocused()
@@ -646,15 +660,15 @@ test('confirmed imported look edits, compares and exports portably without chang
   const cube = constantLookCube
   await panel(page, 'Configure')
   await disclosure(page, 'Output settings')
-  await page.getByRole('combobox', { name: /^Cube size/ }).selectOption('17')
-  if (page.viewportSize()!.width < 960) await disclosure(page, 'Imported creative LUT')
+  await page.getByRole('group', { name: 'Cube size', exact: true }).getByRole('button', { name: '17³', exact: true }).click()
+
   await page.getByLabel('Import .cube LUT', { exact: true }).setInputFiles({ name: 'constant-look.cube', mimeType: 'text/plain', buffer: Buffer.from(cube) })
   await expect(page.getByRole('button', { name: 'Confirm and apply look', exact: true })).toBeVisible()
   await page.getByRole('combobox', { name: /^LUT camera input/ }).selectOption('Panasonic V-Log')
   await accessible(page)
   await page.getByRole('button', { name: 'Confirm and apply look', exact: true }).click()
   await expect(page.getByRole('combobox', { name: /^Camera recording/ })).toBeDisabled()
-  await expect(page.getByRole('combobox', { name: /^Target display/ })).toBeDisabled()
+  for (const choice of await page.getByRole('group', { name: 'Target display', exact: true }).getByRole('button').all()) await expect(choice).toBeDisabled()
   await expect(page.getByRole('radio', { name: 'Full / Data', exact: true })).toBeDisabled()
   await expect(page.getByRole('checkbox', { name: 'Monochrome base', exact: true })).toBeDisabled()
   const comparison = page.getByRole('region', { name: 'Imported look comparison', exact: true })
@@ -716,7 +730,7 @@ test('reviewed UI screenshots @visual', async ({ page }) => {
   await page.screenshot({ path: test.info().outputPath('presets.png'), fullPage: true, animations: 'disabled' })
   await expect.soft(page).toHaveScreenshot('presets.png', { fullPage: true })
   await panel(page, 'Bands')
-  await disclosure(page, 'Band setup & graph settings')
+
   await snapshot(page, page.getByRole('group', { name: 'Band mode', exact: true }), 'band-modes.png')
   await panel(page, 'Setups')
   await page.evaluate(() => window.scrollTo(0, 0))
@@ -738,8 +752,8 @@ test('reviewed UI screenshots @visual', async ({ page }) => {
   await snapshot(page, palette, 'gradient-invalid-focus.png')
   await panel(page, 'Configure')
   await disclosure(page, 'Output settings')
-  await page.getByRole('combobox', { name: /^Cube size/ }).selectOption('17')
-  if (page.viewportSize()!.width < 960) await disclosure(page, 'Imported creative LUT')
+  await page.getByRole('group', { name: 'Cube size', exact: true }).getByRole('button', { name: '17³', exact: true }).click()
+
   await page.getByLabel('Import .cube LUT', { exact: true }).setInputFiles({ name: 'constant-look.cube', mimeType: 'text/plain', buffer: Buffer.from(constantLookCube) })
   await page.getByRole('combobox', { name: /^LUT camera input/ }).selectOption('Panasonic V-Log')
   await snapshot(page, page.getByRole('dialog', { name: 'Confirm imported LUT', exact: true }), 'imported-interpretation.png')

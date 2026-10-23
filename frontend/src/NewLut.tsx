@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react"
 import { ArrowLeft, ArrowRight, Check, Layers } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { NativeSelect } from "@/components/ui/native-select"
+import { ChoiceField } from "./ChoiceField"
 import { BandStrip } from "./ExposurePreview"
 import { applyExposurePreset, type ExposurePreset, type PaletteColor, type Setup } from "./editor"
 
@@ -34,7 +35,7 @@ export function NewLut({ setup, profiles, targets, palette, busy, error, onCreat
         <details className="new-lut-explanation"><summary>What does this LUT do?</summary><p>It turns exposure ranges into colors so you can judge your camera signal while shooting. It is a monitoring aid, not a creative grade or proof of sensor clipping. No footage upload is needed.</p></details>
         <label htmlFor="new-lut-profile" className="grid gap-2 font-medium">Camera / log profile<NativeSelect id="new-lut-profile" value={profile} onChange={event => setProfile(event.target.value)}>{profiles.map(value => <option key={value}>{value}</option>)}</NativeSelect></label>
         <p className="text-sm text-muted-foreground">For a Lumix S5IIX recording V-Log, choose Panasonic V-Log.</p>
-        <label htmlFor="new-lut-target" className="grid gap-2 font-medium">Display color space<NativeSelect id="new-lut-target" value={target} onChange={event => setTarget(event.target.value)}>{targets.map(value => <option key={value}>{value}</option>)}</NativeSelect></label>
+        <ChoiceField label="Display color space" value={target} onChange={setTarget} options={targets.map(value => ({ value, label: value }))} />
         <p className="text-sm text-muted-foreground">Rec.709 is the starting point for an SDR monitoring display. The new LUT uses 33³ and full range; review compatibility at export.</p>
         <Button size="lg" disabled={busy} onClick={() => setStep(1)}>Choose exposure preset<ArrowRight aria-hidden="true" /></Button>
       </> : <>

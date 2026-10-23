@@ -21,7 +21,7 @@ const groups: { mode: string; icon: LucideIcon; presets: { id: ExposurePreset; a
   ] },
 ]
 
-export function MobileExposurePresets({ setup, palette, onApply }: { setup: Setup; palette: PaletteColor[]; onApply: (preset: ExposurePreset, arrangement?: BandPreset) => void }) {
+export function ExposurePresets({ setup, palette, onApply }: { setup: Setup; palette: PaletteColor[]; onApply: (preset: ExposurePreset, arrangement?: BandPreset) => void }) {
   return <div className="grid gap-7">
     {groups.map(({ mode, icon: Icon, presets }) => <section key={mode} aria-label={`${mode} presets`} className="grid gap-3">
       <h3 className="flex items-center gap-2 text-base font-semibold"><Icon className="size-4" aria-hidden="true" />{mode}</h3>
@@ -32,7 +32,7 @@ export function MobileExposurePresets({ setup, palette, onApply }: { setup: Setu
         return <div key={name} className="workspace-preset-row">
         <div className="grid gap-1">
           <h4 className="font-medium">{name}</h4>
-          <p className="sr-only">{detail}</p>
+          <p className="text-xs text-muted-foreground">{detail}</p>
           <BandStrip setup={preview} minimum={ire ? 0 : -7} maximum={ire ? 100 : 7} label={`${name} preview`} />
           <div aria-hidden="true" className="flex justify-between text-xs tabular-nums text-muted-foreground"><span>{ire ? "0" : "−7"}</span><span>{ire ? "Camera-log IRE" : "Stops"}</span><span>{ire ? "100" : "+7"}</span></div>
         </div>

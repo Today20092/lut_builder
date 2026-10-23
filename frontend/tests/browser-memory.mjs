@@ -12,7 +12,7 @@ try {
   const session = await browser.newBrowserCDPSession()
   const page = await browser.newPage({ acceptDownloads: true })
   await page.goto(process.env.LUT_BUILDER_URL || "https://today20092.github.io/lut_builder/")
-  await page.getByRole("combobox", { name: /^Cube size/ }).selectOption("65")
+  await page.getByRole("group", { name: "Cube size", exact: true }).getByRole("button", { name: "65³", exact: true }).click()
   const sample = async () => {
     const { processInfo } = await session.send("SystemInfo.getProcessInfo")
     const ids = processInfo.map(({ id }) => Number(id))
