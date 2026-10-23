@@ -33,4 +33,4 @@ jobs:
         with:
           node-version: 22
       - name: Compare browser LUTs with Python
-        run: node --experimental-strip-types --test frontend/tests/python-parity.mjs
+        run: node --experimental-strip-types --test frontend/tests/python-parity.mjs frontend/tests/imported-lut-parity.mjs

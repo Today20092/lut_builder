@@ -108,8 +108,10 @@ fix violations rather than broadly disabling rules to make the suite pass.
 ## CI and maintenance
 
 [UI quality](../../.github/workflows/ui-quality.yml) runs through the Pages
-workflow on pull requests targeting `development` or `main` and pushes to `main`;
-only `main` can deploy Pages, and deployment waits for this gate. Development
+workflow when a pull request affects the frontend, UI tests or shared/unknown
+boundaries, and always on pushes to `main`. Published-manual-only and Python-only
+PRs use their relevant checks instead; see [CI selection](ci.md). Only `main` can
+deploy Pages, and deployment waits for the complete gate. Development
 backup pushes do not validate automatically: open/update a PR or dispatch the
 Pages workflow on `development` for the full checks. Python runs once through
 Pages rather than also starting an independent push/PR workflow.

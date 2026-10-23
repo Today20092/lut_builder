@@ -137,8 +137,9 @@ Run `node tests/browser-only.mjs` with an installed Playwright package available
 Chromium executable. Set `BROWSER=firefox` or `BROWSER=webkit` for the other engines.
 `LUT_BUILDER_URL` selects another local port or the deployed Pages URL.
 
-Run `node --experimental-strip-types --test frontend/tests/python-parity.mjs` from
-the repository root after `uv sync --locked` for the live Python comparison.
+Run `node --experimental-strip-types --test frontend/tests/python-parity.mjs frontend/tests/imported-lut-parity.mjs`
+from the repository root after `uv sync --locked` for live Python comparisons,
+including imported looks. These run separately from the frontend-only unit suite.
 
 The full Python run produced 144 passes and one failure in the unchanged Windows
 video deadline-cleanup test (`test_invalid_media_and_processing_deadline_cleanup[True]`):

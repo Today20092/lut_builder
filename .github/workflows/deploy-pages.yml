@@ -15,13 +15,44 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  select:
+    name: Select checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      mode: ${{ steps.checks.outputs.mode }}
+      python: ${{ steps.checks.outputs.python }}
+      build: ${{ steps.checks.outputs.build }}
+      frontend: ${{ steps.checks.outputs.frontend }}
+      ui: ${{ steps.checks.outputs.ui }}
+      browser: ${{ steps.checks.outputs.browser }}
+      manual: ${{ steps.checks.outputs.manual }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: Test check selection and release gate
+        run: node --test .github/scripts/select-checks.test.mjs
+      - name: Select affected checks
+        id: checks
+        run: node .github/scripts/select-checks.mjs
+
   python:
+    needs: select
+    if: needs.select.outputs.python == 'true'
     uses: ./.github/workflows/python.yml
 
   ui:
+    needs: select
+    if: needs.select.outputs.ui == 'true'
     uses: ./.github/workflows/ui-quality.yml
 
   build:
+    needs: select
+    if: needs.select.outputs.build == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -38,22 +69,23 @@ jobs:
           cache-dependency-path: frontend/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
-      - uses: astral-sh/setup-uv@v6
-        with:
-          version: "0.9.3"
-          python-version: "3.12"
-      - run: uv sync --locked --project ..
+        if: needs.select.outputs.frontend == 'true'
       - run: pnpm test
+        if: needs.select.outputs.frontend == 'true'
       - run: pnpm build
         env:
           LUT_BUILDER_PAGES: "true"
       - name: Install browser acceptance tools
+        if: needs.select.outputs.browser == 'true' || needs.select.outputs.manual == 'true'
         run: |
           npm install --prefix "$RUNNER_TEMP/browser-check" --no-save playwright@1.61.1
           node "$RUNNER_TEMP/browser-check/node_modules/playwright/cli.js" install --with-deps chromium firefox webkit
       - name: Check static browser workflows
+        if: needs.select.outputs.browser == 'true' || needs.select.outputs.manual == 'true'
         env:
           LUT_BUILDER_PAGES: "true"
+          CHECK_BROWSER: ${{ needs.select.outputs.browser }}
+          CHECK_MANUAL: ${{ needs.select.outputs.manual }}
         run: |
           pnpm exec vite preview --host 127.0.0.1 --port 4173 --strictPort &
           server_pid=$!
@@ -64,16 +96,33 @@ jobs:
           done
           export PLAYWRIGHT_MODULE="$RUNNER_TEMP/browser-check/node_modules/playwright/index.mjs"
           for browser in chromium firefox webkit; do
-            BROWSER="$browser" node tests/browser-only.mjs
-            BROWSER="$browser" node tests/manual-browser.mjs
+            if [ "$CHECK_BROWSER" = true ]; then BROWSER="$browser" node tests/browser-only.mjs; fi
+            if [ "$CHECK_MANUAL" = true ]; then BROWSER="$browser" node tests/manual-browser.mjs; fi
           done
       - uses: actions/upload-pages-artifact@v5
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         with:
           path: src/lut_builder/static
 
+  checks:
+    name: CI checks
+    if: always()
+    needs: [select, python, build, ui]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: Require every selected check to pass
+        env:
+          CHECK_RESULTS: ${{ toJSON(needs) }}
+        run: node .github/scripts/select-checks.mjs verify
+
   deploy:
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
-    needs: [build, python, ui]
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && needs.select.outputs.mode == 'full'
+    needs: [select, checks]
     runs-on: ubuntu-latest
     permissions:
       pages: write
