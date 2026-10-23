@@ -416,7 +416,7 @@ test('complete presets lead into editable bands and undo without changing config
     const group = page.getByRole('region', { name: `${mode} presets`, exact: true })
     await expect(group).toBeVisible()
     for (const button of await group.getByRole('button').all()) {
-      expect((await button.boundingBox())!.height).toBeGreaterThanOrEqual(44)
+      expect((await button.boundingBox())!.height).toBeGreaterThanOrEqual(page.viewportSize()!.width < 960 ? 48 : 24)
     }
   }
   await accessible(page)

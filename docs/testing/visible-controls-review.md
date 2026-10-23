@@ -30,14 +30,29 @@ This release merge has the same source tree as the initially inspected `8a9fc8f`
 ## Verification
 
 - Locked dependency install, TypeScript application build and lint pass.
-- Complete frontend unit suite passes, including media confirmation, palette
-  persistence, graph range validation, imported looks and Python/browser parity.
+- Complete frontend unit suite: **113 passed**, including media confirmation,
+  palette persistence, graph range validation, imported looks and Python/browser
+  parity. The final run uses `pnpm exec node --experimental-strip-types --test
+  --test-concurrency=1 tests/*.test.mjs`: the parallel attempt exhausted host memory
+  while browser checks were active; the serial run passed without skips.
 - Native browser checks cover the configured 390px, 430px and 1280px layouts in
-  both themes; final run results are recorded below after completion.
-- 54 separate production-build captures cover Edit, invalid graph range, color
+  both themes. The initial full run had 158 passes, 10 skips and 10 failures against
+  obsolete control assertions or during live reload. The affected final-source
+  rerun passed 38 checks, with four phone-only desktop cases skipped. Two desktop
+  preset assertions still expected the phone's 44px target rule; they now check
+  the applicable 24px desktop accessibility minimum and 48px project phone rule.
+  Final desktop rerun: **2 passed** in both themes. Together, the focused final
+  runs pass **40 checks** with four expected phone-only desktop skips, clear every
+  earlier failed case and exercise the newly shared desktop preset browser.
+  Commands: `pnpm exec playwright test --grep 'fill coverage|starting over|complete
+  presets|preset sections|confirmed imported|accessibility in default|enlarged phone
+  text|first visit' --workers=2`, then `pnpm exec playwright test
+  --project=1280-light --project=1280-dark --grep 'complete presets' --workers=2`.
+- 66 separate production-build captures cover Edit, invalid graph range, color
   picker, presets, gradient, invalid/focused gradient and expanded adjustments,
   Settings, export compatibility and imported interpretation across all six
-  width/theme combinations. Captures reported no overflow or page errors and
+  width/theme combinations, plus initial-setup and Settings display choices.
+  Captures reported no overflow or page errors and
   were visually inspected. Local evidence is in
   `.scratch/visible-controls-review/`; these host captures are not Linux baselines.
 - Docker Desktop fails during startup with an inaccessible `sailor-ingest.sock`.
@@ -54,8 +69,18 @@ This release merge has the same source tree as the initially inspected `8a9fc8f`
 
 Review URL: https://desktop-ayoub.cuttlefish-coho.ts.net:8457/
 
-Tailscale Serve uses a separate HTTPS port and a loopback production preview;
+The review checkout is
+`C:/Users/User/.codex/worktrees/visible-workspace-controls/lut_builder`.
+Tailscale Serve uses HTTPS port 8457 and a loopback production preview on 5179;
 existing Serve/Funnel routes are preserved. The preview requires the user's
 Tailscale connection. Browser storage is specific to this preview origin; saved
 work on another URL is not automatically copied. Import/export setup files to
 transfer it. Development has not been merged or published.
+
+This host has Tailscale DNS disabled, so its system DNS resolves the hostname to
+the public Funnel addresses. Tailnet HTTPS and the manual were verified with
+the hostname resolved explicitly to this machine's Tailscale address. A phone
+using Tailscale DNS can use the review URL directly; no system DNS setting was changed.
+
+DESIGN.md was updated; the optional `.impeccable/design.json` sidecar was not
+regenerated as part of this change.
