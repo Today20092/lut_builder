@@ -1,12 +1,13 @@
+import { Check, Minimize } from "lucide-react"
 import { useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { exposureReferenceValue, type Setup } from "./editor"
 import type { PalettePreview } from "./PaletteEditor"
 import { isTypingTarget } from "./keyboard"
 
-export function BandStrip({ setup, minimum, maximum, expanded = false }: { setup: Setup; minimum: number; maximum: number; expanded?: boolean }) {
+export function BandStrip({ setup, minimum, maximum, expanded = false, label = "Exposure band coverage" }: { setup: Setup; minimum: number; maximum: number; expanded?: boolean; label?: string }) {
   const position = (value: number) => Math.max(0, Math.min(1000, (value - minimum) / (maximum - minimum) * 1000))
-  return <svg viewBox="0 0 1000 60" preserveAspectRatio="none" role="img" aria-label="Exposure band coverage" className={`${expanded ? "h-40" : "h-10"} w-full rounded border bg-muted`}>
+  return <svg viewBox="0 0 1000 60" preserveAspectRatio="none" role="img" aria-label={label} className={`${expanded ? "h-40" : "h-10"} w-full rounded border bg-muted`}>
     {setup.bands.map((band, index) => {
       const left = position(setup.fill_mode ? index === 0 ? minimum : setup.bands[index - 1].stop : band.stop - band.width)
       const right = position(setup.fill_mode ? index === setup.bands.length - 1 ? maximum : band.stop : band.stop + band.width)
@@ -32,7 +33,7 @@ export function ExposurePreview({ setup, preview, minimum, maximum, unit }: {
     action()
   }
   const actions = preview && <div className="flex items-center gap-2">
-    <Button type="button" className="flex-1" disabled={!preview.valid} onClick={() => decide(preview.apply)}>Use palette</Button>
+    <Button type="button" className="flex-1" disabled={!preview.valid} onClick={() => decide(preview.apply)}><Check data-icon="inline-start" aria-hidden="true" />Use palette</Button>
     <Button type="button" variant="outline" onClick={() => decide(preview.cancel)}>Cancel</Button>
   </div>
   return <div tabIndex={0} role="group" className="sticky top-0 z-40 grid gap-2 border-b bg-card p-3 shadow-sm" aria-label="Persistent exposure preview"
@@ -51,7 +52,7 @@ export function ExposurePreview({ setup, preview, minimum, maximum, unit }: {
     {preview && <p className="text-xs text-muted-foreground">{preview.valid ? "Draft only · current bands and downloads are unchanged." : "Correct the invalid color before using this palette."}</p>}
     {actions}
     <dialog ref={dialog} aria-labelledby="exposure-preview-title" className="fixed inset-0 m-0 h-dvh max-h-dvh w-screen max-w-none overflow-auto border bg-card p-4 text-card-foreground backdrop:bg-black/70 sm:m-auto sm:h-auto sm:max-h-[90dvh] sm:w-[min(48rem,calc(100%-2rem))] sm:rounded-xl" onClose={() => trigger.current?.focus()}>
-      <div className="sticky top-0 z-10 mb-4 flex flex-wrap items-center justify-between gap-3 bg-card pb-2"><h2 id="exposure-preview-title" className="font-semibold">Exposure band preview</h2><Button type="button" variant="outline" onClick={() => dialog.current?.close()}>Close preview</Button></div>
+      <div className="sticky top-0 z-10 mb-4 flex flex-wrap items-center justify-between gap-3 bg-card pb-2"><h2 id="exposure-preview-title" className="font-semibold">Exposure band preview</h2><Button type="button" variant="outline" onClick={() => dialog.current?.close()}><Minimize data-icon="inline-start" aria-hidden="true" />Close preview</Button></div>
       <p className="mb-3 text-sm font-medium">{label}</p>
       <BandStrip setup={displayed} minimum={minimum} maximum={maximum} expanded />
       {(setup.low_signal_warning || setup.high_signal_warning) && <div className="mt-2">{warnings}</div>}

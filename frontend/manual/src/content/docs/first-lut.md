@@ -5,6 +5,16 @@ description: Choose a camera profile, create exposure bands, edit colors, and ex
 
 Keep the builder open in another tab while following these steps. Your camera's log curve and gamut must match the selected profile; a camera brand alone is not enough.
 
+On a first visit, choose your **Camera / log profile** and **Display color space**,
+then **Choose exposure preset**. Each preset shows its actual band arrangement
+and explains its purpose. Choose **Start editing** to customize it; no media upload
+is required. **Continue editing** skips this setup flow.
+
+Returning visitors resume their last saved setup. To start again, choose **New LUT**
+in the desktop header or **Settings → New LUT** on a phone. Cancel to return to your
+current work, or start a new LUT and use **Settings → Saved setups → Restore previous setup** if
+needed. Recovery lasts until the page is closed or another setup is loaded.
+
 ## 1. Match the recording
 
 :::tip[Before you start]
@@ -49,7 +59,7 @@ For your first test, note whether each warning is enabled. Read [how the limits 
 
 ## 5. Generate and keep both files
 
-Choose **Generate LUT** and save the `.cube` download. The filename preview shows the name the builder requests; your browser may add a duplicate-download suffix. Then choose **Export JSON** to save the editable setup. The cube is for your camera or editor; the JSON is for reopening your settings in LUT Builder.
+Choose **Download LUT** and save the `.cube` download. The filename preview shows the name the builder requests; your browser may add a duplicate-download suffix. Then choose **Export setup file** to save the editable setup. The cube is for your camera or editor; the JSON is for reopening your settings in LUT Builder.
 
 ## 6. Apply it to the correct signal
 

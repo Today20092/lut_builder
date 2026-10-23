@@ -53,6 +53,61 @@ def _request(url, *, token=None, payload=None, content_type="application/json"):
     return urlopen(Request(url, data=data, headers=headers), timeout=30)
 
 
+def test_imported_lut_large_portable_setup_preview_and_download():
+    import hashlib
+
+    cube = "LUT_3D_SIZE 33\n" + "\n".join(
+        f"{r / 32:.7f} {g / 32:.7f} {b / 32:.7f}"
+        for b in range(33)
+        for g in range(33)
+        for r in range(33)
+    )
+    assert len(cube) > 1_000_000
+    config = {
+        "version": 3,
+        "profile": "Panasonic V-Log",
+        "target": "Rec.709",
+        "cube_size": 17,
+        "bands": [],
+        "monochrome": False,
+        "ire_basis": "camera",
+        "imported_lut": dict(
+            version=1,
+            name="identity.cube",
+            cube=cube,
+            source_profile="Panasonic V-Log",
+            output_gamut="Rec.709",
+            output_transfer="gamma2.2",
+            output_range="full",
+            sha256=hashlib.sha256(cube.encode()).hexdigest(),
+        ),
+    }
+    server, url, token = create_server(port=0)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        with _request(url + "preview", token=token, payload=config) as response:
+            restored = json.load(response)["setup"]
+        assert restored["imported_lut"] == config["imported_lut"]
+        with _request(url + "generate", token=token, payload=config) as response:
+            exported = response.read().decode()
+        assert "gamma2.2" in exported
+        rows = [line for line in exported.splitlines() if re.match(r"^[-+.0-9]", line)]
+        assert len(rows) == 17**3
+        assert list(map(float, rows[8 + 16 * 17 + 4 * 17**2].split())) == [0.5, 1, 0.25]
+        broken = {
+            **config,
+            "imported_lut": {**config["imported_lut"], "sha256": "0" * 64},
+        }
+        with pytest.raises(HTTPError) as failure:
+            _request(url + "generate", token=token, payload=broken)
+        assert "identity" in failure.value.read().decode()
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+
 def test_local_bootstrap_and_default_lut_generation():
     server, url, token = create_server()
     thread = threading.Thread(target=server.serve_forever, daemon=True)

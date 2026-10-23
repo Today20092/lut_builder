@@ -38,6 +38,11 @@ jobs:
           cache-dependency-path: frontend/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.9.3"
+          python-version: "3.12"
+      - run: uv sync --locked --project ..
       - run: pnpm test
       - run: pnpm build
         env:

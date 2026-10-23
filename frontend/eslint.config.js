@@ -19,4 +19,22 @@ export default defineConfig([
       globals: globals.browser,
     },
   },
+  {
+    files: ['src/components/ui/button.tsx'],
+    rules: {
+      'react-refresh/only-export-components': ['error', { allowExportNames: ['buttonVariants'] }],
+    },
+  },
+  {
+    files: ['src/components/ui/toast.tsx'],
+    rules: {
+      'react-refresh/only-export-components': ['error', { allowExportNames: ['createToastManager', 'toast', 'useToastManager'] }],
+    },
+  },
+  {
+    files: ['src/components/ui/toggle.tsx'],
+    rules: {
+      'react-refresh/only-export-components': ['error', { allowExportNames: ['toggleVariants'] }],
+    },
+  },
 ])

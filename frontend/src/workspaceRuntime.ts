@@ -41,7 +41,7 @@ export function createWorkspaceRuntime(token?: string): WorkspaceRuntime {
         const response = await fetch(path, {
           method: "POST", signal,
           headers: { "Content-Type": "application/json", "X-LUT-Builder-Token": token! },
-          body: JSON.stringify({ version: 1, ...setup }),
+          body: JSON.stringify({ version: setup.imported_lut ? 3 : 1, ...setup }),
         })
         if (!response.ok) {
           const error = Schema.decodeUnknownSync(ErrorResponseSchema)(await response.json())

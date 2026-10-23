@@ -2,6 +2,7 @@
 import assert from "node:assert/strict"
 import { mkdir } from "node:fs/promises"
 import { pathToFileURL } from "node:url"
+import { enterWorkspace, navigateWorkspace } from './workspace-navigation.mjs'
 import { JSDOM } from "jsdom"
 
 const playwright = await import(process.env.PLAYWRIGHT_MODULE ? pathToFileURL(process.env.PLAYWRIGHT_MODULE).href : "playwright")
@@ -47,6 +48,8 @@ try {
     const errors = []
     page.on("pageerror", error => errors.push(error.message))
     await page.goto(builder)
+    await enterWorkspace(page)
+    await navigateWorkspace(page, 'Settings')
     const help = page.getByRole("link", { name: /Help \/ Manual/ })
     await help.waitFor()
     if (process.env.MANUAL_EVIDENCE && width === 1280) {

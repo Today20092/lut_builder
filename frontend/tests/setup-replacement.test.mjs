@@ -17,6 +17,15 @@ function workspace(normalize = decodeSetup) {
   return { get state() { return state }, dispatch, replacement: createSetupReplacement(normalize, dispatch) }
 }
 
+test("setup creation reports validation failure and keeps the previous working setup", async () => {
+  const current = workspace()
+  assert.equal(await Effect.runPromise(current.replacement.preset({ name: "New LUT", setup: { ...browserSetup, cube_size: 99 } })), false)
+  assert.equal(current.state.setup.cube_size, 17)
+  assert.equal(await Effect.runPromise(current.replacement.preset({ name: "New LUT", setup: { ...browserSetup, cube_size: 33 } })), true)
+  current.replacement.restore()
+  assert.equal(current.state.setup.cube_size, 17)
+})
+
 test("file replacement captures recovery and clears band edit and palette state", async () => {
   const workspaceState = workspace()
   workspaceState.dispatch({ type: "select", selection: 2 })

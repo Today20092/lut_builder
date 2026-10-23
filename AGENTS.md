@@ -8,6 +8,22 @@ Before exploring code or changing domain behavior, read
 [domain guidance](docs/agents/domain.md), including `CONTEXT.md` and relevant ADRs
 when present.
 
+### Maintainability
+
+Prioritize ease of future changes over implementation speed or the smallest diff.
+Choose the simplest design that keeps the affected code easy to understand, test,
+and extend for documented workflows and planned work.
+
+- Before editing, identify affected callers, tests, and module boundaries. Keep
+  related behavior together, responsibilities clear, and dependencies explicit.
+- Reuse existing components and domain logic. When existing structure obstructs
+  the change, include a focused refactor that improves that structure and preserves
+  behavior; keep unrelated cleanup separate.
+- Introduce abstractions when current requirements or concrete planned work justify
+  them. Keep speculative frameworks and configuration out of the implementation.
+- Verify observable behavior and affected contracts. Explain meaningful design
+  tradeoffs and any remaining maintenance debt in the handoff.
+
 ### Python workflow
 
 Use the complete Astral Python workflow for this repository:

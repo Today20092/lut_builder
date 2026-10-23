@@ -567,7 +567,7 @@ def print_exposure_preview(setup: LutSetup) -> None:
 
 
 def load_config(path: Path) -> LutSetup:
-    """Load and validate a version 1 JSON config."""
+    """Load a legacy configuration or a version-3 embedded-look setup."""
     try:
         with open(path) as f:
             data = json.load(f)
@@ -577,7 +577,7 @@ def load_config(path: Path) -> LutSetup:
     except json.JSONDecodeError as e:
         console.print(f"[red]Invalid JSON in config file: {e}[/red]")
         raise typer.Exit(1)
-    if data.get("version", 0) not in (1, 2):
+    if data.get("version", 0) not in (1, 2, 3):
         console.print(
             "[yellow]Warning: config has no version field — it may be outdated.[/yellow]"
         )
@@ -590,7 +590,7 @@ def load_config(path: Path) -> LutSetup:
 
 def save_config(path: Path, setup: LutSetup) -> None:
     """Save the current session config to a JSON file."""
-    cfg_with_version = {"version": 2, **setup.to_config()}
+    cfg_with_version = {"version": 3 if setup.imported_lut else 2, **setup.to_config()}
     with open(path, "w") as f:
         json.dump(cfg_with_version, f, indent=2)
     console.print(f"\n  [green]✓[/green] Config saved to [bold]{path}[/bold]")

@@ -62,6 +62,13 @@ CI uses `updateSnapshots: 'none'`: missing or changed images fail instead of bei
 silently accepted. Keep comparison tolerances strict; fix unstable content or
 explicitly isolate genuinely nondeterministic regions with a documented reason.
 
+When the local Linux container is unavailable, dispatch the UI-quality workflow
+with `suite=visual` for the canonical screenshot states alone. Its report artifact
+retains explicit captures even for a missing baseline. Inspect those candidates,
+update the corresponding files deliberately, then dispatch the default `all` suite
+to pass the complete gate. Both modes keep snapshot updates disabled and pixel
+tolerance at zero; the visual-only run does not replace full acceptance.
+
 When changing the UI, extend the relevant test with the new state or a small
 layout assertion when the expectation is measurable. Existing regression rules
 cover compact disclosures, minimum clickable height, one-axis exposure legends,

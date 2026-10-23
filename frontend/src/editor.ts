@@ -1,4 +1,5 @@
 import { cameraGray } from "./cameraReference.ts"
+import { setupIdentity, type ImportedLut } from "./importedLut.ts"
 
 export type Band = { stop: number; width: number; color: string }
 export type Mode = "stops" | "ire" | "fill"
@@ -18,6 +19,7 @@ export type Setup = {
   monochrome: boolean
   legal_range: boolean
   output: string
+  imported_lut?: ImportedLut
 }
 
 type BandEditSnapshot = { setup: Setup; selection: number }
@@ -53,7 +55,10 @@ export function reduceEditor(state: EditorState, action: EditorAction): EditorSt
       return { ...next, selection: next.setup.bands.indexOf(action.band) }
     }
     case "patch":
-      return { ...state, setup: { ...state.setup, ...action.changes } }
+      return {
+        ...state, setup: { ...state.setup, ...action.changes },
+        ...("imported_lut" in action.changes && action.changes.imported_lut !== state.setup.imported_lut ? { undo: null, gesture: null } : {}),
+      }
     case "begin":
       return { ...state, gesture: { setup: state.setup, selection: state.selection } }
     case "end":
@@ -70,7 +75,7 @@ export function reduceEditor(state: EditorState, action: EditorAction): EditorSt
     }
     case "edit": {
       const setup = action.edit(state.setup)
-      if (JSON.stringify(setup) === JSON.stringify(state.setup)) return state
+      if (JSON.stringify(setupIdentity(setup)) === JSON.stringify(setupIdentity(state.setup))) return state
       const selection = action.selection ?? state.selection
       const band = state.setup.bands[selection]
       const id = band && bandId(band)
@@ -434,18 +439,18 @@ export function applyBandPreset(setup: Setup, palette: PaletteColor[], preset: B
 
 export type ExposurePreset = "three-band" | "contrast-checker" | "camera-ire"
 
-export function applyExposurePreset(setup: Setup, palette: PaletteColor[], preset: ExposurePreset): Setup {
-  if (preset === "camera-ire") return applyBandPreset({ ...setup, band_mode: "ire", ire_basis: "camera", monochrome: true }, palette, "standard")
+export function applyExposurePreset(setup: Setup, palette: PaletteColor[], preset: ExposurePreset, arrangement?: BandPreset): Setup {
   const contrast = preset === "contrast-checker"
-  return {
+  const next: Setup = preset === "camera-ire" ? applyBandPreset({ ...setup, band_mode: "ire", ire_basis: "camera", monochrome: !setup.imported_lut }, palette, "standard") : {
     ...setup,
     band_mode: "stops",
     fill_mode: contrast,
-    monochrome: !contrast,
+    monochrome: !contrast && !setup.imported_lut,
     bands: contrast
       ? ["#216638", "#78ff64", "#a6a6a6", "#f2d5e5", "#ff00b7"].map((color, index) => ({ stop: index - 1.5, width: 0, color }))
       : [-2, 0, 2].map((stop, index) => ({ stop, width: 0.3, color: ["#2563eb", "#22c55e", "#f97316"][index] })),
   }
+  return arrangement ? next.fill_mode ? applyFillPreset(next, palette, arrangement) : applyBandPreset(next, palette, arrangement) : next
 }
 
 const creationOrder = new WeakMap<Band, number>()
@@ -586,25 +591,31 @@ export function filterPalette(palette: PaletteColor[], search: string) {
 }
 
 export function exportSetup(setup: Setup) {
-  return JSON.stringify({ version: 1, ...setup, bands: orderBands(setup.bands) }, null, 2)
+  return JSON.stringify({ version: setup.imported_lut ? 3 : 1, ...setup, bands: orderBands(setup.bands) }, null, 2)
 }
 
 export async function importSetup(
   text: string,
   validate: (candidate: Setup) => Promise<Setup>,
 ) {
+  const validated = await validate(parseSetupImport(text))
+  return { ...validated, bands: orderBands(validated.bands) }
+}
+
+export function parseSetupImport(text: string): Setup {
   let candidate: unknown
   try {
     candidate = JSON.parse(text)
   } catch {
     throw new Error("Import must be valid JSON.")
   }
-  if (!candidate || typeof candidate !== "object" || (candidate as { version?: number }).version !== 1) {
-    throw new Error("Import must be a version-1 LUT Builder configuration.")
+  if (!candidate || typeof candidate !== "object" || ![1,2,3].includes((candidate as { version: number }).version)) {
+    throw new Error("Import must be a supported version-1, version-2 or version-3 LUT Builder configuration.")
   }
+  if ((candidate as {version:number}).version === 3 && !(candidate as {imported_lut?:unknown}).imported_lut) throw new Error("Imported LUT is missing. Reattach the original .cube; no substitute was used.")
+  if ((candidate as {version:number}).version !== 3 && (candidate as {imported_lut?:unknown}).imported_lut) throw new Error("Imported LUT setups require version 3 to prevent older applications silently dropping the look.")
   const setup = Object.fromEntries(
     Object.entries(candidate).filter(([key]) => key !== "version"),
   ) as Setup
-  const validated = await validate(setup)
-  return { ...validated, bands: orderBands(validated.bands) }
+  return setup
 }

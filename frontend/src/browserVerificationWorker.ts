@@ -4,9 +4,10 @@ import { browserInterpretations, generateCube } from "./lutEngine.ts"
 import { decodeSetup } from "./setupSchema.ts"
 import { applyCube, comparisonUnavailable, displayRgb, parseCube, type Interpretation } from "./verificationMath.ts"
 import type { Setup } from "./editor.ts"
+import { setupIdentity } from "./importedLut.ts"
 
 export type VerificationJob = { file: File; setup?: Setup; interpretation?: Interpretation; video?: VideoInfo; ordinal?: number; probe?: boolean; seconds?: number }
-export type BrowserResult = { width: number; height: number; source: Float64Array; output: Float64Array; rgba: Uint8ClampedArray; cube: string; provenance: { comparison_unavailable: string; warnings: string[]; [key: string]: unknown } }
+export type BrowserResult = { width: number; height: number; source: Float64Array; output: Float64Array; rgba: Uint8ClampedArray; lookRgba?: Uint8ClampedArray; cube: string; provenance: { comparison_unavailable: string; warnings: string[]; [key: string]: unknown } }
 
 async function hash(value: Uint8Array | string) {
   const bytes = typeof value === "string" ? new TextEncoder().encode(value) : value
@@ -34,8 +35,11 @@ async function run(job: VerificationJob) {
     self.postMessage({ type: "progress", text: "Generating and applying the exact serialized cube…" })
     const cube = await generateCube(setup)
     const parsed = parseCube(cube)
+    const lookCube = setup.imported_lut ? await generateCube(setup,{diagnostics:false}) : undefined
+    const look = lookCube ? parseCube(lookCube) : undefined
     const output = new Float64Array(source.rgb.length)
     const rgba = new Uint8ClampedArray(source.width * source.height * 4)
+    const lookRgba = look ? new Uint8ClampedArray(rgba.length) : undefined
     let clamped = 0
     for (let i = 0; i < source.rgb.length; i += 3) {
       const input = source.rgb.subarray(i, i + 3)
@@ -46,19 +50,24 @@ async function run(job: VerificationJob) {
       const pixel = i / 3 * 4
       rgba.set(display.map((value) => Math.round(value * 255)), pixel)
       rgba[pixel + 3] = 255
+      if (look && lookRgba) {
+        lookRgba.set(displayRgb(applyCube(input,look),setup).map(v => Math.round(v*255)),pixel)
+        lookRgba[pixel+3] = 255
+      }
     }
     const provenance = {
-      comparison_unavailable: comparisonUnavailable,
+      comparison_unavailable: setup.imported_lut ? "" : comparisonUnavailable,
       warnings: clamped ? [`${clamped} source channels outside [0, 1] were clamped only at the cube input boundary.`] : [],
       source: { name: job.file.name, width: source.width, height: source.height, ...source.facts, native_sha256: await hash(source.native) },
-      interpretation, setup, setup_sha256: await hash(JSON.stringify(setup)), cube_sha256: await hash(cube), cube_size: parsed.size,
+      interpretation, setup: setupIdentity(setup), setup_sha256: await hash(JSON.stringify(setupIdentity(setup))), cube_sha256: await hash(cube), cube_size: parsed.size,
+      ...(lookCube ? {look_cube_sha256:await hash(lookCube)} : {}),
       interpolation: "tetrahedral; red-fastest serialized cube table", clamped_channels: clamped,
-      output: { target: setup.target, range: setup.legal_range ? "legal" : "full" },
-      view: "Ideal-black BT.1886; target primaries to sRGB; display gamut clipped; sRGB transfer; round to 8 bits for display only",
+      output: { target: setup.target, transfer: setup.imported_lut?.output_transfer ?? "BT.1886 viewing", range: setup.legal_range ? "legal" : "full" },
+      view: setup.imported_lut ? `Confirmed ${setup.imported_lut.output_transfer} inverse; target primaries to sRGB; display gamut clipped; sRGB transfer` : "Ideal-black BT.1886; target primaries to sRGB; display gamut clipped; sRGB transfer; round to 8 bits for display only",
       decoder: "@ffmpeg/core 0.12.10; software WebAssembly; native sample decode", arithmetic: "JavaScript float64",
     }
-    const result: BrowserResult = { width: source.width, height: source.height, source: source.rgb, output, rgba, cube, provenance }
-    self.postMessage({ type: "complete", value: result }, { transfer: [result.source.buffer, output.buffer, rgba.buffer] })
+    const result: BrowserResult = { width: source.width, height: source.height, source: source.rgb, output, rgba, lookRgba, cube, provenance }
+    self.postMessage({ type: "complete", value: result }, { transfer: [result.source.buffer, output.buffer, rgba.buffer, ...(lookRgba ? [lookRgba.buffer] : [])] })
   } finally { media.close() }
 }
 

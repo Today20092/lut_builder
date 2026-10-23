@@ -29,7 +29,7 @@ try {
     assert.equal(await download.failure(), null)
     done = true
   })
-  await page.getByRole("button", { name: "Generate LUT", exact: true }).click()
+  await page.getByRole("button", { name: "Download LUT", exact: true }).click()
   while (!done) samples.push(await sample())
   await pending
   console.log(JSON.stringify({ browser: browser.version(), cubeSize: 65, baselineBytes, maximumSampledWorkingSetBytes: Math.max(...samples), samples: samples.length, includes: "CDP-reported browser processes, including renderer/worker memory", limitation: "Sampled summed working sets can double-count shared memory and miss brief peaks; not a phone memory requirement." }))

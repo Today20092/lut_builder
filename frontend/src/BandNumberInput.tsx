@@ -1,3 +1,4 @@
+import { Input } from "@/components/ui/input"
 import { useState } from "react"
 import { stepBandValue } from "./editor"
 
@@ -20,7 +21,7 @@ export function BandNumberInput({ value, onChange, step, min = -Infinity, max = 
     if (valid) onChange(parsed)
     setDraft(null)
   }
-  return <input {...props} type="text" inputMode="decimal" value={draft ?? value}
+  return <Input {...props} type="text" inputMode="decimal" value={draft ?? value}
     aria-invalid={draft !== null && !valid || undefined}
     onChange={(event) => setDraft(event.target.value)} onBlur={commit}
     onKeyDown={(event) => {

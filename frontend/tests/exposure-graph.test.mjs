@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import { mkdtemp, rm, writeFile } from "node:fs/promises"
 import { join } from "node:path"
-import test, { after } from "node:test"
+import test, { after, beforeEach } from "node:test"
 import { pathToFileURL } from "node:url"
 
 import { build, stop } from "esbuild"
@@ -23,6 +23,7 @@ globalThis.cancelAnimationFrame = clearTimeout
 globalThis.IS_REACT_ACT_ENVIRONMENT = true
 Object.defineProperty(globalThis, "navigator", { value: dom.window.navigator })
 after(() => dom.window.close())
+beforeEach(() => window.localStorage.removeItem("lut-builder.workspace-session.v1"))
 
 const capturedPointers = new WeakMap()
 dom.window.HTMLElement.prototype.setPointerCapture = function (pointerId) {
@@ -571,7 +572,7 @@ test("custom palettes draft, persist, reload, and reach generation without chang
   }
   const choose = async (value) => { await act(() => { field("Reuse saved palette").value = value; field("Reuse saved palette").dispatchEvent(new window.Event("change", { bubbles: true })) }) }
   const generate = async () => {
-    await click(button("Generate LUT"))
+    await click(button("Download LUT"))
     return requests.filter(({ path }) => path === "/generate").at(-1).setup
   }
   const mount = async () => { await act(() => root.render(React.createElement(App))); await act(() => new Promise((resolve) => setTimeout(resolve, 300))) }
@@ -617,6 +618,7 @@ test("custom palettes draft, persist, reload, and reach generation without chang
     await click(button("Save new palette"))
     assert.equal(JSON.parse(window.localStorage.getItem("lut-builder.palettes.v1"))[0].mapping, "exposure")
     await act(() => root.unmount())
+    window.localStorage.removeItem("lut-builder.workspace-session.v1")
     root = createRoot(container)
     window.localStorage.setItem("lut-builder.palettes.v1", JSON.stringify([{ name: "Custom draft", colors: ["#2563eb", "#f59e0b"], brightness: "custom", intensity: 100, blend: "colorful", huePath: "shorter" }]))
     await mount()
@@ -717,6 +719,7 @@ test("custom palettes draft, persist, reload, and reach generation without chang
     assert.equal(JSON.parse(window.localStorage.getItem("lut-builder.palettes.v1"))[0].blend, "colorful")
     assert.equal(JSON.parse(window.localStorage.getItem("lut-builder.palettes.v1"))[0].huePath, "longer")
     await act(() => root.unmount())
+    window.localStorage.removeItem("lut-builder.workspace-session.v1")
     root = createRoot(container)
     await mount()
     await choose("Neutral renamed")
@@ -795,7 +798,7 @@ test("band editing preserves valid generation data, selection, and one-step reco
     })
   }
   const generate = async () => {
-    await click([...container.querySelectorAll("button")].find((item) => item.textContent.startsWith("Generate LUT")))
+    await click([...container.querySelectorAll("button")].find((item) => item.textContent.startsWith("Download LUT")))
     return requests.filter(({ path }) => path === "/generate").at(-1).setup
   }
   try {
@@ -874,6 +877,8 @@ test("band editing preserves valid generation data, selection, and one-step reco
     await click(button("Undo last band edit"))
     assert.equal(field("Band 2 stops").value, "2.5")
     await click(field("Remove band 2"))
+    await act(() => field("Confirm remove band 2").dispatchEvent(new window.FocusEvent("focusin", { bubbles: true })))
+    assert.ok(field("Confirm remove band 2"), "refocusing the selected row keeps deliberate removal armed")
     await click(field("Confirm remove band 2"))
     assert.equal((await generate()).bands.length, 1)
     await click(button("Undo last band edit"))
@@ -941,7 +946,7 @@ test("setup changes are recoverable, deletion is deliberate, and feedback stays 
   const click = async (text) => { assert.ok(button(text), text); await act(() => button(text).click()) }
   const liveMessages = (text) => [...container.querySelectorAll('[role="status"]')].filter((item) => item.textContent.includes(text))
   const select = async (value) => {
-    const field = container.querySelector("details select")
+    const field = [...container.querySelectorAll("label")].find((label) => label.textContent.includes("Saved setup in this browser")).querySelector("select")
     await act(() => { field.value = value; field.dispatchEvent(new window.Event("change", { bubbles: true })) })
   }
   const importFile = async (text) => {
@@ -977,7 +982,7 @@ test("setup changes are recoverable, deletion is deliberate, and feedback stays 
     assert.equal(button("Confirm delete setup"), undefined, "selecting a different preset cancels confirmation")
     await click("Delete setup")
     await click("Confirm delete setup")
-    assert.deepEqual(JSON.parse(window.localStorage.getItem(storageKey)).map((preset) => preset.name), ["Interview"])
+    assert.deepEqual(JSON.parse(window.localStorage.getItem(storageKey)).presets.map((preset) => preset.name), ["Interview"])
     const name = [...container.querySelectorAll("label")].find((label) => label.textContent.trim() === "Preset name").querySelector("input")
     await act(() => {
       Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set.call(name, " interview ")
@@ -986,11 +991,11 @@ test("setup changes are recoverable, deletion is deliberate, and feedback stays 
     assert.ok(button("Replace saved setup"), "case-insensitive replacements are explicit")
     assert.match(container.textContent, /overwrites that saved copy/)
     await click("Replace saved setup")
-    assert.equal(JSON.parse(window.localStorage.getItem(storageKey))[0].setup.cube_size, 17)
+    assert.equal(JSON.parse(window.localStorage.getItem(storageKey)).presets[0].setup.cube_size, 17)
     assert.equal(liveMessages("Named LUT setup saved").length, 1)
     assert.doesNotMatch(output(), /Named LUT setup saved/)
-    assert.equal(container.querySelector('a[href="#photo-result"]').textContent, "View photo result")
-    assert.ok(container.querySelector('#photo-result a[href="#exposure-bands"]'))
+    assert.equal(container.querySelector('a[href="#photo-result"]'), null)
+    assert.equal(container.querySelector('#photo-result a[href="#exposure-bands"]'), null)
   } finally {
     await act(() => root.unmount())
     container.remove()
@@ -1000,6 +1005,64 @@ test("setup changes are recoverable, deletion is deliberate, and feedback stays 
     else delete window.LUT_BUILDER_SETUP
     if (originalPresets === null) window.localStorage.removeItem(storageKey)
     else window.localStorage.setItem(storageKey, originalPresets)
+  }
+})
+
+test("focusing stage band handles preserves the selected configuration panel", async () => {
+  const container = document.createElement("div")
+  document.body.append(container)
+  const root = createRoot(container)
+  try {
+    await act(() => root.render(React.createElement(App)))
+    const configure = [...container.querySelectorAll('[role="tab"]')].find(item => item.textContent.includes("Settings"))
+    await act(() => configure.click())
+    assert.equal(configure.getAttribute("aria-selected"), "true")
+    const handle = container.querySelector('[data-band-center="0"]')
+    await act(() => handle.focus())
+    assert.equal(configure.getAttribute("aria-selected"), "true", "Tab focus must not activate band editing")
+    await act(() => handle.click())
+    assert.equal(configure.getAttribute("aria-selected"), "false", "explicit band activation still opens editing")
+  } finally {
+    await act(() => root.unmount())
+    container.remove()
+  }
+})
+
+test("damaged named library blocks writes until explicit recovery and preserves raw backup", async () => {
+  const key = "lut-builder.named-setups.v1"
+  const previous = window.localStorage.getItem(key)
+  const originalCreate = URL.createObjectURL
+  const originalRevoke = URL.revokeObjectURL
+  const originalClick = window.HTMLAnchorElement.prototype.click
+  let backup
+  URL.createObjectURL = blob => { backup = blob; return "blob:library-backup" }
+  URL.revokeObjectURL = () => {}
+  window.HTMLAnchorElement.prototype.click = () => {}
+  const valid = { ...setup, version: 1, profile: "Sony S-Log3", target: "Rec.709", cube_size: 17, monochrome: true, legal_range: false, output: "valid.cube", low_signal_warning: false, high_signal_warning: false, low_signal_hex: "#000000", high_signal_hex: "#ffffff" }
+  const raw = JSON.stringify([{ name: "Valid work", setup: valid }, { name: "Damaged look", setup: { version: 3 } }])
+  window.localStorage.setItem(key, raw)
+  const container = document.createElement("div")
+  document.body.append(container)
+  const root = createRoot(container)
+  const button = text => [...container.querySelectorAll("button")].find(item => item.textContent === text)
+  try {
+    await act(() => root.render(React.createElement(App)))
+    assert.equal(button("Save current setup").disabled, true)
+    assert.ok(button("Download saved library backup"))
+    await act(() => button("Download saved library backup").click())
+    assert.equal(await backup.text(), raw)
+    assert.equal(window.localStorage.getItem(key), raw)
+    await act(() => button("Replace saved library with an empty library").click())
+    assert.equal(button("Save current setup").disabled, false)
+    assert.deepEqual(JSON.parse(window.localStorage.getItem(key)).presets, [])
+  } finally {
+    await act(() => root.unmount())
+    container.remove()
+    if (previous === null) window.localStorage.removeItem(key)
+    else window.localStorage.setItem(key, previous)
+    URL.createObjectURL = originalCreate
+    URL.revokeObjectURL = originalRevoke
+    window.HTMLAnchorElement.prototype.click = originalClick
   }
 })
 
@@ -1036,7 +1099,16 @@ test("browser-only app generates and downloads through a local worker without ba
   const root = createRoot(container)
   try {
     await act(() => root.render(React.createElement(App)))
+    const continueEditing = [...container.querySelectorAll('button')].find(button => button.textContent === 'Skip setup')
+    if (continueEditing) await act(() => continueEditing.click())
     assert.ok(container.querySelector('[aria-label="Browser camera verification"]'))
+    assert.ok(container.querySelector('[role="tablist"][aria-label="Editing sections"]'))
+    assert.equal(container.querySelector('[role="tab"][data-active]').textContent, "Edit")
+    const configurationTab = [...container.querySelectorAll('[role="tab"]')].find((tab) => tab.textContent === "Settings")
+    await act(() => configurationTab.click())
+    assert.equal(container.querySelector('#configuration').closest('[role="tabpanel"]').hidden, false)
+    await act(() => configurationTab.dispatchEvent(new window.KeyboardEvent("keydown", { bubbles: true, cancelable: true, key: "Escape" })))
+    assert.equal(container.querySelector('#configuration').closest('[role="tabpanel"]').hidden, false, "Escape does not unexpectedly navigate away from a top-level destination")
     const marker = container.querySelector('button[aria-label="Band 1, 0 stops"]')
     assert.ok(marker, "static app exposes the editable graph without a backend preview")
     assert.ok(container.querySelector('[aria-label="Band 1 total width"]'))
@@ -1059,7 +1131,7 @@ test("browser-only app generates and downloads through a local worker without ba
     assert.equal(range.value, "12")
     assert.equal(container.querySelector('[aria-label="Output filename preview"]').textContent, filenameBefore)
     await act(() => marker.dispatchEvent(new window.KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true })))
-    const generate = [...container.querySelectorAll("button")].find((button) => button.textContent === "Generate LUT")
+    const generate = [...container.querySelectorAll("button")].find((button) => button.textContent === "Download LUT")
     await act(async () => { generate.click(); await new Promise((resolve) => setTimeout(resolve, 0)) })
     assert.equal(messages[0].type, "generate")
     assert.equal(messages[0].setup.profile, "Sony S-Log3")
