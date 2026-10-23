@@ -88,6 +88,10 @@ try {
     await page.getByLabel("Preset name", { exact: true }).fill("Acceptance")
     await activate(button("Save current setup"))
     await page.getByRole("status").filter({ hasText: "Named LUT setup saved" }).waitFor()
+    await page.waitForFunction(() => {
+      const raw = localStorage.getItem('lut-builder.workspace-session.v1')
+      return raw && JSON.parse(raw).bands?.[0]?.stop === 1.25
+    })
     await page.reload()
     await panel("Setups")
     await page.locator("summary").filter({ hasText: "Load setup · optional" }).click()
