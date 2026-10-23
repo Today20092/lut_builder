@@ -9,10 +9,11 @@ import { hexToOklch, isHexColor, maxSrgbChroma, oklchToHex, sampleOklabRamp, typ
 
 const fieldClass = "w-full min-w-0"
 
-function OklchPicker({ color, onChange }: { color: string; onChange: (color: string) => void }) {
+export function OklchPicker({ color, onChange }: { color: string; onChange: (color: string) => void }) {
   const originalHex = useRef(color)
   const [edited, setEdited] = useState<{ hex: string; channels: OklchAnchor } | null>(null)
   const channels = edited?.hex === color ? edited.channels : hexToOklch(isHexColor(color) ? color : "#2563eb")
+  const outsideGamut = channels.c > maxSrgbChroma(channels) + 0.002
   const controls = [
     { key: "l", label: "Lightness", max: 1, step: 0.001 },
     { key: "c", label: "Chroma", max: 0.4, step: 0.001 },
@@ -41,9 +42,11 @@ function OklchPicker({ color, onChange }: { color: string; onChange: (color: str
         <Button type="button" variant="outline" size="icon" className="size-11 shrink-0" aria-label={`Increase ${label.toLowerCase()}`} disabled={channels[key] >= max} onClick={() => change(key, Math.min(max, channels[key] + step))}><Plus data-icon="inline-start" aria-hidden="true" /></Button>
       </div>
     </div>)}
-    <p className="text-xs text-muted-foreground">{channels.c > maxSrgbChroma(channels) + 0.002
-      ? "Outside sRGB: chroma is reduced in the saved color to keep it displayable."
-      : "OKLCH controls · colors are saved as sRGB hex."}</p>
+    {/* Both messages share a grid cell so their longest wrapping reserves space. */}
+    <div className="grid text-xs text-muted-foreground" role="status">
+      <p className="col-start-1 row-start-1" style={{ visibility: outsideGamut ? "visible" : "hidden" }} aria-hidden={!outsideGamut}>Outside sRGB: chroma is reduced in the saved color. This is a file-gamut limit, not a measurement of your screen.</p>
+      <p className="col-start-1 row-start-1" style={{ visibility: outsideGamut ? "hidden" : "visible" }} aria-hidden={outsideGamut}>Within sRGB. The swatch previews the saved color; screen accuracy varies.</p>
+    </div>
     <WorkspaceDisclosure title="Exact hex color" summaryClassName="cursor-pointer text-xs font-medium">
       <label className="mt-2 grid gap-1 text-sm">Hex color
         <Input aria-label="Selected color hex" className={fieldClass} value={color} aria-invalid={!isHexColor(color)} spellCheck={false} onChange={(event) => onChange(event.target.value)}

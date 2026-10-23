@@ -49,14 +49,14 @@ const button = (name) => {
 async function download(name, filename) {
   const previousPanel = await page.getByRole("tab", { selected: true }).innerText()
   if (name === "Export JSON") { await panel("Setups"); name = "Export setup file" }
-  if (name === "Generate LUT") await panel("Export")
+  if (name === "Download LUT") await panel("Export")
   const pending = page.waitForEvent("download")
   await button(name).click()
   const result = await pending
   const path = join(output, filename)
   await result.saveAs(path)
   const text = await readFile(path, "utf8")
-  if (name === "Export setup file" || name === "Generate LUT") await panel(previousPanel)
+  if (name === "Export setup file" || name === "Download LUT") await panel(previousPanel)
   return text
 }
 async function panel(name) { await page.getByRole("tab", { name, exact: true }).click() }
@@ -195,7 +195,7 @@ try {
   await panel("Setups")
   await page.getByLabel("Import setup JSON file", { exact: true }).setInputFiles(join(output, "applied.json"))
   await visibleText("Imported applied.json.")
-  const cube = await download("Generate LUT", "generated.cube")
+  const cube = await download("Download LUT", "generated.cube")
   assert.match(cube, /LUT_3D_SIZE 17/)
   const roundtrip = JSON.parse(await download("Export JSON", "roundtrip.json"))
   assert.deepEqual(roundtrip, applied)
@@ -359,7 +359,7 @@ try {
   await visibleText("Imported keyboard.json.")
   pendingDownload = page.waitForEvent("download")
   await keyPanel("Export")
-  await keyButton("Generate LUT")
+  await keyButton("Download LUT")
   await (await pendingDownload).saveAs(join(output, "keyboard.cube"))
   await keyPanel("Media")
   await keyTo(page.locator("summary").filter({ hasText: "Use original camera media" }))

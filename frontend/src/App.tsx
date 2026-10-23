@@ -1,3 +1,4 @@
+import { HelpLink } from "./HelpLink"
 import { Input } from "@/components/ui/input"
 import { NativeSelect } from "@/components/ui/native-select"
 import { ImagePlus, VideoIcon, ImageIcon, X, Check, ChevronLeft, ChevronRight, Expand, Minimize, Plus, Download, RefreshCw, History, FolderOpen, Upload, RotateCcw, Trash2, SlidersHorizontal, TriangleAlert, Undo2, Save } from "lucide-react"
@@ -38,6 +39,7 @@ import { Spinner } from "@/components/ui/spinner"
 import { toast } from "@/components/ui/toast"
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { ContextHelp } from "./ContextHelp"
+import { OklchPicker } from "./GradientPicker"
 import referenceImage from "@/assets/lut-preview-reference.jpg"
 import { CameraVerification, type SourceInterpretations } from "@/CameraVerification"
 import { BrowserVerification } from "./BrowserVerification"
@@ -49,6 +51,9 @@ import { WorkspaceActionText, WorkspaceDisclosure, WorkspaceTask } from "./Works
 import { ImportedLookSettings } from "./ImportedLookSettings"
 import { ImportedLookPreview } from "./ImportedLookPreview"
 import { MobileExposurePresets } from "./MobileExposurePresets"
+import { NewLut } from "./NewLut"
+import { ExportHandoff } from "./ExportHandoff"
+import { destinationFilename, exportCompatibility, type ExportDestination } from "./exportDestination"
 import { useMobileWorkspace } from "./workspaceNavigation"
 import { createWorkspaceRuntime, type Preview } from "./workspaceRuntime"
 import { createSetupReplacement, createSetupWorkspace, reduceSetupWorkspace } from "./setupReplacement"
@@ -328,6 +333,8 @@ export function ColorPicker({
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState("")
   const [showPresets, setShowPresets] = useState(false)
+  const mobilePicker = useMobileWorkspace()
+  const [colorModel, setColorModel] = useState(() => window.matchMedia?.("(max-width: 959px)").matches ? "oklch" : "hsv")
   const [hue, setHue] = useState(() => hexToHsv(isHexColor(value) ? value : "#000000").hue)
   const originalValue = useRef(value)
   const [hexDraft, setHexDraft] = useState(value)
@@ -354,6 +361,7 @@ export function ColorPicker({
     <fieldset className="grid min-w-0 gap-2" disabled={disabled}>
       <legend className={hideLabel ? "sr-only" : "text-sm font-medium"}>{label}</legend>
       <Popover.Root
+        modal={mobilePicker}
         open={open}
         onOpenChange={(nextOpen, eventDetails) => {
           if (nextOpen) { originalValue.current = value; setHue(hsv.hue) }
@@ -387,21 +395,31 @@ export function ColorPicker({
         </div>
         <Popover.Portal>
           <Popover.Positioner
+            data-color-positioner
             align="start"
             className="z-50"
               side="bottom"
-              collisionAvoidance={{ side: "none", align: "shift", fallbackAxisSide: "none" }}
+              collisionAvoidance={{ side: "flip", align: "shift", fallbackAxisSide: "none" }}
             sideOffset={8}
           >
             <Popover.Popup data-workbench-popup
+              data-color-picker
               aria-label={`${label} picker`}
                 className="grid max-h-[var(--available-height)] w-80 max-w-[calc(100vw-2rem)] gap-4 overflow-y-auto rounded-lg border bg-popover p-3 text-popover-foreground shadow-lg outline-none"
             >
+                <div className="sticky top-0 z-10 grid gap-3 bg-popover pb-3">
                 <div className="flex items-center justify-between gap-2">
                   <Button type="button" size="sm" variant="outline" aria-expanded={showPresets} onClick={() => setShowPresets((shown) => !shown)}>{showPresets ? "Custom color" : "Tailwind presets"}</Button>
                   <Popover.Close render={<Button size="sm" variant="ghost" />}>Done</Popover.Close>
                 </div>
+                <div className="flex min-h-16 items-center gap-3 rounded-lg border p-2" aria-label="Saved color preview">
+                  <span role="img" aria-label={`Saved sRGB color ${isHexColor(value) ? value : "invalid"}`} className="size-12 shrink-0 rounded-md border" style={{ backgroundColor: isHexColor(value) ? value : "transparent" }} />
+                  <div className="grid min-w-0 gap-1"><span className="text-xs text-muted-foreground">Saved color · sRGB</span><output aria-label="Saved color hex" className="font-mono text-sm">{isHexColor(value) ? value.toUpperCase() : "Invalid HEX"}</output></div>
+                </div>
+                </div>
                 <div className={showPresets ? "hidden" : "grid min-w-0 gap-3"}>
+                <label className="grid gap-2 text-sm">Color model<NativeSelect value={colorModel} onChange={event => { setColorModel(event.target.value); setHue(hexToHsv(isHexColor(value) ? value : "#000000").hue) }}><option value="oklch">OKLCH · perceptual</option><option value="hsv">HSV</option></NativeSelect></label>
+                {colorModel === "oklch" ? <OklchPicker color={value} onChange={onChange} /> : <>
               <div
                 aria-label={`${label} saturation and brightness`}
                 className="relative h-44 w-full cursor-crosshair touch-none select-none overflow-hidden rounded-md border border-white/10"
@@ -434,6 +452,7 @@ export function ColorPicker({
                 placeholder="#rrggbb"
                 onChange={(event) => { const next = event.target.value; if (isHexColor(next)) setHue(hexToHsv(next).hue); onChange(next) }}
               />
+              </>}
               </div>
                 {showPresets && <div className="grid min-w-0 gap-3">
                 <Input aria-label={`Search ${label} palette`} className={fieldClass} value={search} placeholder="Search red-500 or #ef44" onChange={(event) => setSearch(event.target.value)} />
@@ -792,6 +811,12 @@ export function App() {
   const [setupPresets, setSetupPresets] = useState<SetupPreset[]>([])
   const [presetsBlocked, setPresetsBlocked] = useState(true)
   const [sessionReady, setSessionReady] = useState(false)
+  const [startingLut, setStartingLut] = useState(false)
+  const [returningToEditor, setReturningToEditor] = useState(false)
+  const [newLutError, setNewLutError] = useState("")
+  const [workspaceId, setWorkspaceId] = useState(0)
+  const newLutTrigger = useRef<HTMLElement | null>(null)
+  const [exportDestination, setExportDestination] = useState<ExportDestination>("general")
   const [sessionBlocked, setSessionBlocked] = useState(false)
   const [sessionStatus, setSessionStatus] = useState("")
   const sessionProblem = sessionBlocked || /^(Could not|Session not saved)/.test(sessionStatus)
@@ -812,13 +837,15 @@ export function App() {
         dispatch({ type: "load-start", request: -1 })
         dispatch({ type: "load-commit", request: -1, setup: session.success, message: "Last session restored. Reselect any camera media to verify; media files are not stored." })
         setSessionStatus("Last session restored on this device.")
+      } else if (!window.LUT_BUILDER_SETUP) {
+        setStartingLut(true)
       }
       setSessionReady(true)
     }).catch(() => { /* An aborted mount must not replace the next mount's state. */ })
     return () => controller.abort()
   }, [])
   useEffect(() => {
-    if (!sessionReady || sessionBlocked || isLoadingSetup) return
+    if (!sessionReady || sessionBlocked || isLoadingSetup || startingLut) return
     const controller = new AbortController()
     const timer = window.setTimeout(() => {
       void Effect.runPromise(Effect.result(writeWorkspaceSession(() => window.localStorage, setup)), { signal: controller.signal }).then((result) => {
@@ -827,7 +854,7 @@ export function App() {
       }).catch(() => undefined)
     }, 500)
     return () => { window.clearTimeout(timer); controller.abort() }
-  }, [setup, sessionReady, sessionBlocked, isLoadingSetup, sessionRetry])
+  }, [setup, sessionReady, sessionBlocked, isLoadingSetup, sessionRetry, startingLut])
   const [presetName, setPresetName] = useState("")
   const [selectedPreset, setSelectedPreset] = useState("")
   const replacingPreset = setupPresets.some((preset) => preset.name.toLocaleLowerCase() === presetName.trim().toLocaleLowerCase())
@@ -904,12 +931,13 @@ export function App() {
 
   async function generate() {
     if (isGenerating || isLoadingSetup) return
+    if (exportCompatibility(setup, exportDestination).length) return
     setIsGenerating(true)
     setStatus(`Generating ${setup.cube_size}³ LUT…`)
     const controller = runtime.capabilities.cancellableGeneration ? new AbortController() : null
     if (controller) workerRef.current = controller
     try {
-      const outcome = await Effect.runPromise(Effect.result(runtime.generate(setup, outputFilename(setup), (progress) => {
+      const outcome = await Effect.runPromise(Effect.result(runtime.generate(setup, destinationFilename(setup, exportDestination), (progress) => {
         setStatus(`Generating ${setup.cube_size}³ LUT… ${Math.round(progress * 100)}%`)
       })), { signal: controller?.signal })
       if (Result.isFailure(outcome)) throw outcome.failure
@@ -1016,10 +1044,27 @@ export function App() {
     <Button type="button" variant="outline" disabled={isGenerating || isLoadingSetup || !sessionReady} onClick={addBand}><Plus data-icon="inline-start" aria-hidden="true" />Add band</Button>
     <Button type="button" variant="ghost" aria-label="Undo last band edit" disabled={!undo || isGenerating || isLoadingSetup || !sessionReady} onClick={undoEdit}><Undo2 data-icon="inline-start" aria-hidden="true" /><WorkspaceActionText desktop="Undo last band edit" mobile="Undo" /></Button>
   </>
+  const newLut = startingLut ? <NewLut returning={returningToEditor} setup={setup} profiles={catalog.profiles} targets={catalog.targets} palette={catalog.palette} busy={isLoadingSetup} error={newLutError} onCancel={() => {
+    setStartingLut(false)
+    setNewLutError("")
+    requestAnimationFrame(() => newLutTrigger.current?.focus())
+  }} onCreate={(next) => {
+    setNewLutError("")
+    void Effect.runPromise(setupReplacement.preset({ name: "New LUT", setup: next }), { signal: setupLoads.current?.signal }).then((loaded) => {
+      if (loaded) { setWorkspaceId(value => value + 1); setStartingLut(false) }
+      else setNewLutError("Could not create this LUT.")
+    }).catch(() => setNewLutError("LUT setup was interrupted."))
+  }} /> : null
+
   return (
-    <WorkspaceShell setup={setup} busy={isGenerating || isLoadingSetup || !sessionReady}
-      illustration={(openBands) => <details id="photo-result" className="workspace-photo"><summary>Photo illustration · optional</summary><ReferencePreview setup={palettePreview?.valid ? palettePreview.setup : setup} draft={Boolean(palettePreview?.valid)} /><a href="#exposure-bands" className="inline-flex min-h-11 items-center text-sm underline" onClick={openBands}>Back to band editing</a></details>}
-      shortcuts={<KeyboardHelp canUndo={Boolean(undo)} onUndo={undoEdit} />}
+    <>{newLut}<div hidden={startingLut}>
+    <WorkspaceShell key={workspaceId} setup={setup} onNew={() => {
+      newLutTrigger.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+      setReturningToEditor(true)
+      setStartingLut(true)
+    }} busy={isGenerating || isLoadingSetup || !sessionReady}
+      illustration={() => <section id="photo-result" className="flex min-w-0 flex-col gap-4"><h3 className="text-base font-semibold">Quick illustration</h3><p className="text-sm text-muted-foreground">Try sample scenes or a display photo. This illustrates the look; it does not measure camera exposure.</p><ReferencePreview setup={palettePreview?.valid ? palettePreview.setup : setup} draft={Boolean(palettePreview?.valid)} /></section>}
+      shortcuts={!startingLut && <KeyboardHelp canUndo={Boolean(undo)} onUndo={undoEdit} />}
       stage={(openBands) => <>
         <ExposurePreview setup={setup} preview={palettePreview} minimum={graphMinimum} maximum={graphMaximum} unit={graphPreview.unit} />
         <fieldset disabled={isGenerating || isLoadingSetup || !sessionReady} className="workspace-graph">
@@ -1069,8 +1114,8 @@ export function App() {
         <WorkspacePanel value="configuration">
         <Card id="configuration" className="scroll-mt-6">
           <CardHeader>
-            <CardTitle><h2>Configuration</h2></CardTitle>
-            <CardDescription>Match your recording and monitor. <a className="underline" href={`${import.meta.env.BASE_URL}docs/controls/#configuration`} target="_blank" rel="noreferrer">Profile, range, and output help (new tab)</a></CardDescription>
+            <CardTitle><h3>Camera and display</h3></CardTitle>
+            <CardDescription>Match your recording and monitor.</CardDescription>
           </CardHeader>
           <CardContent><FieldGroup className="grid grid-cols-1 gap-5 sm:grid-cols-2">
             <Field>
@@ -1085,8 +1130,9 @@ export function App() {
                 {catalog.targets.map((target) => <option key={target}>{target}</option>)}
               </NativeSelect>
             </Field>
-            <WorkspaceDisclosure className="sm:col-span-2 rounded-lg border p-3 text-sm" title={<>Output settings · {setup.cube_size}³ · {setup.legal_range ? "Legal range" : "Full range"}</>}>
-              <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            <section className="flex flex-col gap-4 border-t pt-6 sm:col-span-2" aria-label="Output settings">
+              <h3 className="text-base font-semibold">LUT output</h3>
+              <FieldGroup className="grid gap-4 sm:grid-cols-2">
             <Field>
               <div className="flex items-center gap-1.5"><FieldLabel htmlFor="cube-size">Cube size</FieldLabel><InfoTooltip text="Higher cube sizes sample the transform more precisely but produce larger LUT files and take longer to generate." /></div>
               <NativeSelect id="cube-size" className={fieldClass} value={setup.cube_size} onChange={(e) => patchSetup({ cube_size: Number(e.target.value) })}>
@@ -1110,7 +1156,7 @@ export function App() {
                 <div className="mt-3 grid max-w-prose gap-2">
                   <p>Match the monitor or device applying this LUT. Your camera model alone cannot determine this setting.</p>
                   <p>Camera HDMI range and monitor input range must also agree. Those settings are separate from LUT output range. If your device already converts levels, extra conversion inside the LUT can give incorrect black and white levels.</p>
-                  <p>Check the device’s LUT instructions. For example, <a className="underline" href="https://guide.smallhd.com/a/1753041-look-3d-lut" target="_blank" rel="noreferrer">SmallHD has LUT data-range settings</a>, while <a className="underline" href="https://support.atomos.com/hc/en-us/articles/10342509794959-Input-Menu" target="_blank" rel="noreferrer">Atomos Legalize is an input conversion</a> with workflow-specific instructions. They are not interchangeable with this switch.</p>
+                  <p>Check the device’s LUT instructions. For example, <HelpLink className="underline" href="https://guide.smallhd.com/a/1753041-look-3d-lut" target="_blank" rel="noreferrer">SmallHD has LUT data-range settings</HelpLink>, while <HelpLink className="underline" href="https://support.atomos.com/hc/en-us/articles/10342509794959-Input-Menu" target="_blank" rel="noreferrer">Atomos Legalize is an input conversion</HelpLink> with workflow-specific instructions. They are not interchangeable with this switch.</p>
                   <p>Validate a known grayscale ramp and gray patch through your actual camera and monitor setup. This switch changes output levels; it does not correct a mismatched incoming signal.</p>
                 </div>
               </details>
@@ -1124,11 +1170,11 @@ export function App() {
               <Button type="button" size="sm" variant="outline" className="justify-self-start" onClick={() => patchSetup({ output: defaultFilenameTemplate })}><RotateCcw data-icon="inline-start" aria-hidden="true" />Use automatic filename</Button>
             </div>
             </WorkspaceDisclosure>
-              </div>
-            </WorkspaceDisclosure>
+              </FieldGroup>
+            </section>
           </FieldGroup></CardContent>
         </Card>
-        <div className="workspace-import-settings"><WorkspaceTask id="import" title="Imported creative LUT" icon={Upload} desktopInline>
+        <div className="workspace-import-settings"><WorkspaceTask id="import" title="Imported creative LUT" icon={Upload}>
           {setup.imported_lut && <p className="mb-3 text-xs text-muted-foreground">Input, display encoding, output range and color base belong to the confirmed look. Replace the imported file and confirm its interpretation to change them, or remove the look to use standard settings.</p>}
           <ImportedLookSettings setup={setup} onChange={patchSetup} />
         </WorkspaceTask></div>
@@ -1156,7 +1202,7 @@ export function App() {
                   : `Seven standard false-color bands on monochrome, anchored to ${setup.profile} camera-log levels.`}</p>
               <p>Presets replace mode, positions, widths, and colors. Camera, output, and warning settings are preserved. Undo restores your bands.</p>
               <p>{setup.fill_mode ? "Drag dividers to resize zones. Edit colors in the table." : "Drag bands to move them, or edit values in the table."}</p>
-              <p>Stops measure scene exposure; IRE measures camera-log levels; Fill colors every zone. <a className="underline" href={`${import.meta.env.BASE_URL}docs/controls/#exposure-bands`} target="_blank" rel="noreferrer">Bands and palette guide (new tab)</a></p>
+              <p>Stops measure scene exposure; IRE measures camera-log levels; Fill colors every zone. <HelpLink className="underline" href={`${import.meta.env.BASE_URL}docs/controls/#exposure-bands`} target="_blank" rel="noreferrer">Bands and palette guide</HelpLink></p>
                 </div>
               </WorkspaceDisclosure>
             </section>}
@@ -1262,7 +1308,7 @@ export function App() {
                           ? <span className="text-muted-foreground">—</span>
                           : <BandNumberInput aria-label={setup.fill_mode ? `Boundary after color ${index + 1}` : `Band ${index + 1} ${mode === "ire" ? "IRE" : "stops"}`} className={fieldClass} step={movementIncrement} min={mode === "ire" ? 0 : undefined} max={mode === "ire" ? 100 : undefined} value={band.stop} onChange={(stop) => editSetup((current) => setup.fill_mode ? updateFillBoundary(current, index, stop, movementIncrement) : updateBand(current, index, { stop }), index)} />}</td>
                         <td className="p-2"><span className="band-field-label" aria-hidden="true">{setup.fill_mode ? "Coverage" : `Total width (${mode === "ire" ? "IRE" : "stops"})`}</span>{setup.fill_mode
-                          ? <span className="text-muted-foreground">{index === setup.bands.length - 1 ? "Fills the rest" : "Until boundary"}</span>
+                          ? <span className="flex min-h-12 items-center rounded-2xl bg-muted px-3 text-sm text-muted-foreground">{index === setup.bands.length - 1 ? "Fills the rest" : "Until boundary"}</span>
                           : <BandNumberInput aria-label={`Band ${index + 1} total width`} className={fieldClass} min={0} step={0.2} value={band.width * 2} onChange={(width) => editSetup((current) => updateBand(current, index, { width: width / 2 }), index)} />}</td>
                         <td className="p-2"><Button
                           aria-label={removingBandIndex === index ? `Confirm remove band ${index + 1}` : `Remove band ${index + 1}`}
@@ -1283,7 +1329,6 @@ export function App() {
                   {setup.bands.length === 0 && <p className="p-4 text-sm text-muted-foreground">No bands yet. Choose Add band to start, or apply a preset above.</p>}
                 </div>
                 <p role="status" className="empty:hidden text-sm">{bandStatus}</p>
-                <a className="inline-flex min-h-11 items-center text-sm underline underline-offset-4" href="#photo-result" onClick={() => { const photo = document.querySelector<HTMLDetailsElement>('.workspace-photo'); if (photo) photo.open = true }}>View photo result</a>
                 {preview?.warnings.map((warning) => <p className="text-sm text-amber-700 dark:text-amber-300" key={warning}>{warning}</p>)}
               </>
             ) : <p className="text-sm text-muted-foreground">{browserOnly ? "The browser build creates LUTs locally; exposure preview is not included in this release." : "Preparing preview…"}</p>}
@@ -1295,13 +1340,12 @@ export function App() {
           <PaletteEditor key={`${revision}:${paletteRevision}`} setup={setup} palette={catalog.palette} onApply={applyPalette} onPreview={setPalettePreview} />
         </WorkspacePanel>
         <WorkspacePanel value="configuration">
-        <WorkspaceTask id="signal-warnings" title="Recorded-signal limit warnings" icon={TriangleAlert} desktopInline>
+        <WorkspaceTask id="signal-warnings" title="Recorded-signal limit warnings" icon={TriangleAlert}>
         <Card>
             <CardHeader>
-              <CardTitle><h2>Recorded-signal limit warnings</h2></CardTitle>
               <CardDescription className="max-w-3xl">
                 Mark this profile&apos;s recorded RGB code limits. These warnings cannot establish physical sensor clipping.
-                {" "}<a className="underline" href={`${import.meta.env.BASE_URL}docs/signal-limits/#how-are-these-limits-calculated`} target="_blank" rel="noreferrer">How are these limits calculated? <span className="sr-only">(opens in a new tab)</span></a>
+                {" "}<HelpLink href={`${import.meta.env.BASE_URL}docs/signal-limits/#how-are-these-limits-calculated`}>How are these limits calculated?</HelpLink>
               </CardDescription>
               <details className="text-xs text-muted-foreground">
                 <summary className="cursor-pointer text-sm">How to interpret these warnings</summary>
@@ -1328,7 +1372,7 @@ export function App() {
         </WorkspaceTask>
         </WorkspacePanel>
         <WorkspacePanel value="media">
-        <WorkspaceDisclosure className="min-w-0 rounded-lg border p-4" title="Use original camera media · image or video"><div className="mt-4"><p className="mb-3 text-xs text-muted-foreground">Camera verification requires known source settings. <a className="underline" href={`${import.meta.env.BASE_URL}docs/verification/`} target="_blank" rel="noreferrer">Preview and source interpretation help (new tab)</a></p><WorkbenchPreview preview={preview} setup={{ ...setup, output: outputFilename(setup) }} catalog={catalog} browserOnly={browserOnly} /></div></WorkspaceDisclosure>
+        <section className="flex min-w-0 flex-col gap-4"><h3 className="text-base font-semibold">Camera verification</h3><p className="text-sm text-muted-foreground">Use camera footage with known recording settings to verify the actual LUT. <HelpLink className="underline" href={`${import.meta.env.BASE_URL}docs/verification/`} target="_blank" rel="noreferrer">Preview and source interpretation help</HelpLink></p><WorkbenchPreview preview={preview} setup={{ ...setup, output: outputFilename(setup) }} catalog={catalog} browserOnly={browserOnly} /></section>
         </WorkspacePanel>
         <WorkspacePanel value="files">
         <Card>
@@ -1356,23 +1400,23 @@ export function App() {
         <aside className="grid min-w-0 gap-6" aria-label="LUT output">
         <Card id="export" className="scroll-mt-6">
           <CardHeader>
-            <CardTitle><h2>Generate LUT</h2></CardTitle>
-            <CardDescription>Build the final {setup.profile} to {setup.target} transformation. <a className="underline" href={`${import.meta.env.BASE_URL}docs/save-and-apply/`} target="_blank" rel="noreferrer">Saving and applying your LUT (new tab)</a></CardDescription>
+            <CardDescription>Build the final {setup.profile} to {setup.target} transformation. <HelpLink className="underline" href={`${import.meta.env.BASE_URL}docs/save-and-apply/`} target="_blank" rel="noreferrer">Saving and applying your LUT</HelpLink></CardDescription>
           </CardHeader>
           <CardContent className="grid gap-2">
+            <ExportHandoff setup={setup} destination={exportDestination} onDestination={setExportDestination} downloaded={status.startsWith("LUT downloaded")} onCameraSettings={() => patchSetup({ profile: "Panasonic V-Log", cube_size: 33, legal_range: false })} />
             <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Output · {setup.cube_size}³ .cube</span>
-            <output className="break-all font-mono text-sm" aria-label="Output filename preview">{outputFilename(setup)}</output>
+            <output className="break-all font-mono text-sm" aria-label="Output filename preview">{destinationFilename(setup, exportDestination)}</output>
             <p className="text-sm">{setup.legal_range ? "Legal/video range" : "Full range"} · {setup.band_mode === "stops" ? "Exposure stops" : "IRE"} · {setup.fill_mode ? "Fill zones" : setup.monochrome ? "Bands on monochrome" : "Bands on color"}</p>
             <BandStrip setup={setup} minimum={graphMinimum} maximum={graphMaximum} />
             <ul aria-label="Output band colors and boundaries" className="grid gap-1">{setup.bands.map((band, index) => <li key={index} className="flex items-center gap-2 text-xs"><span aria-hidden="true" className="size-3 shrink-0 rounded-sm" style={{ backgroundColor: band.color }} /><span>{setup.fill_mode ? `${index === 0 ? '−∞' : setup.bands[index - 1].stop} to ${index === setup.bands.length - 1 ? '+∞' : band.stop}` : `${Number((band.stop - band.width).toFixed(3))} to ${Number((band.stop + band.width).toFixed(3))}`} {setup.band_mode === "stops" ? "stops" : "IRE"}</span></li>)}</ul>
             {[[setup.low_signal_warning, "Low recorded signal", setup.low_signal_hex], [setup.high_signal_warning, "High recorded signal", setup.high_signal_hex]].map(([enabled, label, color]) => enabled && <p key={String(label)} className="flex items-center gap-2 text-xs"><span aria-hidden="true" className="size-3 rounded-full border" style={{ backgroundColor: String(color) }} />{label}</p>)}
-            {palettePreview && <p className="text-xs text-muted-foreground" role="status">Your palette preview is not applied. This download uses the current band colors. <a href="#exposure-bands" className="underline">Return to palette preview</a>.</p>}
+            {palettePreview && <div className="grid gap-2"><p className="text-xs text-muted-foreground" role="status">Your palette preview is not applied. This download uses the current band colors.</p><Button type="button" variant="outline" data-workspace-action="review-palette">Review palette</Button></div>}
             {browserOnly && <p className="text-xs text-muted-foreground">Generated on this device. Export JSON to back up your setup; browser storage does not sync and may be cleared.</p>}
           </CardContent>
           <CardFooter className="flex flex-wrap gap-3">
-            <Button size="lg" className="w-full" disabled={isGenerating || Boolean(validationError)} onClick={generate}>
+            <Button size="lg" className="w-full" disabled={isGenerating || Boolean(validationError) || exportCompatibility(setup, exportDestination).length > 0} onClick={generate}>
               {isGenerating ? <Spinner data-icon="inline-start" /> : <Download data-icon="inline-start" aria-hidden="true" />}
-              {isGenerating ? "Generating…" : "Generate LUT"}
+              {isGenerating ? "Generating…" : "Download LUT"}
             </Button>
             <p className="min-h-5 w-full text-sm text-muted-foreground" role="status" aria-live="polite">{status}</p>
           </CardFooter>
@@ -1382,6 +1426,7 @@ export function App() {
         </WorkspacePanel>
       {browserOnly && isGenerating && <Button type="button" variant="outline" onClick={() => workerRef.current?.abort()}><X data-icon="inline-start" aria-hidden="true" />Cancel generation</Button>}
     </WorkspaceShell>
+    </div></>
   )
 }
 

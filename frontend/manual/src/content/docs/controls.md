@@ -5,10 +5,11 @@ description: What each configuration, band, graph, palette, and warning control 
 
 ## Finding your controls
 
-On a phone, use the bottom **Bands**, **Palette**, **Presets**, **Media**, and **More**
-navigation. **More** contains **Configure** and **Setups**; **Export LUT** is in the
-header. Occasional settings open their own screen with **Back**. Desktop retains
-the side navigation and preview beside the controls.
+Use **Presets**, **Edit**, **Preview**, and **Settings** in the bottom navigation on
+a phone or side navigation on desktop. **Edit** contains **Bands** and **Palette**.
+**Preview** contains the photo illustration and camera verification. **Settings**
+contains camera, output, optional tools and saved setups; optional controls expand
+in place. **Export LUT** opens from the header and uses **Close** to return.
 
 On mobile, **Presets** shows separate **IRE**, **Fill**, and **Stops** sections,
 with a colored exposure-strip preview for each choice. Stops use a −7 to +7 scale;
@@ -118,4 +119,4 @@ Each checkbox enables one warning; its color picker changes only the indicator c
 
 The header's **01 Configure**, **02 Edit bands**, and **03 Download** jump to those sections. **Help / Manual** opens this manual in a new tab. **Keyboard shortcuts (?)** opens the shortcut dialog.
 
-For **Saved LUT setups**, **Generate LUT**, JSON import/export, and progress messages, see [Save, export, and apply](../save-and-apply/). For camera media, source interpretation, video frame controls, pixel inspection, and checked-cube downloads, see [Verify camera media](../verification/). For error and warning recovery, see [Troubleshooting](../troubleshooting/).
+For **Saved LUT setups**, **Download LUT**, JSON import/export, and progress messages, see [Save, export, and apply](../save-and-apply/). For camera media, source interpretation, video frame controls, pixel inspection, and checked-cube downloads, see [Verify camera media](../verification/). For error and warning recovery, see [Troubleshooting](../troubleshooting/).

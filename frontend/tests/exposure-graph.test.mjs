@@ -572,7 +572,7 @@ test("custom palettes draft, persist, reload, and reach generation without chang
   }
   const choose = async (value) => { await act(() => { field("Reuse saved palette").value = value; field("Reuse saved palette").dispatchEvent(new window.Event("change", { bubbles: true })) }) }
   const generate = async () => {
-    await click(button("Generate LUT"))
+    await click(button("Download LUT"))
     return requests.filter(({ path }) => path === "/generate").at(-1).setup
   }
   const mount = async () => { await act(() => root.render(React.createElement(App))); await act(() => new Promise((resolve) => setTimeout(resolve, 300))) }
@@ -798,7 +798,7 @@ test("band editing preserves valid generation data, selection, and one-step reco
     })
   }
   const generate = async () => {
-    await click([...container.querySelectorAll("button")].find((item) => item.textContent.startsWith("Generate LUT")))
+    await click([...container.querySelectorAll("button")].find((item) => item.textContent.startsWith("Download LUT")))
     return requests.filter(({ path }) => path === "/generate").at(-1).setup
   }
   try {
@@ -994,8 +994,8 @@ test("setup changes are recoverable, deletion is deliberate, and feedback stays 
     assert.equal(JSON.parse(window.localStorage.getItem(storageKey)).presets[0].setup.cube_size, 17)
     assert.equal(liveMessages("Named LUT setup saved").length, 1)
     assert.doesNotMatch(output(), /Named LUT setup saved/)
-    assert.equal(container.querySelector('a[href="#photo-result"]').textContent, "View photo result")
-    assert.ok(container.querySelector('#photo-result a[href="#exposure-bands"]'))
+    assert.equal(container.querySelector('a[href="#photo-result"]'), null)
+    assert.equal(container.querySelector('#photo-result a[href="#exposure-bands"]'), null)
   } finally {
     await act(() => root.unmount())
     container.remove()
@@ -1014,7 +1014,7 @@ test("focusing stage band handles preserves the selected configuration panel", a
   const root = createRoot(container)
   try {
     await act(() => root.render(React.createElement(App)))
-    const configure = [...container.querySelectorAll('[role="tab"]')].find(item => item.textContent.includes("Configure"))
+    const configure = [...container.querySelectorAll('[role="tab"]')].find(item => item.textContent.includes("Settings"))
     await act(() => configure.click())
     assert.equal(configure.getAttribute("aria-selected"), "true")
     const handle = container.querySelector('[data-band-center="0"]')
@@ -1099,14 +1099,16 @@ test("browser-only app generates and downloads through a local worker without ba
   const root = createRoot(container)
   try {
     await act(() => root.render(React.createElement(App)))
+    const continueEditing = [...container.querySelectorAll('button')].find(button => button.textContent === 'Skip setup')
+    if (continueEditing) await act(() => continueEditing.click())
     assert.ok(container.querySelector('[aria-label="Browser camera verification"]'))
     assert.ok(container.querySelector('[role="tablist"][aria-label="Editing sections"]'))
-    assert.equal(container.querySelector('[role="tab"][data-active]').textContent, "Bands")
-    const configurationTab = [...container.querySelectorAll('[role="tab"]')].find((tab) => tab.textContent === "Configure")
+    assert.equal(container.querySelector('[role="tab"][data-active]').textContent, "Edit")
+    const configurationTab = [...container.querySelectorAll('[role="tab"]')].find((tab) => tab.textContent === "Settings")
     await act(() => configurationTab.click())
     assert.equal(container.querySelector('#configuration').closest('[role="tabpanel"]').hidden, false)
     await act(() => configurationTab.dispatchEvent(new window.KeyboardEvent("keydown", { bubbles: true, cancelable: true, key: "Escape" })))
-    assert.equal(container.querySelector('#configuration').closest('[role="tabpanel"]').hidden, true)
+    assert.equal(container.querySelector('#configuration').closest('[role="tabpanel"]').hidden, false, "Escape does not unexpectedly navigate away from a top-level destination")
     const marker = container.querySelector('button[aria-label="Band 1, 0 stops"]')
     assert.ok(marker, "static app exposes the editable graph without a backend preview")
     assert.ok(container.querySelector('[aria-label="Band 1 total width"]'))
@@ -1129,7 +1131,7 @@ test("browser-only app generates and downloads through a local worker without ba
     assert.equal(range.value, "12")
     assert.equal(container.querySelector('[aria-label="Output filename preview"]').textContent, filenameBefore)
     await act(() => marker.dispatchEvent(new window.KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true })))
-    const generate = [...container.querySelectorAll("button")].find((button) => button.textContent === "Generate LUT")
+    const generate = [...container.querySelectorAll("button")].find((button) => button.textContent === "Download LUT")
     await act(async () => { generate.click(); await new Promise((resolve) => setTimeout(resolve, 0)) })
     assert.equal(messages[0].type, "generate")
     assert.equal(messages[0].setup.profile, "Sony S-Log3")

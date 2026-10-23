@@ -53,7 +53,19 @@ Illustrations do not establish exposure provenance or display calibration.
 
 ## Product Principles
 
+First-time visitors choose a camera/log profile and an explained exposure preset
+before editing. They can skip to the editor; media upload is never required.
+Returning visitors resume the validated device-local session. New LUT creates an
+independent arrangement and retains the previous setup through existing recovery.
+Export offers camera, external-monitor and editing-software guidance, with a
+specific Lumix S5IIX V-Log View Assist walkthrough and compatibility checks.
+
 - Keep the preview and frequent editing together on a phone.
+- Keep sample-photo illustration and user-media verification together in Media.
+  Preserve the editor header and tool-switch position when changing views.
+- Use Presets, Edit, Media and Settings consistently at every width. Bands and
+  Palette are tools within Edit; occasional settings expand inline. Export and
+  import confirmation use focused, dismissible sheets that return to the parent.
 - Separate one-time interpretation from repeated adjustments.
 - Preserve valid work and explain recovery before replacing it.
 - Distinguish illustrative previews from numerically verified artifacts.

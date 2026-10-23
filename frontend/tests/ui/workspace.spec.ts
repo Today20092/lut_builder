@@ -16,6 +16,7 @@ async function applyPreset(page: Page, preset: string) {
 
 test.beforeEach(async ({ page }) => {
   await page.goto('./')
+  await page.getByRole('button', { name: 'Skip setup', exact: true }).click()
   await expect(page.locator('.workspace')).toBeVisible()
   await expect(page.getByRole('button', { name: 'Add band', exact: true })).toBeEnabled()
   await page.evaluate(() => document.fonts.ready)
@@ -23,26 +24,31 @@ test.beforeEach(async ({ page }) => {
 })
 
 async function panel(page: Page, name: string) {
-  if (page.viewportSize()!.width < 960) {
-    if (name === 'Export') await page.getByRole('button', { name: 'Export LUT', exact: true }).click()
-    else if (['Configure', 'Setups'].includes(name)) {
-      await page.getByRole('navigation', { name: 'Mobile navigation' }).getByRole('button', { name: 'More', exact: true }).click()
-      await page.getByRole('region', { name: 'More options' }).getByRole('button', { name, exact: true }).click()
-    } else await page.getByRole('navigation', { name: 'Mobile navigation' }).getByRole('button', { name, exact: true }).click()
-    return
+  const sheet = page.getByRole('dialog', { name: 'Export LUT', exact: true })
+  if (await sheet.isVisible()) {
+    if (name === 'Export') return
+    await page.getByRole('button', { name: 'Close Export LUT', exact: true }).click()
+    await expect(sheet).not.toBeVisible()
   }
-  await page.getByRole('tab', { name, exact: true }).click()
-  await expect(page.getByRole('tab', { name, exact: true })).toHaveAttribute('aria-selected', 'true')
+  if (name === 'Export') { await page.getByRole('button', { name: 'Export LUT', exact: true }).click(); return }
+  const destination = ['Bands', 'Palette'].includes(name) ? 'Edit' : ['Configure', 'Setups'].includes(name) ? 'Settings' : name === 'Media' ? 'Preview' : name
+  if (page.viewportSize()!.width < 960) {
+    await page.getByRole('navigation', { name: 'Mobile navigation' }).getByRole('button', { name: destination, exact: true }).click()
+  } else {
+    await page.getByRole('tab', { name: destination, exact: true }).click()
+    await expect(page.getByRole('tab', { name: destination, exact: true })).toHaveAttribute('aria-selected', 'true')
+  }
+  if (['Bands', 'Palette'].includes(name)) await page.getByRole('group', { name: 'Edit tools' }).getByRole('button', { name, exact: true }).click()
+  if (name === 'Setups') { await disclosure(page, 'Saved setups'); await disclosure(page, 'Load setup · optional') }
+  if (name === 'Configure') await disclosure(page, 'Imported creative LUT')
 }
 
 async function disclosure(page: Page, title: string) {
+  if (title === 'Output settings') { await expect(page.getByRole('combobox', { name: /^Cube size/ })).toBeVisible(); return }
   const summary = page.locator('summary').filter({ hasText: title })
-  if (page.viewportSize()!.width >= 960) {
-    await expect(summary).toBeVisible()
-    if (await summary.locator('..').getAttribute('open') === null) await summary.click()
-    await expect(summary.locator('..')).toHaveAttribute('open', '')
-  }
-  else if (title !== 'Output settings') await page.getByRole('button', { name: title, exact: true }).click()
+  await expect(summary).toBeVisible()
+  if (await summary.locator('..').getAttribute('open') === null) await summary.click()
+  await expect(summary.locator('..')).toHaveAttribute('open', '')
 }
 
 async function bandMode(page: Page, name: string, change = false) {
@@ -51,7 +57,6 @@ async function bandMode(page: Page, name: string, change = false) {
   const radio = page.getByRole('radio', { name, exact: true })
   if (change) await radio.check()
   else await expect(radio).toBeChecked()
-  if (mobile) await page.getByRole('button', { name: 'Back', exact: true }).click()
 }
 
 async function accessible(page: Page) {
@@ -128,17 +133,22 @@ test('configuration help opens by tap and fields keep a single control surface @
 test('enlarged phone text keeps navigation reachable without sideways scrolling @checks', async ({ page }) => {
   test.skip(page.viewportSize()!.width >= 960, 'Phone navigation contract')
   await page.evaluate(() => { document.documentElement.style.fontSize = '200%' })
-  for (const name of ['More', 'Bands', 'Palette', 'Presets', 'Media', 'More']) {
+  for (const name of ['Settings', 'Edit', 'Presets', 'Media', 'Settings']) {
     await panel(page, name)
     await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))))
-    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(page.viewportSize()!.width)
+    const overflow = await page.locator('body *').evaluateAll(elements => elements.filter(element => {
+      const bounds = element.getBoundingClientRect()
+      return bounds.width > 0 && bounds.right > innerWidth + 1
+    }).map(element => `${element.tagName}.${element.className}`).slice(-12))
+    expect(await page.evaluate(() => document.documentElement.scrollWidth), `${name}: ${overflow.join(', ')}`).toBeLessThanOrEqual(page.viewportSize()!.width)
+    if (name === 'Edit') await page.screenshot({ path: `test-results/enlarged-edit-${test.info().project.name}.png` })
     const bounds = (await page.getByRole('navigation', { name: 'Mobile navigation' }).boundingBox())!
     expect(bounds.y + bounds.height).toBeLessThanOrEqual(page.viewportSize()!.height + 1)
   }
 })
 
 test('disclosures, palette layout and keyboard controls @checks', async ({ page }) => {
-  for (const title of ['Output settings', 'Save and reuse palettes']) {
+  for (const title of ['Save and reuse palettes']) {
     await panel(page, title === 'Output settings' ? 'Configure' : 'Palette')
     if (page.viewportSize()!.width < 960) {
       await disclosure(page, title)
@@ -201,7 +211,6 @@ test('accessibility in default, expanded and invalid states @checks', async ({ p
   await page.getByRole('button', { name: 'Customize gradient', exact: true }).click()
   await disclosure(page, 'Save and reuse palettes')
   await accessible(page)
-  if (page.viewportSize()!.width < 960) await page.getByRole('button', { name: 'Back', exact: true }).click()
   const value = page.getByLabel('Color hue value', { exact: true })
   await value.fill('400')
   await expect(value).toHaveAttribute('aria-invalid', 'true')
@@ -241,7 +250,7 @@ test('sticky preview reflects recorded-signal warning toggles @checks', async ({
   await panel(page, 'Configure')
   const preview = page.getByRole('group', { name: 'Persistent exposure preview', exact: true })
   for (const limit of ['Low', 'High']) {
-    if (page.viewportSize()!.width < 960) await disclosure(page, 'Recorded-signal limit warnings')
+    await disclosure(page, 'Recorded-signal limit warnings')
     const toggle = page.getByRole('checkbox', { name: `${limit} recorded-signal warning`, exact: true })
     const indicator = preview.getByRole('img', { name: `${limit} signal enabled`, exact: true })
     await expect(indicator).toHaveCount(0)
@@ -257,7 +266,7 @@ test('sticky preview reflects recorded-signal warning toggles @checks', async ({
   expect(low!.x).toBeLessThan(high!.x)
   await preview.screenshot({ path: `../.scratch/signal-preview-${test.info().project.name}.png` })
   await panel(page, 'Configure')
-  if (page.viewportSize()!.width < 960) await disclosure(page, 'Recorded-signal limit warnings')
+  await disclosure(page, 'Recorded-signal limit warnings')
   await page.getByRole('checkbox', { name: 'Low recorded-signal warning', exact: true }).uncheck()
   if (page.viewportSize()!.width < 960) await panel(page, 'Bands')
   await expect(preview.getByRole('img', { name: 'Low signal enabled', exact: true })).toHaveCount(0)
@@ -309,7 +318,7 @@ test('output summary shares the committed preview and shows ranges without hex c
   await expect(ranges).toContainText('to')
   await expect(ranges).not.toContainText('#')
   await panel(page, 'Configure')
-  if (page.viewportSize()!.width < 960) await disclosure(page, 'Recorded-signal limit warnings')
+  await disclosure(page, 'Recorded-signal limit warnings')
   for (const limit of ['Low', 'High']) await page.getByRole('checkbox', { name: `${limit} recorded-signal warning`, exact: true }).check()
   await panel(page, 'Export')
   await expect(output.getByText('Low recorded signal', { exact: true })).toBeVisible()
@@ -456,30 +465,22 @@ test('phone graph supports touch editing and page scrolling @checks', async ({ p
   await session.detach()
 })
 
-test('mobile More menu is consistent and preset feedback floats above navigation @checks', async ({ page }) => {
+test('settings actions are reachable and preset feedback floats above navigation @checks', async ({ page }) => {
   if (page.viewportSize()!.width >= 960) await page.setViewportSize({ width: 390, height: 900 })
-  await page.getByRole('navigation', { name: 'Mobile navigation' }).getByRole('button', { name: 'More', exact: true }).click()
-  const menu = page.getByRole('region', { name: 'More options' })
+  await panel(page, 'Configure')
+  const menu = page.getByRole('region', { name: 'Workspace actions' })
   const rows = menu.locator(':scope > button, :scope > a')
-  await expect(rows).toHaveCount(4)
+  await expect(rows).toHaveCount(3)
   const styles = await rows.evaluateAll(nodes => nodes.map(node => {
     const style = getComputedStyle(node)
     return { height: node.getBoundingClientRect().height, padding: style.padding, radius: style.borderRadius, font: style.font, decoration: style.textDecorationLine }
   }))
-  for (const style of styles) { expect(style).toEqual(styles[0]); expect(style.height).toBeGreaterThanOrEqual(48) }
-  const title = (await page.locator('.workspace-mobile-title').boundingBox())!
-  expect((await rows.first().boundingBox())!.y - title.y - title.height).toBeLessThanOrEqual(40)
+  for (const style of styles) expect(style.height).toBeGreaterThanOrEqual(48)
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
   const help = menu.getByRole('link', { name: /Help \/ Manual/ })
   await expect(help).toHaveAttribute('target', '_blank')
-  // Base UI intentionally disables supplementary tooltips on touch devices.
-  if (!test.info().project.use.isMobile) {
-    await help.hover()
-    await expect(page.locator('[data-slot="tooltip-content"]')).toContainText('Open the manual in a new tab')
-    await page.mouse.move(0, 0)
-    await expect(page.locator('[data-slot="tooltip-content"]')).toHaveCount(0)
-  }
   await accessible(page)
-  await page.screenshot({ path: test.info().outputPath('more-menu.png'), fullPage: true })
+  await page.screenshot({ path: test.info().outputPath('settings-actions.png'), fullPage: true })
   await panel(page, 'Presets')
   const content = page.locator('.workspace-preset-panel')
   const height = await content.evaluate(node => node.scrollHeight)
@@ -507,10 +508,10 @@ test('mobile More menu is consistent and preset feedback floats above navigation
   await expect(page.locator('[data-slot="toast"]')).toHaveCount(0, { timeout: 7000 })
 })
 
-test('phone navigation gives unrelated tasks the full viewport @checks', async ({ page }) => {
+test('phone destinations keep inline controls and direct access @checks', async ({ page }) => {
   test.skip(page.viewportSize()!.width >= 960, 'Phone navigation only')
   const navigation = page.getByRole('navigation', { name: 'Mobile navigation' })
-  await expect(navigation.getByRole('button')).toHaveCount(5)
+  await expect(navigation.getByRole('button')).toHaveCount(4)
   await expect(page.locator('.workspace-stage')).toHaveCSS('position', 'relative')
   for (const name of ['Presets', 'Media', 'Configure', 'Setups', 'Export']) {
     await panel(page, name)
@@ -519,13 +520,13 @@ test('phone navigation gives unrelated tasks the full viewport @checks', async (
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
   }
   await panel(page, 'Configure')
+  await disclosure(page, 'Output settings')
   await expect(page.getByRole('combobox', { name: /^Cube size/ })).toBeVisible()
   await disclosure(page, 'Recorded-signal limit warnings')
-  await expect(page.getByRole('combobox', { name: /^Camera recording/ })).not.toBeVisible()
-  await page.getByRole('button', { name: 'Back', exact: true }).click()
+  await expect(page.getByRole('combobox', { name: /^Camera recording/ })).toBeVisible()
   await disclosure(page, 'Imported creative LUT')
-  await expect(page.getByRole('button', { name: 'Recorded-signal limit warnings', exact: true })).not.toBeVisible()
-  await page.getByRole('button', { name: 'Back', exact: true }).click()
+  await expect(page.locator('details[data-task-id="signal-warnings"] > summary')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Back', exact: true })).toHaveCount(0)
   await panel(page, 'Media')
   await expect(page.getByRole('button', { name: /Choose camera still/ })).toBeVisible()
   const file = page.getByLabel('Choose camera still', { exact: true })
@@ -533,15 +534,17 @@ test('phone navigation gives unrelated tasks the full viewport @checks', async (
   const cardBounds = (await file.locator('xpath=ancestor::*[@data-slot="card-content"]').boundingBox())!
   expect(inputBounds.x + inputBounds.width).toBeLessThanOrEqual(cardBounds.x + cardBounds.width)
   await panel(page, 'Palette')
-  await page.locator('.workspace-photo > summary').click()
-  await page.getByRole('link', { name: 'Back to band editing', exact: true }).click()
+  await panel(page, 'Media')
+  await panel(page, 'Bands')
   await expect(page.locator('.workspace')).toHaveAttribute('data-section', 'bands')
   await panel(page, 'Bands')
   await disclosure(page, 'Band setup & graph settings')
-  await expect(page.getByRole('textbox', { name: 'Band 1 stops', exact: true })).not.toBeVisible()
+  await expect(page.getByRole('textbox', { name: 'Band 1 stops', exact: true })).toBeVisible()
   await expect(page.getByRole('radio', { name: 'Stops Mark exposure', exact: true })).toBeVisible()
-  await page.getByRole('button', { name: 'Back', exact: true }).click()
-  await expect(page.getByRole('button', { name: 'Band setup & graph settings', exact: true })).toBeFocused()
+  const advanced = page.locator('details[data-task-id="band-settings"] > summary')
+  await advanced.focus()
+  await advanced.press('Enter')
+  await expect(advanced).toBeFocused()
   const field = page.getByRole('textbox', { name: 'Band 1 stops', exact: true })
   await field.scrollIntoViewIfNeeded()
   await expect(field).toBeVisible()
@@ -563,9 +566,11 @@ test('selected band, panels, session restore and keyboard remain usable @checks'
   await position.fill('0.75')
   await position.press('Enter')
   await panel(page, 'Configure')
-  const configured = page.viewportSize()!.width < 960 ? page.locator('#workspace-screen-title') : page.getByRole('tab', { name: 'Configure', exact: true })
+  const configured = page.viewportSize()!.width < 960 ? page.locator('#workspace-screen-title') : page.getByRole('tab', { name: 'Settings', exact: true })
   await configured.press('Escape')
   if (page.viewportSize()!.width >= 960) await expect(configured).toBeFocused()
+  await expect(page.locator('.workspace')).toHaveAttribute('data-section', 'configuration')
+  await panel(page, 'Bands')
   await expect(position).toHaveValue('0.75')
   if (page.viewportSize()!.width < 960) {
     await expect(page.getByRole('button', { name: 'Collapse', exact: true })).toHaveCount(0)
@@ -593,7 +598,7 @@ test('selected band, panels, session restore and keyboard remain usable @checks'
   await expect(position).toHaveValue('0.75')
   await panel(page, 'Export')
   const download = page.waitForEvent('download')
-  await page.getByRole('button', { name: 'Generate LUT', exact: true }).click()
+  await page.getByRole('button', { name: 'Download LUT', exact: true }).click()
   expect((await download).suggestedFilename()).toMatch(/\.cube$/)
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
 })
@@ -648,7 +653,6 @@ test('confirmed imported look edits, compares and exports portably without chang
   await page.getByRole('combobox', { name: /^LUT camera input/ }).selectOption('Panasonic V-Log')
   await accessible(page)
   await page.getByRole('button', { name: 'Confirm and apply look', exact: true }).click()
-  if (page.viewportSize()!.width < 960) await page.getByRole('button', { name: 'Back', exact: true }).click()
   await expect(page.getByRole('combobox', { name: /^Camera recording/ })).toBeDisabled()
   await expect(page.getByRole('combobox', { name: /^Target display/ })).toBeDisabled()
   await expect(page.getByRole('radio', { name: 'Full / Data', exact: true })).toBeDisabled()
@@ -676,14 +680,14 @@ test('confirmed imported look edits, compares and exports portably without chang
   }
   const rows = (text: string) => text.split('\n').filter(line => /^[-+\d.]/.test(line)).map(line => line.trim().split(/\s+/).map(Number))
   await panel(page, 'Export')
-  const diagnostic = rows(await save('Generate LUT'))
+  const diagnostic = rows(await save('Download LUT'))
   expect(diagnostic).toHaveLength(17 ** 3)
   expect(diagnostic.some(row => row.join(',') === '0.125,0.25,0.5')).toBe(true)
   expect(diagnostic.some(row => row.join(',') !== '0.125,0.25,0.5')).toBe(true)
   await panel(page, 'Bands')
   await comparison.getByRole('button', { name: 'Look', exact: true }).click()
   await panel(page, 'Export')
-  expect(rows(await save('Generate LUT'))).toEqual(diagnostic)
+  expect(rows(await save('Download LUT'))).toEqual(diagnostic)
   await panel(page, 'Bands')
   await comparison.getByRole('button', { name: 'Look + diagnostics', exact: true }).click()
   await panel(page, 'Setups')
@@ -699,7 +703,7 @@ test('confirmed imported look edits, compares and exports portably without chang
   await page.getByLabel('Import setup JSON file').setInputFiles({ name: 'portable.json', mimeType: 'application/json', buffer: Buffer.from(portable) })
   await expect(page.getByLabel('Setup loading feedback').getByRole('status')).toContainText('Imported portable.json')
   await panel(page, 'Export')
-  expect(rows(await save('Generate LUT'))).toEqual(diagnostic)
+  expect(rows(await save('Download LUT'))).toEqual(diagnostic)
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
 })
 
@@ -718,10 +722,10 @@ test('reviewed UI screenshots @visual', async ({ page }) => {
   await expect.soft(page).toHaveScreenshot('setups.png', { fullPage: true })
   await panel(page, 'Configure')
   await snapshot(page, page.locator('#configuration'), 'configuration.png')
-  const output = page.locator('summary').filter({ hasText: 'Output settings' })
+  const output = page.getByRole('region', { name: 'Output settings', exact: true })
   await disclosure(page, 'Output settings')
   await snapshot(page, page.locator('#configuration'), 'configuration-expanded.png')
-  if (page.viewportSize()!.width >= 960) await output.click()
+  await expect(output).toBeVisible()
   await panel(page, 'Palette')
   const palette = page.getByRole('region', { name: 'Band colors', exact: true })
   await snapshot(page, palette, 'palette.png')
@@ -735,7 +739,7 @@ test('reviewed UI screenshots @visual', async ({ page }) => {
   if (page.viewportSize()!.width < 960) await disclosure(page, 'Imported creative LUT')
   await page.getByLabel('Import .cube LUT', { exact: true }).setInputFiles({ name: 'constant-look.cube', mimeType: 'text/plain', buffer: Buffer.from(constantLookCube) })
   await page.getByRole('combobox', { name: /^LUT camera input/ }).selectOption('Panasonic V-Log')
-  await snapshot(page, page.locator('.workspace-import-settings'), 'imported-interpretation.png')
+  await snapshot(page, page.getByRole('dialog', { name: 'Confirm imported LUT', exact: true }), 'imported-interpretation.png')
   await page.getByRole('button', { name: 'Confirm and apply look', exact: true }).click()
   if (page.viewportSize()!.width < 960) await panel(page, 'Bands')
   await expect(page.locator('[aria-label="Neutral camera patches at labeled stops"] > div')).toHaveCount(9)
@@ -748,17 +752,17 @@ test('open configuration and imported draft survive responsive resizing @checks'
   await page.setViewportSize({ width: 1280, height: 900 })
   await panel(page, 'Configure')
   await disclosure(page, 'Output settings')
-  const output = page.locator('summary').filter({ hasText: 'Output settings' }).locator('..')
+  const output = page.getByRole('region', { name: 'Output settings', exact: true })
   await page.getByLabel('Import .cube LUT', { exact: true }).setInputFiles({ name: 'draft.cube', mimeType: 'text/plain', buffer: Buffer.from(constantLookCube) })
   await page.getByRole('combobox', { name: /^LUT camera input/ }).selectOption('Panasonic V-Log')
   await page.setViewportSize({ width: 390, height: 844 })
-  await disclosure(page, 'Imported creative LUT')
   await expect(page.getByRole('combobox', { name: /^LUT camera input/ })).toHaveValue('Panasonic V-Log')
   await page.setViewportSize({ width: 1280, height: 900 })
-  await expect(output).toHaveAttribute('open', '')
+  await expect(output).toBeVisible()
   await expect(page.getByRole('combobox', { name: /^LUT camera input/ })).toHaveValue('Panasonic V-Log')
   await expect(page.getByRole('button', { name: 'Confirm and apply look', exact: true })).toBeVisible()
-  await page.locator('.workspace-photo > summary').click()
-  await page.getByRole('link', { name: 'Back to band editing', exact: true }).click()
+  await page.getByRole('button', { name: 'Close Confirm imported LUT', exact: true }).click()
+  await panel(page, 'Media')
+  await panel(page, 'Bands')
   await expect(page.locator('.workspace')).toHaveAttribute('data-section', 'bands')
 })

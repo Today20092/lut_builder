@@ -1,3 +1,4 @@
+import { HelpLink } from "./HelpLink"
 import { NativeSelect } from "@/components/ui/native-select"
 import { ChevronLeft, ChevronRight, RefreshCw, ImagePlus } from "lucide-react"
 import { useEffect, useRef, useState } from 'react'
@@ -92,7 +93,7 @@ export function ReferencePreview({ setup, draft }: { setup: Setup; draft: boolea
       <Button type="button" variant="outline" aria-label="Next scene" onClick={() => browse(1)}><ChevronRight data-icon="inline-start" aria-hidden="true" /></Button>
       {current?.error && <Button type="button" variant="outline" onClick={() => setRetry(retry + 1)}><RefreshCw data-icon="inline-start" aria-hidden="true" />Retry preview</Button>}
     </div>
-    <details className="text-sm"><summary className="cursor-pointer">About this illustration &amp; photo credits</summary><p className="mt-2">{custom ? 'Your photo is interpreted by the browser as a display image; untagged files use browser color defaults.' : `${scenes[scene].credit}. Embedded profile: ${scenes[scene].profile}.`} The browser converts to sRGB. Display light is treated as scene light, converted to the camera gamut and approximately log-encoded before applying the actual generated cube. This cannot recover camera exposure or prove profile accuracy.</p><a className="underline" href="https://scikit-image.org/docs/0.25.x/api/skimage.data.html" target="_blank" rel="noreferrer">Sample sources and licenses</a></details>
+    <details className="text-sm"><summary className="cursor-pointer">About this illustration &amp; photo credits</summary><p className="mt-2">{custom ? 'Your photo is interpreted by the browser as a display image; untagged files use browser color defaults.' : `${scenes[scene].credit}. Embedded profile: ${scenes[scene].profile}.`} The browser converts to sRGB. Display light is treated as scene light, converted to the camera gamut and approximately log-encoded before applying the actual generated cube. This cannot recover camera exposure or prove profile accuracy.</p><HelpLink className="underline" href="https://scikit-image.org/docs/0.25.x/api/skimage.data.html" target="_blank" rel="noreferrer">Sample sources and licenses</HelpLink></details>
     <Button type="button" variant="outline" className="justify-self-start" onClick={() => input.current?.click()}><ImagePlus data-icon="inline-start" aria-hidden="true" />Use your own photo</Button>
     <input ref={input} type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" tabIndex={-1} aria-label="Choose display photo" onChange={event => {
       const file = event.target.files?.[0]

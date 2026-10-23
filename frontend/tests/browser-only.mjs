@@ -2,6 +2,7 @@
 import assert from "node:assert/strict"
 import { readFile } from "node:fs/promises"
 import { pathToFileURL } from "node:url"
+import { enterWorkspace, navigateWorkspace } from './workspace-navigation.mjs'
 
 const playwright = await import(process.env.PLAYWRIGHT_MODULE ? pathToFileURL(process.env.PLAYWRIGHT_MODULE).href : "playwright")
 const engine = process.env.BROWSER || "chromium"
@@ -25,10 +26,7 @@ try {
     })
     const activate = (locator) => touch ? locator.tap() : locator.click()
     const button = (name) => page.getByRole("button", { name, exact: true })
-    const panel = async (name) => {
-      await activate(page.getByRole("tab", { name, exact: true }))
-      await page.getByRole("tab", { name, exact: true, selected: true }).waitFor()
-    }
+    const panel = name => navigateWorkspace(page, name, activate)
     const download = async (name) => {
       const pending = page.waitForEvent("download")
       await activate(button(name))
@@ -38,11 +36,11 @@ try {
     }
     const started = performance.now()
     await page.goto(url)
+    await enterWorkspace(page)
     await page.getByLabel("Band 1 stops", { exact: true }).waitFor()
     const startupMs = performance.now() - started
     await panel("Configure")
     await page.getByRole("combobox", { name: /^Camera/ }).selectOption("Panasonic V-Log")
-    await page.locator("summary").filter({ hasText: "Output settings" }).click()
     await page.locator("summary").filter({ hasText: "Customize output filename" }).click()
     await page.getByLabel("Output filename template", { exact: true }).fill("Browser acceptance.cube")
     await panel("Bands")
@@ -115,12 +113,10 @@ try {
     const heapSamples = []
     for (const size of [17, 33, 65]) {
       await panel("Configure")
-      const outputSettings = page.locator("summary").filter({ hasText: "Output settings" })
-      if (!await outputSettings.evaluate((element) => element.parentElement.open)) await outputSettings.click()
       await page.getByRole("combobox", { name: /^Cube size/ }).selectOption(String(size))
       await panel("Export")
       const start = performance.now()
-      const cube = await download("Generate LUT")
+      const cube = await download("Download LUT")
       timings[size] = Math.round(performance.now() - start)
       heapSamples.push(await page.evaluate(() => performance.memory?.usedJSHeapSize ?? null))
       assert.equal(cube.name, "Browser_acceptance.cube")
@@ -129,7 +125,7 @@ try {
       assert.equal(rows.length, size ** 3)
       assert.ok(rows.every((line) => line.trim().split(/\s+/).length === 3))
     }
-    await activate(button("Generate LUT"))
+    await activate(button("Download LUT"))
     await activate(button("Cancel generation"))
     await page.getByLabel("LUT output", { exact: true }).getByRole("status").filter({ hasText: "Generation cancelled" }).waitFor()
     assert.equal(await page.getByLabel("Band 1 stops", { exact: true }).inputValue(), "1.25")

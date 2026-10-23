@@ -115,7 +115,7 @@ for (const [engine, width, touch] of [['chromium', 320, true], ['chromium', 390,
     await page.screenshot({ path: join(evidence, `${engine}-${width}-photo.png`) })
     await page.locator('#export').scrollIntoViewIfNeeded()
     await page.screenshot({ path: join(evidence, `${engine}-${width}-output.png`) })
-    const cube = await download('Generate LUT')
+    const cube = await download('Download LUT')
     assert.equal(Number(/^LUT_3D_SIZE (\d+)$/m.exec(cube)?.[1]), roundtrip.cube_size)
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true)
     assert.deepEqual(errors, [])

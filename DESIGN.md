@@ -145,15 +145,27 @@ entry uses monospace, and the workspace applies tabular numerals.
 
 ## Layout
 
+Mobile is the primary interaction target, not a reduced desktop layout. Design
+and review at 320px and 390px before expanding to desktop. Keep touch controls at
+least 44px, phone text inputs at 16px, and scrolling available with the keyboard
+open. Color editing uses a modal bottom panel on phones, with OKLCH channel
+sliders, numeric entry and explicit Done; HSV and Tailwind presets remain options.
+Reuse the existing gamut mapping and save displayable sRGB HEX. Field labels and
+read-only values share the editable field grid. Desktop adds space, not a second
+interaction vocabulary or different task semantics.
+Changing slider values must not resize their editing panel or move its controls.
+Reserve space for the longest dynamic status message instead of clipping warnings;
+test both normal and warning states at phone widths and in both themes.
+
 The workspace fills at least the small viewport height, caps at 112rem, and uses
 safe-area padding. At 960px and above, its grid is a 7rem task rail, a flexible
 preview stage, and a 24–29rem adjustment column. Stage padding is 2rem vertically
 and `clamp(1rem, 2vw, 2.5rem)` horizontally.
 
-Below 960px, five fixed bottom destinations provide Bands, Palette, Presets,
-Media and More. More opens Configure and Setups; Export LUT remains in the top
-header. The content reserves `calc(5.5rem + env(safe-area-inset-bottom))` below
-its flow, and navigation adds safe-area padding around its five equal columns.
+Four destinations provide Presets, Edit, Preview and Settings at every width.
+Below 960px they form a fixed bottom navigation with safe-area padding. Edit
+contains a Bands / Palette switch; Export LUT opens a sheet from the top header.
+Content reserves `calc(5.5rem + env(safe-area-inset-bottom))` below its flow.
 
 The phone stage scrolls with the page. Bands keeps its editable graph and selected
 band controls together; Palette retains a compact exposure preview without the
@@ -161,8 +173,9 @@ graph or band picker. Other destinations and dedicated tasks hide the stage.
 Imported-look phone previews show their comparison in place of the editable graph.
 Only the selected band appears in the phone band editor. Swatch, hexadecimal color,
 position and width stay directly available. Band/graph settings, creative LUT
-import, recorded-signal warnings and saved palettes open dedicated screens with a
-Back action. Main destination content opens directly without a Collapse action.
+import, recorded-signal warnings and saved palettes expand inline at every width.
+Main destinations have no Back action. Import confirmation and export use shared
+modal sheets with a visible Close action, Escape and browser Back dismissal.
 
 Primary phone panel fields and buttons use a 3rem (48px) minimum height; bottom
 navigation buttons use 3.625rem. Phone fields use 1rem (16px) text. Some compact
@@ -188,6 +201,28 @@ contain small bordered color swatches; colors retain their actual artifact value
 
 ## Components
 
+### Interaction language — required for workspace changes
+
+- Destination names are Presets, Edit, Preview, Settings, in that order at every
+  width. Screen headings use the same names. Media is content within Preview.
+- Peer destinations use the persistent navigation only. Do not add inline
+  “view result”, “return”, or “back” links between them. Back is reserved for a
+  real nested screen; sheets use Close and restore their opening context.
+- Use shared shadcn controls: Button for actions, ToggleGroup for local modes,
+  FieldGroup/Field for forms. Keep native links for documentation and external
+  resources. Icon-only actions require an accessible name; destination labels
+  stay visible. Do not replace a redundant link with a redundant icon.
+- Keep one primary action per task. Use verb + object labels. Close dismisses a
+  view, Cancel stops unfinished work, Remove deletes an item; do not interchange
+  these meanings. Downloads should name the artifact and keep consistent wording.
+- Keep core settings visible. Disclosures contain optional or advanced controls,
+  not a second navigation hierarchy. Align section spacing and control heights
+  with existing tokens and components, rather than adding local CSS exceptions.
+- A UI change must check this contract, existing callers and destination names,
+  keyboard/focus recovery, narrow/large-text layouts and both themes. Extend
+  `frontend/tests/ui/navigation.spec.ts` when changing the navigation contract.
+  Passing tests supplement rendered review; they cannot guarantee consistency.
+
 ### Buttons
 
 Primary actions use the high-contrast primary pair. Outline actions use a visible
@@ -209,16 +244,16 @@ returns focus when dismissed. Labels stay visible outside the help popup.
 Labeled SVG icons stack above task labels. Active tasks gain a muted surface,
 foreground text, weight 650 and an inset border outline. Hover changes color and
 background over 160ms ease-out; reduced motion removes that transition. Desktop
-navigation is vertical; phone navigation uses the five fixed bottom destinations.
-Configure and Setups open from More, and Export stays in the header.
+navigation is vertical; phone navigation uses the same four fixed destinations.
+Settings contains camera/output settings, imported looks and saved setups.
 
 ### Cards / Containers
 
 Shared cards group content with spacing and a subtle ring. Workspace top-level
 panels flatten those cards into the adjustment column. Native disclosures collect
-infrequent settings on desktop and keep their full padded summary clickable. On
-phone, dedicated task screens provide a Back action; main destination sections
-show their content directly.
+infrequent settings at every width and keep their full padded summary clickable.
+Destination sections show their content directly. Modal sheets restore focus and
+scroll to their opening context when dismissed.
 
 ### Exposure selection and comparison
 
@@ -231,11 +266,11 @@ Standard and Detailed choices reuse the existing arrangements. Apply feedback
 uses a temporary shadcn toast above mobile navigation; Bands provides editing and undo. Desktop retains
 the compact preset selector.
 
-More uses matching ghost navigation rows for Configure, Setups, Help / Manual
+Settings includes Saved setups and workspace actions: New LUT, Help / Manual
 and Report an issue. External destinations retain link semantics, show an
-external-link icon, and explain the new tab in a tooltip and accessible name.
+external-link icon, and explain the new tab in their accessible name.
 
-Routine autosave and setup-restoration details belong in Setups, including
+Routine autosave and setup-restoration details belong in Settings → Saved setups, including
 Restore previous setup. Editing screens do not repeat that footer. Storage
 failures retain visible recovery controls where they occur.
 
@@ -250,6 +285,22 @@ The labeled stop scale, selected graph handle and numbered color swatches connec
 the artifact to its editor. Imported comparison labels distinguish camera exposure
 reference, look, and look plus diagnostics. Optional photo illustration remains a
 disclosure. Selection, units and comparison labels carry meaning alongside color.
+
+## New LUT and export workflow
+
+New visitors enter a two-step, full-page setup: camera/log and display color space,
+then an explained exposure preset with a real band-strip preview. The same neutral
+surfaces, Roboto typography and shared controls carry this flow. Steps announce
+their heading to keyboard and screen-reader users. Continue editing skips setup;
+New LUT is available in the desktop header and Settings. Valid saved work
+resumes immediately. Starting a new LUT retains the existing setup for recovery.
+
+Export keeps destination selection and compatibility feedback visible, with
+loading instructions in a disclosure that opens after a successful download.
+The S5IIX option requires Panasonic V-Log input, at most 33³ and full range. It
+links Panasonic's instructions and distinguishes V-Log View Assist monitoring
+from recording diagnostic colors with REAL TIME LUT. Generic monitor and editor
+guidance keeps device-specific compatibility the user's explicit responsibility.
 
 ## Do's and Don'ts
 

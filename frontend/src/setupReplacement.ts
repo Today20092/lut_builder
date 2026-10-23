@@ -55,10 +55,11 @@ export function createSetupReplacement<E>(normalize: (input: unknown) => Effect.
     return Effect.gen(function* () {
       const current = ++request
       dispatch({ type: "load-start", request: current })
-      yield* Effect.gen(function* () {
+      return yield* Effect.gen(function* () {
         const result = yield* Effect.result(source)
         if (Result.isSuccess(result)) dispatch({ type: "load-commit", request: current, setup: result.success, message })
         else dispatch({ type: "load-failed", request: current, message: result.failure instanceof Error ? result.failure.message : "Could not load this setup." })
+        return Result.isSuccess(result)
       }).pipe(Effect.ensuring(Effect.sync(() => dispatch({ type: "load-finished", request: current }))))
     })
   }

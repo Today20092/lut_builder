@@ -11,6 +11,9 @@ const dom=new JSDOM("<!doctype html><html><body></body></html>",{url:"http://loc
 for(const key of ["window","document","Element","HTMLElement","Node"])globalThis[key]=key==="window"?dom.window:dom.window[key]
 Object.defineProperty(globalThis,"navigator",{value:dom.window.navigator})
 globalThis.IS_REACT_ACT_ENVIRONMENT=true
+globalThis.requestAnimationFrame=callback=>setTimeout(callback,0)
+window.HTMLDialogElement.prototype.showModal=function(){this.open=true}
+window.HTMLDialogElement.prototype.close=function(){this.open=false}
 after(()=>dom.window.close())
 const bundle=await build({bundle:true,external:["@base-ui/react/*","lucide-react","react","react/jsx-runtime","react-dom","react-dom/client"],format:"esm",jsx:"automatic",platform:"node",stdin:{contents:`export {ImportedLookSettings} from "./src/ImportedLookSettings.tsx";export {ImportedLookPreview} from "./src/ImportedLookPreview.tsx";export {CheckedImage,SdrViewDescription} from "./src/CameraVerification.tsx";export {default as React,act} from "react";export {createRoot} from "react-dom/client";`,resolveDir:process.cwd(),sourcefile:"imported-ui.ts"},write:false})
 stop()
@@ -44,7 +47,7 @@ test("import requires explicit interpretation, preserves current look on failure
     await view.render()
     await fileInput(view.container,file("view.cube",identity))
     assert.equal(state.setup.imported_lut,undefined)
-    assert.match(view.container.textContent,/Confirm LUT interpretation/)
+    assert.match(view.container.textContent,/Confirm imported LUT/)
     await act(async()=>{view.button("Confirm and apply look").click();await new Promise(r=>setTimeout(r,20))})
     assert.equal(state.setup.imported_lut.name,"view.cube")
     assert.equal(state.setup.imported_lut.output_transfer,"gamma2.2")
