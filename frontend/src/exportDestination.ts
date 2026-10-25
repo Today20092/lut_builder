@@ -1,7 +1,7 @@
 import type { Setup } from "./editor.ts"
 import { outputFilename } from "./outputFilename.ts"
 
-export type ExportDestination = "general" | "s5iix" | "monitor" | "editor"
+export type ExportDestination = "general" | "s5iix"
 
 export function destinationFilename(setup: Setup, destination: ExportDestination): string {
   return outputFilename(destination === "s5iix" ? { ...setup, output: "%id%.cube" } : setup)

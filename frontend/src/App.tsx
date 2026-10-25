@@ -2,7 +2,7 @@ import { HelpLink } from "./HelpLink"
 import { Input } from "@/components/ui/input"
 import { NativeSelect } from "@/components/ui/native-select"
 import { ChoiceField } from "./ChoiceField"
-import { ImagePlus, VideoIcon, ImageIcon, X, Check, ChevronLeft, ChevronRight, Expand, Minimize, Plus, Download, RefreshCw, History, FolderOpen, Upload, RotateCcw, Trash2, TriangleAlert, Undo2, Save } from "lucide-react"
+import { ImagePlus, VideoIcon, ImageIcon, X, Check, ChevronLeft, ChevronRight, Expand, Minimize, Plus, Download, RefreshCw, History, FolderOpen, Upload, RotateCcw, Trash2, Undo2, Save } from "lucide-react"
 import {
   Fragment,
   useCallback,
@@ -40,7 +40,7 @@ import { Spinner } from "@/components/ui/spinner"
 import { toast } from "@/components/ui/toast"
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { ContextHelp } from "./ContextHelp"
-import { OklchPicker } from "./GradientPicker"
+import { ColorEditor, type ColorModel } from "./ColorEditor"
 import referenceImage from "@/assets/lut-preview-reference.jpg"
 import { CameraVerification, type SourceInterpretations } from "@/CameraVerification"
 import { BrowserVerification } from "./BrowserVerification"
@@ -50,7 +50,7 @@ import { deleteSetupPreset, readSetupPresets, saveSetupPreset, readWorkspaceSess
 import { WorkspaceShell, WorkspacePanel } from "./WorkspaceShell"
 import { WorkspaceSheet } from "./WorkspaceSheet"
 import { SiteFooter } from "./SiteFooter"
-import { WorkspaceActionText, WorkspaceDisclosure, WorkspaceTask } from "./WorkspaceTask"
+import { WorkspaceActionText, WorkspaceDisclosure } from "./WorkspaceTask"
 import { ImportedLookSettings } from "./ImportedLookSettings"
 import { ImportedLookPreview } from "./ImportedLookPreview"
 import { ExposurePresets } from "./ExposurePresets"
@@ -69,8 +69,6 @@ import {
   exportSetup,
   exposureReferenceValue,
   filterPalette,
-  hexToHsv,
-  hsvToHex,
   isHexColor,
   resizeBandWidth,
   removeBand,
@@ -334,8 +332,7 @@ export function ColorPicker({
   const [search, setSearch] = useState("")
   const [showPresets, setShowPresets] = useState(false)
   const mobilePicker = useMobileWorkspace()
-  const [colorModel, setColorModel] = useState(() => window.matchMedia?.("(max-width: 959px)").matches ? "oklch" : "hsv")
-  const [hue, setHue] = useState(() => hexToHsv(isHexColor(value) ? value : "#000000").hue)
+  const [colorModel, setColorModel] = useState<ColorModel>(() => window.matchMedia?.("(max-width: 959px)").matches ? "oklch" : "hsv")
   const originalValue = useRef(value)
   const [hexDraft, setHexDraft] = useState(value)
   const hexValue = isHexColor(hexDraft) ? value : hexDraft
@@ -348,14 +345,6 @@ export function ColorPicker({
     ;(groups[family] ??= []).push(color)
     return groups
   }, {}))
-  const hsv = hexToHsv(isHexColor(value) ? value : "#000000")
-
-  function pickSaturation(event: PointerEvent<HTMLDivElement>) {
-    const bounds = event.currentTarget.getBoundingClientRect()
-    const saturation = Math.max(0, Math.min(1, (event.clientX - bounds.left) / bounds.width))
-    const brightness = Math.max(0, Math.min(1, 1 - (event.clientY - bounds.top) / bounds.height))
-    onChange(hsvToHex(hue, saturation, brightness))
-  }
 
   return (
     <fieldset className="grid min-w-0 gap-2" disabled={disabled}>
@@ -364,7 +353,7 @@ export function ColorPicker({
         modal={mobilePicker}
         open={open}
         onOpenChange={(nextOpen, eventDetails) => {
-          if (nextOpen) { originalValue.current = value; setHue(hsv.hue) }
+          if (nextOpen) originalValue.current = value
           if (!nextOpen && eventDetails.reason === "escape-key") {
             onChange(originalValue.current)
           }
@@ -418,41 +407,7 @@ export function ColorPicker({
                 </div>
                 </div>
                 <div className={showPresets ? "hidden" : "grid min-w-0 gap-3"}>
-                <ChoiceField label="Color model" value={colorModel} onChange={model => { setColorModel(model); setHue(hexToHsv(isHexColor(value) ? value : "#000000").hue) }} options={[{ value: "oklch", label: "OKLCH · perceptual" }, { value: "hsv", label: "HSV" }]} />
-                {colorModel === "oklch" ? <OklchPicker color={value} onChange={onChange} /> : <>
-              <div
-                aria-label={`${label} saturation and brightness`}
-                className="relative h-44 w-full cursor-crosshair touch-none select-none overflow-hidden rounded-md border border-white/10"
-                style={{ backgroundColor: hsvToHex(hue, 1, 1), backgroundImage: "linear-gradient(to top, #000, transparent), linear-gradient(to right, #fff, transparent)" }}
-                onPointerDown={(event) => { event.preventDefault(); event.currentTarget.setPointerCapture(event.pointerId); pickSaturation(event) }}
-                onPointerMove={(event) => { if (event.currentTarget.hasPointerCapture(event.pointerId)) pickSaturation(event) }}
-              >
-                <span className="pointer-events-none absolute size-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white shadow-[0_0_0_1px_#000]" style={{ left: `${hsv.saturation * 100}%`, top: `${(1 - hsv.value) * 100}%` }} />
-              </div>
-              <input
-                aria-label={`${label} hue`}
-                className="hue-slider"
-                type="range"
-                min="0"
-                max="359"
-                value={Math.round(hue)}
-                onChange={(event) => { const nextHue = Number(event.target.value); setHue(nextHue); onChange(hsvToHex(nextHue, hsv.saturation, hsv.value)) }}
-              />
-              <div className="grid grid-cols-[auto_1fr] items-center gap-x-2 gap-y-1 text-xs">
-                <label htmlFor={`${label}-saturation`}>Saturation</label>
-                <input id={`${label}-saturation`} type="range" min="0" max="100" value={Math.round(hsv.saturation * 100)} onChange={(event) => onChange(hsvToHex(hue, Number(event.target.value) / 100, hsv.value))} />
-                <label htmlFor={`${label}-brightness`}>Brightness</label>
-                <input id={`${label}-brightness`} type="range" min="0" max="100" value={Math.round(hsv.value * 100)} onChange={(event) => onChange(hsvToHex(hue, hsv.saturation, Number(event.target.value) / 100))} />
-              </div>
-              <Input
-                aria-label={`${label} hex color`}
-                aria-invalid={!isHexColor(value)}
-                className={fieldClass}
-                value={value}
-                placeholder="#rrggbb"
-                onChange={(event) => { const next = event.target.value; if (isHexColor(next)) setHue(hexToHsv(next).hue); onChange(next) }}
-              />
-              </>}
+                <ColorEditor color={value} model={colorModel} onModelChange={setColorModel} onChange={onChange} hexLabel={`${label} hex color`} />
               </div>
                 {showPresets && <div className="grid min-w-0 gap-3">
                 <Input aria-label={`Search ${label} palette`} className={fieldClass} value={search} placeholder="Search red-500 or #ef44" onChange={(event) => setSearch(event.target.value)} />
@@ -461,7 +416,7 @@ export function ColorPicker({
                     {presetGroups.map(([family, colors]) => <div className="grid min-w-0 grid-cols-6 gap-1" key={family}>
                       <span className="col-span-6 text-xs text-muted-foreground">{family}</span>
                     {colors.map((color) => (
-                        <button aria-label={color.name} aria-pressed={color.hex.toLowerCase() === value.toLowerCase()} className={`h-8 rounded border border-black/10 text-[10px] outline-none focus-visible:ring-2 focus-visible:ring-ring ${color.hex.toLowerCase() === value.toLowerCase() ? "ring-2 ring-ring ring-offset-1" : ""}`} key={color.name} title={color.name} type="button" style={{ backgroundColor: color.hex, color: contrastTextColor(color.hex) }} onClick={() => { setHue(hexToHsv(color.hex).hue); onChange(color.hex) }}>{color.name.split("-").at(-1)}</button>
+                        <button aria-label={color.name} aria-pressed={color.hex.toLowerCase() === value.toLowerCase()} className={`h-8 rounded border border-black/10 text-[10px] outline-none focus-visible:ring-2 focus-visible:ring-ring ${color.hex.toLowerCase() === value.toLowerCase() ? "ring-2 ring-ring ring-offset-1" : ""}`} key={color.name} title={color.name} type="button" style={{ backgroundColor: color.hex, color: contrastTextColor(color.hex) }} onClick={() => onChange(color.hex)}>{color.name.split("-").at(-1)}</button>
                     ))}
                   </div>)}
                 </div>
@@ -1108,7 +1063,8 @@ export function App() {
         </section>
         </WorkspacePanel>
         <WorkspacePanel value="configuration">
-        <Card id="configuration" className="scroll-mt-6">
+        <div id="configuration" className="workspace-settings-core scroll-mt-6">
+        <Card className="workspace-settings-section">
           <CardHeader>
             <CardTitle><h3>Camera and display</h3></CardTitle>
             <CardDescription>Match your recording and monitor.</CardDescription>
@@ -1121,8 +1077,11 @@ export function App() {
               </NativeSelect>
             </Field>
             <ChoiceField label="Target display" value={setup.target} disabled={Boolean(setup.imported_lut)} onChange={target => patchSetup({ target })} options={catalog.targets.map(value => ({ value, label: value }))} />
-            <section className="flex flex-col gap-4 border-t pt-6 sm:col-span-2" aria-label="Output settings">
-              <h3 className="text-base font-semibold">LUT output</h3>
+          </FieldGroup></CardContent>
+        </Card>
+        <Card className="workspace-settings-section" role="region" aria-label="Output settings">
+          <CardHeader><CardTitle><h3>LUT output</h3></CardTitle></CardHeader>
+          <CardContent>
               <FieldGroup className="grid gap-4 sm:grid-cols-2">
             <Field>
               <div className="flex items-center gap-1.5"><span className="text-sm font-medium">Sampling precision</span><InfoTooltip text="Higher cube sizes sample the transform more precisely but produce larger LUT files and take longer to generate." /></div>
@@ -1140,34 +1099,23 @@ export function App() {
                   <span className="grid gap-1"><span className="text-sm font-medium">{legal ? "Video / Legal" : "Full / Data"}</span><span className="text-xs text-muted-foreground">{legal ? "Packs output into 64–940 (10-bit). Use only when your LUT destination requires it." : "Uses the full 0–1 output range. Tool default; keep unless your LUT destination requires video levels."}</span></span>
                 </label>)}
               </div>
-              <details className="text-xs text-muted-foreground">
-                <summary className="cursor-pointer font-medium text-foreground">Which should I use?</summary>
-                <div className="mt-3 grid max-w-prose gap-2">
-                  <p>Match the monitor or device applying this LUT. Your camera model alone cannot determine this setting.</p>
-                  <p>Camera HDMI range and monitor input range must also agree. Those settings are separate from LUT output range. If your device already converts levels, extra conversion inside the LUT can give incorrect black and white levels.</p>
-                  <p>Check the device’s LUT instructions. For example, <HelpLink className="underline" href="https://guide.smallhd.com/a/1753041-look-3d-lut" target="_blank" rel="noreferrer">SmallHD has LUT data-range settings</HelpLink>, while <HelpLink className="underline" href="https://support.atomos.com/hc/en-us/articles/10342509794959-Input-Menu" target="_blank" rel="noreferrer">Atomos Legalize is an input conversion</HelpLink> with workflow-specific instructions. They are not interchangeable with this switch.</p>
-                  <p>Validate a known grayscale ramp and gray patch through your actual camera and monitor setup. This switch changes output levels; it does not correct a mismatched incoming signal.</p>
-                </div>
-              </details>
+              <p className="text-xs text-muted-foreground">Match the device applying the LUT. Camera HDMI and monitor input levels are separate. <HelpLink className="underline" href={`${import.meta.env.BASE_URL}docs/controls/#choosing-output-range`} target="_blank" rel="noreferrer">Output range help</HelpLink></p>
             </fieldset>
-            <WorkspaceDisclosure className="text-sm sm:col-span-2" title="Customize output filename">
-            <div className="mt-3 grid max-w-2xl gap-2">
+            <div className="grid max-w-2xl gap-2 text-sm sm:col-span-2">
               <label className="grid gap-1 font-medium">Output filename template
                 <Input aria-label="Output filename template" className={fieldClass} value={setup.output} onChange={(e) => patchSetup({ output: e.target.value })} />
               </label>
               <p className="text-xs text-muted-foreground">Use %inputgamma%, %targetgamma%, and %id%, or type a fixed name. The ID changes with your setup.</p>
               <Button type="button" size="sm" variant="outline" className="justify-self-start" onClick={() => patchSetup({ output: defaultFilenameTemplate })}><RotateCcw data-icon="inline-start" aria-hidden="true" />Use automatic filename</Button>
             </div>
-            </WorkspaceDisclosure>
               </FieldGroup>
-            </section>
-          </FieldGroup></CardContent>
+          </CardContent>
         </Card>
-        <div className="workspace-import-settings"><section className="workspace-visible-section" aria-label="Imported creative LUT settings">
-            <h3 className="text-sm font-semibold">Imported creative LUT</h3>
-          {setup.imported_lut && <p className="mb-3 text-xs text-muted-foreground">Input, display encoding, output range and color base belong to the confirmed look. Replace the imported file and confirm its interpretation to change them, or remove the look to use standard settings.</p>}
+        </div>
+        <section className="workspace-import-settings workspace-settings-section" aria-label="Imported creative LUT settings">
+            <h3 className="text-base font-semibold">Imported creative LUT</h3>
           <ImportedLookSettings setup={setup} onChange={patchSetup} />
-        </section></div>
+        </section>
 
         </WorkspacePanel>
         <WorkspacePanel value="presets">
@@ -1267,17 +1215,13 @@ export function App() {
           <PaletteEditor key={`${revision}:${paletteRevision}`} setup={setup} palette={catalog.palette} onApply={applyPalette} onPreview={setPalettePreview} />
         </WorkspacePanel>
         <WorkspacePanel value="configuration">
-        <WorkspaceTask id="signal-warnings" title="Recorded-signal limit warnings" icon={TriangleAlert}>
-        <Card>
+        <Card className="workspace-settings-section" role="region" aria-label="Recorded-signal limit warnings">
             <CardHeader>
+              <CardTitle><h3>Recorded-signal limit warnings</h3></CardTitle>
               <CardDescription className="max-w-3xl">
-                Mark this profile&apos;s recorded RGB code limits. These warnings cannot establish physical sensor clipping.
-                {" "}<HelpLink href={`${import.meta.env.BASE_URL}docs/signal-limits/#how-are-these-limits-calculated`}>How are these limits calculated?</HelpLink>
+                Flag recorded RGB values near this profile&apos;s limits. Indicators override exposure colors; they do not prove sensor clipping.
+                {" "}<HelpLink className="underline" href={`${import.meta.env.BASE_URL}docs/signal-limits/`} target="_blank" rel="noreferrer">Signal limit help</HelpLink>
               </CardDescription>
-              <details className="text-xs text-muted-foreground">
-                <summary className="cursor-pointer text-sm">How to interpret these warnings</summary>
-                <p className="mt-2">Any encoded RGB channel can trigger a warning, including a low channel in a bright, saturated subject. The exported cube includes half a grid step of tolerance. Warnings override exposure bands; high wins if both trigger. A LUT sees processed RGB, not RAW sensor data. Purple/red are editable indicator colors, not proof of noise or sensor clipping.</p>
-              </details>
             </CardHeader>
             <CardContent className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,14rem),1fr))] gap-5">
               <div className="grid gap-3">
@@ -1296,7 +1240,6 @@ export function App() {
               </div>
             </CardContent>
         </Card>
-        </WorkspaceTask>
         </WorkspacePanel>
         <WorkspacePanel value="media">
         <section className="flex min-w-0 flex-col gap-4"><h3 className="text-base font-semibold">Camera verification</h3><p className="text-sm text-muted-foreground">Use camera footage with known recording settings to verify the actual LUT. <HelpLink className="underline" href={`${import.meta.env.BASE_URL}docs/verification/`} target="_blank" rel="noreferrer">Preview and source interpretation help</HelpLink></p><WorkbenchPreview preview={preview} setup={{ ...setup, output: outputFilename(setup) }} catalog={catalog} browserOnly={browserOnly} /></section>
@@ -1326,13 +1269,11 @@ export function App() {
         <WorkspacePanel value="export">
         <aside className="grid min-w-0 gap-6" aria-label="LUT output">
         <Card id="export" className="scroll-mt-6">
-          <CardHeader>
-            <CardDescription>Build the final {setup.profile} to {setup.target} transformation. <HelpLink className="underline" href={`${import.meta.env.BASE_URL}docs/save-and-apply/`} target="_blank" rel="noreferrer">Saving and applying your LUT</HelpLink></CardDescription>
-          </CardHeader>
           <CardContent className="grid gap-2">
-            <ExportHandoff setup={setup} destination={exportDestination} onDestination={setExportDestination} downloaded={status.startsWith("LUT downloaded")} onCameraSettings={() => patchSetup({ profile: "Panasonic V-Log", cube_size: 33, legal_range: false })} />
+            <ExportHandoff setup={setup} destination={exportDestination} onDestination={setExportDestination} onCameraSettings={() => patchSetup({ profile: "Panasonic V-Log", cube_size: 33, legal_range: false })} />
             <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Output · {setup.cube_size}³ .cube</span>
             <output className="break-all font-mono text-sm" aria-label="Output filename preview">{destinationFilename(setup, exportDestination)}</output>
+            <p className="text-sm">{setup.profile} → {setup.target}{setup.imported_lut ? ` / ${setup.imported_lut.output_transfer}` : ""}</p>
             <p className="text-sm">{setup.legal_range ? "Legal/video range" : "Full range"} · {setup.band_mode === "stops" ? "Exposure stops" : "IRE"} · {setup.fill_mode ? "Fill zones" : setup.monochrome ? "Bands on monochrome" : "Bands on color"}</p>
             <BandStrip setup={setup} minimum={graphMinimum} maximum={graphMaximum} />
             <ul aria-label="Output band colors and boundaries" className="grid gap-1">{setup.bands.map((band, index) => <li key={index} className="flex items-center gap-2 text-xs"><span aria-hidden="true" className="size-3 shrink-0 rounded-sm" style={{ backgroundColor: band.color }} /><span>{setup.fill_mode ? `${index === 0 ? '−∞' : setup.bands[index - 1].stop} to ${index === setup.bands.length - 1 ? '+∞' : band.stop}` : `${Number((band.stop - band.width).toFixed(3))} to ${Number((band.stop + band.width).toFixed(3))}`} {setup.band_mode === "stops" ? "stops" : "IRE"}</span></li>)}</ul>

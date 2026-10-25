@@ -9,6 +9,7 @@ import {
   applyBandPreset,
   applyExposurePreset,
   applyFillPreset,
+  darkToBrightColors,
   bandId,
   changeMode,
   contrastTextColor,
@@ -45,7 +46,7 @@ test("all exposure presets preserve a confirmed imported look and remain valid",
   const cube = 'LUT_3D_SIZE 2\n' + Array(8).fill('0.125 0.25 0.5').join('\n')
   const imported_lut = { version: 1, name: 'constant.cube', cube, sha256: await cubeSha256(cube), source_profile: setup.profile, output_gamut: setup.target, output_transfer: 'gamma2.2', output_range: 'full' }
   const confirmed = { ...setup, monochrome: false, ire_basis: 'camera', imported_lut }
-  for (const preset of ['contrast-checker', 'three-band', 'camera-ire']) {
+  for (const preset of ['contrast-checker', 'three-band', 'camera-ire', 'reference-emphasis', 'portrait-contrast', 'wide-contrast', 'highlight-placement', 'shadow-placement']) {
     const next = applyExposurePreset(confirmed, palette, preset)
     assert.equal(next.monochrome, false, preset)
     assert.equal(next.ire_basis, 'camera', preset)
@@ -436,6 +437,48 @@ test("loading a setup clears edit gestures and changes the palette workflow iden
   assert.equal(loaded.setup.target, "Rec.2020")
 })
 
+test("monitoring presets define ready-to-use stop zones and preserve recording settings and undo", () => {
+  const original = { ...setup, band_mode: "ire", target: "Rec.2020", cube_size: 33, legal_range: true, low_signal_warning: true }
+  const cases = [
+    ["portrait-contrast", [-1.75, -1.25, -0.75, -0.25, 0.25, 0.75, 1.25, 1.75, 2.25], 0, true],
+    ["wide-contrast", [-3.5, -2.5, -1.5, -0.5, 0.5, 1.5, 2.5, 3.5, 4.5], 0, true],
+    ["highlight-placement", [2, 3, 4, 5], 0.5, false],
+    ["shadow-placement", [-5, -4, -3, -2], 0.5, false],
+  ]
+  for (const [preset, stops, width, fill] of cases) {
+    const next = applyExposurePreset(original, palette, preset)
+    assert.equal(next.band_mode, "stops")
+    assert.equal(next.fill_mode, fill)
+    assert.equal(next.monochrome, !fill)
+    assert.deepEqual(next.bands.map(band => band.stop), stops)
+    assert.ok(next.bands.every(band => band.width === width && /^#[0-9a-f]{6}$/i.test(band.color)))
+    if (fill) assert.equal(next.bands[4].color, "#a6a6a6")
+    for (const key of ["profile", "target", "cube_size", "legal_range", "output", "low_signal_warning", "high_signal_warning", "low_signal_hex", "high_signal_hex"]) assert.equal(next[key], original[key])
+    const edited = reduceEditor(createEditorState(original), { type: "edit", edit: current => applyExposurePreset(current, palette, preset) })
+    assert.deepEqual(reduceEditor(edited, { type: "undo" }).setup, original)
+  }
+})
+
+test("Dark to Bright shares Contrast Checker colors and remains lightness-ordered between anchors", () => {
+  assert.deepEqual(applyExposurePreset(setup, palette, "contrast-checker").bands.map(band => band.color), darkToBrightColors)
+  const anchors = darkToBrightColors.map(hexToOklch)
+  const lightness = Array.from({ length: 65 }, (_, index) => hexToOklch(sampleOklabRamp(anchors, index / 64, "direct")).l)
+  assert.ok(lightness.every((value, index) => index === 0 || value > lightness[index - 1]))
+})
+
+test("reference emphasis is a complete fill preset with green centered on zero stops", () => {
+  const next = applyExposurePreset(setup, palette, "reference-emphasis")
+  assert.equal(next.fill_mode, true)
+  assert.equal(next.monochrome, false)
+  assert.equal(next.band_mode, "stops")
+  assert.deepEqual(next.bands.map(band => band.stop), [-2.5, -1.5, -0.5, 0.5, 1.5, 2.5, 3.5])
+  assert.deepEqual(next.bands.map(band => band.color), ["#334e68", "#3b6c8e", "#4c8b93", "#22c55e", "#a3a044", "#a66b35", "#a33a3a"])
+  assert.ok(next.bands.every(band => band.width === 0))
+  for (const key of ["profile", "target", "cube_size", "legal_range", "output", "low_signal_warning", "high_signal_warning"]) assert.equal(next[key], setup[key])
+  const state = reduceEditor(createEditorState(setup), { type: "edit", edit: current => applyExposurePreset(current, palette, "reference-emphasis") })
+  assert.deepEqual(reduceEditor(state, { type: "undo" }).setup, setup)
+})
+
 test("complete exposure presets replace geometry and colors while preserving recording and output settings", () => {
   for (const profile of ["Sony S-Log3", "Panasonic V-Log", "ARRI LogC3"]) {
     const original = { ...setup, profile, target: "Rec.2020", cube_size: 33, legal_range: true, low_signal_warning: true, ire_basis: "target" }
@@ -456,7 +499,8 @@ test("complete exposure presets replace geometry and colors while preserving rec
         assert.equal(next.fill_mode, true)
         assert.equal(next.band_mode, "stops")
         assert.deepEqual(next.bands.map(band => band.stop), [-1.5, -0.5, 0.5, 1.5, 2.5])
-        assert.deepEqual(next.bands.map(band => band.color), ["#216638", "#78ff64", "#a6a6a6", "#f2d5e5", "#ff00b7"])
+        const lightness = next.bands.map(band => hexToOklch(band.color).l)
+        lightness.forEach((value, index) => assert.ok(Math.abs(value - (0.3 + index * 0.16)) < 0.003, `Contrast Checker zone ${index + 1} lightness: ${value}`))
       } else if (preset === "three-band") {
         assert.equal(next.fill_mode, false)
         assert.equal(next.monochrome, true)

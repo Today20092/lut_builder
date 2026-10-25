@@ -15,14 +15,15 @@ The download uses applied band colors. A palette draft must be accepted with **U
 
 The browser controls the download folder and may append a suffix for a repeated filename. The filename's settings-derived ID is not a cryptographic proof of a checked artifact. Verification provenance supplies the cube's SHA-256 for that purpose.
 
-## Choose an export destination
+## Choose a download format
 
-In **Export**, choose where you will use the LUT. External monitor and editing
-software options explain which signal to feed into the transform; check the
-specific host's cube-size and range requirements. Loading guidance opens after
-a successful download and can also be expanded before generating.
+In **Export LUT**, **General .cube** uses your output settings and filename for
+monitors and editing software. Check the host's cube-size and range requirements,
+and feed it the selected camera log signal before any other viewing LUT or
+display conversion. Disable the diagnostic LUT for your final image unless false
+color is intended. Loading instructions stay here in the manual.
 
-For **Lumix S5IIX · V-Log View Assist**, export requires Panasonic V-Log input,
+For **Lumix S5IIX**, export requires Panasonic V-Log input,
 17³ or 33³, and full-range output. **Use V-Log, 33³ and full range** applies these
 settings explicitly. This destination uses an eight-character settings ID for the
 download filename to fit SD/SDHC card limits. An imported look must be removed or replaced before changing

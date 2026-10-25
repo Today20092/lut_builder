@@ -149,7 +149,11 @@ Mobile is the primary interaction target, not a reduced desktop layout. Design
 and review at 320px and 390px before expanding to desktop. Keep touch controls at
 least 44px, phone text inputs at 16px, and scrolling available with the keyboard
 open. Color editing uses a modal bottom panel on phones, with OKLCH channel
-sliders, numeric entry and explicit Done; HSV and Tailwind presets remain options.
+sliders, numeric entry and explicit Done. All color editors, including gradient
+points, offer exactly two color models: OKLCH sliders and an HSV hue ring with a
+rotating saturation/brightness triangle. Keep numeric HSV and HEX entry available
+for precision and keyboard access. Model changes preserve the saved sRGB color.
+Tailwind swatches remain optional starting colors.
 Reuse the existing gamut mapping and save displayable sRGB HEX. Field labels and
 read-only values share the editable field grid. Desktop adds space, not a second
 interaction vocabulary or different task semantics.
@@ -173,8 +177,8 @@ graph or band picker. Other destinations and dedicated tasks hide the stage.
 Imported-look phone previews show their comparison in place of the editable graph.
 Only the selected band appears in the phone band editor. Swatch, hexadecimal color,
 position and width stay directly available. Band modes, shared widths and movement
-increments remain visible. Graph view, recorded-signal warnings and saved palettes
-expand inline; imported looks and saved setup loading stay directly available.
+increments remain visible. Graph view and saved palettes expand inline; recorded-signal
+warnings, imported looks and saved setup loading stay directly available in Settings.
 Main destinations have no Back action. Import confirmation and export use shared
 modal sheets with a visible Close action, Escape and browser Back dismissal.
 
@@ -188,8 +192,10 @@ when adding controls.
 ## Elevation & Depth
 
 Tonal surfaces and fine dividers provide the workspace structure. The stage and
-top-level panel cards explicitly remove shadows, rounded card framing and outer
-borders. Standalone shared cards use a subtle foreground ring; controls use focus
+editing panels remove shadows, rounded card framing and outer borders. Settings
+uses separate, subtly bordered surfaces for Camera and display, LUT output,
+Imported creative LUT, Recorded-signal limit warnings and Saved setups.
+Standalone shared cards use a subtle foreground ring; controls use focus
 rings. Slider thumbs retain contrasting white/dark outlines for visibility over
 the color track. Floating controls may retain their shared component elevation.
 
@@ -244,7 +250,8 @@ returns focus when dismissed. Labels stay visible outside the help popup.
 ### Navigation
 
 Labeled SVG icons stack above task labels. Active tasks gain a muted surface,
-foreground text, weight 650 and an inset border outline. Hover changes color and
+foreground text and an inset border outline. Selection keeps the same text weight
+and control dimensions. Hover changes color and
 background over 160ms ease-out; reduced motion removes that transition. Desktop
 navigation is vertical; phone navigation uses the same four fixed destinations.
 Settings contains camera/output settings, imported looks and saved setups.
@@ -252,12 +259,19 @@ Settings contains camera/output settings, imported looks and saved setups.
 ### Cards / Containers
 
 Shared cards group content with spacing and a subtle ring. Workspace top-level
-panels flatten those cards into the adjustment column. Native disclosures collect
-infrequent settings at every width and keep their full padded summary clickable.
+editing panels flatten those cards into the adjustment column. Settings groups
+keep their headings and controls visible, including filenames and signal warnings.
+Longer guidance links to the manual. Creative LUT import uses an upload button;
+its native file input stays hidden and confirmation dismissal restores button focus.
+Native disclosures collect infrequent editing options at every width.
 Destination sections show their content directly. Modal sheets restore focus and
 scroll to their opening context when dismissed.
 
 ### Exposure selection and comparison
+
+Custom gradients start with two endpoint colors. Every color point can move or
+be removed until two remain. The exposure reference is a fixed scale guide, not
+a locked color point. Named palettes retain their predefined anchors.
 
 Mobile Presets uses three visible sections: IRE, Fill and Stops. Each preset has
 a named, scaled exposure-strip preview and a trailing Use button with at least a
@@ -297,12 +311,12 @@ their heading to keyboard and screen-reader users. Continue editing skips setup;
 New LUT is available in the desktop header and Settings. Valid saved work
 resumes immediately. Starting a new LUT retains the existing setup for recovery.
 
-Export presents destinations as explained radio choices and keeps compatibility feedback visible, with
-loading instructions in a disclosure that opens after a successful download.
-The S5IIX option requires Panasonic V-Log input, at most 33³ and full range. It
-links Panasonic's instructions and distinguishes V-Log View Assist monitoring
-from recording diagnostic colors with REAL TIME LUT. Generic monitor and editor
-guidance keeps device-specific compatibility the user's explicit responsibility.
+Export offers General .cube and Lumix S5IIX as download formats and keeps
+compatibility feedback visible. Its sheet keeps stable dimensions when switching
+formats; loading instructions live in the manual.
+The S5IIX option requires Panasonic V-Log input, at most 33³ and full range.
+General .cube serves monitors and editing software using the configured output
+settings and filename.
 
 ## Do's and Don'ts
 

@@ -1,60 +1,11 @@
-import { Input } from "@/components/ui/input"
 import { NativeSelect } from "@/components/ui/native-select"
-import { Minus, Plus, ChevronLeft, ChevronRight, Trash2 } from "lucide-react"
-import { useRef, useState } from "react"
+import { Plus, ChevronLeft, ChevronRight, Trash2 } from "lucide-react"
+import { useState } from "react"
 import { Button } from "@/components/ui/button"
-import { BandNumberInput } from "./BandNumberInput"
-import { hexToOklch, isHexColor, maxSrgbChroma, oklchToHex, sampleOklabRamp, type GradientBlend, type HuePath, type OklchAnchor } from "./editor"
+import { ColorEditor, type ColorModel } from "./ColorEditor"
+import { hexToOklch, isHexColor, sampleOklabRamp, type GradientBlend, type HuePath } from "./editor"
 
 const fieldClass = "w-full min-w-0"
-
-export function OklchPicker({ color, onChange }: { color: string; onChange: (color: string) => void }) {
-  const originalHex = useRef(color)
-  const [edited, setEdited] = useState<{ hex: string; channels: OklchAnchor } | null>(null)
-  const channels = edited?.hex === color ? edited.channels : hexToOklch(isHexColor(color) ? color : "#2563eb")
-  const outsideGamut = channels.c > maxSrgbChroma(channels) + 0.002
-  const controls = [
-    { key: "l", label: "Lightness", max: 1, step: 0.001 },
-    { key: "c", label: "Chroma", max: 0.4, step: 0.001 },
-    { key: "h", label: "Hue", max: 360, step: 1 },
-  ] as const
-  function change(key: 'l' | 'c' | 'h', value: number) {
-    const next = { ...channels, [key]: value }
-    const hex = oklchToHex(next)
-    setEdited({ hex, channels: next })
-    onChange(hex)
-  }
-  return <div className="grid gap-4">
-    {controls.map(({ key, label, max, step }) => <div key={key} className="grid gap-1 text-sm">
-      <label className="flex items-center justify-between gap-3"><span>{label}</span><span className="flex items-center gap-1 font-mono">
-        <BandNumberInput aria-label={`Color ${label.toLowerCase()} value`} className={`${fieldClass} max-w-24 text-right`} value={Number((channels[key] * (key === 'l' ? 100 : 1)).toFixed(key === 'c' ? 3 : 1))} min={0} max={key === 'l' ? 100 : max} step={key === 'l' ? 0.1 : step} onChange={(value) => change(key, value / (key === 'l' ? 100 : 1))} />
-        {key === 'l' ? '%' : key === 'h' ? '°' : ''}
-      </span></label>
-      <div className="flex items-center gap-3">
-      <Button type="button" variant="outline" size="icon" className="size-11 shrink-0" aria-label={`Decrease ${label.toLowerCase()}`} disabled={channels[key] <= 0} onClick={() => change(key, Math.max(0, channels[key] - step))}><Minus data-icon="inline-start" aria-hidden="true" /></Button>
-      <input type="range" aria-label={`Color ${label.toLowerCase()}`} min={0} max={max} step={step} value={channels[key]}
-        className="oklch-slider"
-        style={{ backgroundImage: `linear-gradient(to right, ${Array.from({ length: 25 }, (_, index) => oklchToHex({ ...channels, [key]: index / 24 * max })).join(",")})` }}
-        onChange={(event) => {
-          change(key, Number(event.target.value))
-        }} />
-        <Button type="button" variant="outline" size="icon" className="size-11 shrink-0" aria-label={`Increase ${label.toLowerCase()}`} disabled={channels[key] >= max} onClick={() => change(key, Math.min(max, channels[key] + step))}><Plus data-icon="inline-start" aria-hidden="true" /></Button>
-      </div>
-    </div>)}
-    {/* Both messages share a grid cell so their longest wrapping reserves space. */}
-    <div className="grid text-xs text-muted-foreground" role="status">
-      <p className="col-start-1 row-start-1" style={{ visibility: outsideGamut ? "visible" : "hidden" }} aria-hidden={!outsideGamut}>Outside sRGB: chroma is reduced in the saved color. This is a file-gamut limit, not a measurement of your screen.</p>
-      <p className="col-start-1 row-start-1" style={{ visibility: outsideGamut ? "hidden" : "visible" }} aria-hidden={outsideGamut}>Within sRGB. The swatch previews the saved color; screen accuracy varies.</p>
-    </div>
-    <div>
-      <label className="mt-2 grid gap-1 text-sm">Hex color
-        <Input aria-label="Selected color hex" className={fieldClass} value={color} aria-invalid={!isHexColor(color)} spellCheck={false} onChange={(event) => onChange(event.target.value)}
-          onFocus={() => { if (isHexColor(color)) originalHex.current = color }}
-          onKeyDown={(event) => { if (event.key === "Escape" && !event.nativeEvent.isComposing) { event.preventDefault(); event.stopPropagation(); onChange(originalHex.current) } }} />
-      </label>
-    </div>
-  </div>
-}
 
 export function GradientPicker({ colors, positions, blend, huePath, displayColors, exposureScale, exposureUnit = "stops", onChange }: {
   colors: string[]
@@ -67,6 +18,7 @@ export function GradientPicker({ colors, positions, blend, huePath, displayColor
   onChange: (colors: string[], positions: number[]) => void
 }) {
   const [selection, setSelection] = useState(0)
+  const [colorModel, setColorModel] = useState<ColorModel>("oklch")
   const selected = Math.min(selection, colors.length - 1)
   const exposureAnchored = exposureScale !== undefined
   function positionLabel(position: number) {
@@ -99,14 +51,13 @@ export function GradientPicker({ colors, positions, blend, huePath, displayColor
   }
 
   function move(index: number, position: number) {
-    if (index === referenceIndex) return
     const minimum = index === 0 ? 0 : positions[index - 1] + 0.01
     const maximum = index === colors.length - 1 ? 1 : positions[index + 1] - 0.01
     onChange(colors, positions.map((value, i) => i === index ? Math.max(minimum, Math.min(maximum, position)) : value))
   }
 
   function remove() {
-    if (colors.length <= 2 || selected === referenceIndex) return
+    if (colors.length <= 2) return
     onChange(colors.filter((_, index) => index !== selected), positions.filter((_, index) => index !== selected))
     setSelection(Math.max(0, selected - 1))
   }
@@ -119,7 +70,7 @@ export function GradientPicker({ colors, positions, blend, huePath, displayColor
           const bounds = event.currentTarget.getBoundingClientRect()
           add(event.detail === 0 || bounds.width === 0 ? undefined : Math.max(0, Math.min(1, (event.clientX - bounds.left) / bounds.width)))
         }} />
-      {colors.map((color, index) => <button key={index} type="button" role="slider" aria-label={`Color stop ${index + 1}`} title={index === referenceIndex ? `Reference color: fixed at ${positionLabel(0.5)}. You can edit its color.` : undefined} aria-valuemin={index === referenceIndex ? 50 : Math.round((index === 0 ? 0 : positions[index - 1] + 0.01) * 100)} aria-valuemax={index === referenceIndex ? 50 : Math.round((index === colors.length - 1 ? 1 : positions[index + 1] - 0.01) * 100)} aria-valuenow={Math.round(positions[index] * 100)} aria-valuetext={`${positionLabel(positions[index])}, ${color}${selected === index ? ", selected" : ""}`} aria-orientation="horizontal"
+      {colors.map((color, index) => <button key={index} type="button" role="slider" aria-label={`Color stop ${index + 1}`} aria-valuemin={Math.round((index === 0 ? 0 : positions[index - 1] + 0.01) * 100)} aria-valuemax={Math.round((index === colors.length - 1 ? 1 : positions[index + 1] - 0.01) * 100)} aria-valuenow={Math.round(positions[index] * 100)} aria-valuetext={`${positionLabel(positions[index])}, ${color}${selected === index ? ", selected" : ""}`} aria-orientation="horizontal"
         className="absolute top-1 flex size-12 -translate-x-1/2 touch-pan-y items-center justify-center rounded-md"
         style={{ left: `${positions[index] * 100}%` }}
         onFocus={() => setSelection(index)}
@@ -149,15 +100,15 @@ export function GradientPicker({ colors, positions, blend, huePath, displayColor
       </button>)}
     </div>
     <div className="flex flex-wrap items-center justify-between gap-2">
-      <p className="pointer-adjustment text-xs text-muted-foreground">Click the bar to add a color. Drag a dot to move it.{exposureAnchored && ` The reference dot stays at ${positionLabel(0.5)}.`}</p>
+      <p className="pointer-adjustment text-xs text-muted-foreground">Click the bar to add a color. Drag a dot to move it. Keep at least two colors.</p>
       <Button type="button" variant="outline" size="sm" disabled={colors.length >= 32} onClick={() => add()}><Plus data-icon="inline-start" aria-hidden="true" />Add color</Button>
     </div>
     <div className="grid gap-4 border-t pt-4">
       <div className="touch-adjustment grid gap-3">
         <label className="grid gap-1 text-sm">Selected color<NativeSelect aria-label="Selected color" className={fieldClass} value={selected} onChange={(event) => setSelection(Number(event.target.value))}>{colors.map((_, index) => <option key={index} value={index}>Color {index + 1} · {positionLabel(positions[index])}</option>)}</NativeSelect></label>
         <div className="flex flex-wrap items-center gap-2">
-          <Button type="button" variant="outline" disabled={selected === referenceIndex || positions[selected] <= (selected === 0 ? 0 : positions[selected - 1] + 0.01)} onClick={() => move(selected, positions[selected] - 0.01)}><ChevronLeft data-icon="inline-start" aria-hidden="true" />Move left</Button>
-          <Button type="button" variant="outline" disabled={selected === referenceIndex || positions[selected] >= (selected === colors.length - 1 ? 1 : positions[selected + 1] - 0.01)} onClick={() => move(selected, positions[selected] + 0.01)}><ChevronRight data-icon="inline-start" aria-hidden="true" />Move right</Button>
+          <Button type="button" variant="outline" disabled={positions[selected] <= (selected === 0 ? 0 : positions[selected - 1] + 0.01)} onClick={() => move(selected, positions[selected] - 0.01)}><ChevronLeft data-icon="inline-start" aria-hidden="true" />Move left</Button>
+          <Button type="button" variant="outline" disabled={positions[selected] >= (selected === colors.length - 1 ? 1 : positions[selected + 1] - 0.01)} onClick={() => move(selected, positions[selected] + 0.01)}><ChevronRight data-icon="inline-start" aria-hidden="true" />Move right</Button>
         </div>
         <p className="text-xs text-muted-foreground">Tap to select. Use buttons to adjust; swipe vertically to scroll.</p>
       </div>
@@ -167,9 +118,9 @@ export function GradientPicker({ colors, positions, blend, huePath, displayColor
           <div><h4 className="text-sm font-medium">Color {selected + 1} <span className="font-normal text-muted-foreground">· {positionLabel(positions[selected])}{selected === referenceIndex ? " · reference" : exposureAnchored ? "" : " of ramp"}</span></h4>
           <p className="font-mono text-xs text-muted-foreground">{isHexColor(colors[selected]) ? colors[selected].toUpperCase() : "Enter a valid hex color"}</p></div>
         </div>
-        <Button type="button" variant="ghost" size="sm" aria-label="Remove selected color" disabled={colors.length <= 2 || selected === referenceIndex} onClick={remove}><Trash2 data-icon="inline-start" aria-hidden="true" />Remove selected color</Button>
+        <Button type="button" variant="ghost" size="sm" aria-label="Remove selected color" disabled={colors.length <= 2} onClick={remove}><Trash2 data-icon="inline-start" aria-hidden="true" />Remove selected color</Button>
       </div>
-      <OklchPicker key={selected} color={colors[selected]} onChange={(color) => onChange(colors.map((item, index) => index === selected ? color : item), positions)} />
+      <ColorEditor color={colors[selected]} model={colorModel} onModelChange={setColorModel} onChange={(color) => onChange(colors.map((item, index) => index === selected ? color : item), positions)} />
     </div>
     <p className="sr-only">Select a dot to edit its color. Use arrow keys to move it, Shift for larger steps, or Home and End. Keep 2 to 32 colors.</p>
   </div>

@@ -15,6 +15,78 @@ test.beforeEach(async ({ page }) => {
   await expect(page.getByRole('button', { name: 'Add band', exact: true })).toBeEnabled()
 })
 
+test('desktop navigation stays visible while scrolling @checks', async ({ page }) => {
+  test.skip(page.viewportSize()!.width < 960, 'Desktop rail')
+  const tabs = page.getByRole('tablist', { name: 'Editing sections' })
+  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight))
+  expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(100)
+  for (const name of ['Presets', 'Edit', 'Preview', 'Settings']) {
+    await expect(tabs.getByRole('tab', { name, exact: true })).toBeInViewport({ ratio: 1 })
+  }
+  expect((await tabs.boundingBox())!.y).toBeGreaterThanOrEqual((await page.locator('.workspace-header').boundingBox())!.height)
+  await page.screenshot({ path: `test-results/navigation-scrolled-${test.info().project.name}.png` })
+})
+
+test('settings choices retain their dimensions and text weight when selected @checks', async ({ page }) => {
+  await navigate(page, 'Settings')
+  for (const name of ['Target display', 'Cube size']) {
+    const buttons = page.getByRole('group', { name, exact: true }).getByRole('button')
+    await expect(buttons.first()).toBeVisible()
+    const measure = () => buttons.evaluateAll(elements => elements.map(element => {
+      const { width, height } = element.getBoundingClientRect()
+      return { width, height, weight: getComputedStyle(element).fontWeight }
+    }))
+    const initial = await measure()
+    for (const button of await buttons.all()) {
+      await button.click()
+      expect(await measure()).toEqual(initial)
+    }
+  }
+})
+
+test('settings sections expose controls without nested disclosures @checks', async ({ page }) => {
+  await navigate(page, 'Settings')
+  const settings = page.getByRole('tabpanel', { name: 'Settings', exact: true })
+  await expect(settings.locator('details')).toHaveCount(0)
+  for (const name of ['Camera and display', 'LUT output', 'Imported creative LUT', 'Recorded-signal limit warnings', 'Saved setups']) {
+    await expect(settings.getByRole('heading', { name, exact: true })).toBeVisible()
+  }
+  await expect(settings.getByRole('textbox', { name: 'Output filename template', exact: true })).toBeVisible()
+  const importing = settings.getByRole('button', { name: 'Import .cube LUT', exact: true })
+  expect((await importing.boundingBox())!.height).toBeGreaterThanOrEqual(44)
+  await expect(settings.getByLabel('Import .cube LUT', { exact: true })).toHaveAttribute('tabindex', '-1')
+  expect((await new AxeBuilder({ page }).include('[role="tabpanel"]:not([hidden])').withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa']).analyze()).violations).toEqual([])
+  await settings.getByRole('heading', { name: 'Camera and display', exact: true }).scrollIntoViewIfNeeded()
+  await settings.screenshot({ path: test.info().outputPath('settings-sections.png') })
+  await settings.getByRole('region', { name: 'Imported creative LUT settings', exact: true }).screenshot({ path: test.info().outputPath('creative-lut-import.png') })
+  await page.addStyleTag({ content: 'html { font-size: 125% !important; }' })
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+  await expect(settings.getByRole('textbox', { name: 'Output filename template', exact: true })).toBeVisible()
+})
+
+test('export choices keep the sheet geometry stable @checks', async ({ page }) => {
+  await navigate(page, 'Presets')
+  await page.getByRole('button', { name: 'Use Three-band Exposure', exact: true }).click()
+  await page.getByRole('button', { name: 'Export LUT', exact: true }).click()
+  const sheet = page.getByRole('dialog', { name: 'Export LUT', exact: true })
+  const initial = (await sheet.boundingBox())!
+  const choices = sheet.locator('.workspace-radio-choice')
+  const measureChoices = () => choices.evaluateAll(elements => elements.map(element => {
+    const { width, height } = element.getBoundingClientRect()
+    return { width, height }
+  }))
+  const initialChoices = await measureChoices()
+  for (const name of [/Lumix S5IIX/, /General .cube/]) {
+    await sheet.getByRole('radio', { name }).check()
+    const current = (await sheet.boundingBox())!
+    expect(await measureChoices()).toEqual(initialChoices)
+    for (const dimension of ['x', 'y', 'width', 'height'] as const) {
+      expect(current[dimension], dimension).toBeCloseTo(initial[dimension], 0)
+    }
+  }
+  await page.screenshot({ path: `test-results/export-stable-${test.info().project.name}.png` })
+})
+
 test('four destinations and inline settings preserve context @checks', async ({ page }) => {
   const mobile = page.viewportSize()!.width < 960
   const navigation = mobile ? page.getByRole('navigation', { name: 'Mobile navigation' }) : page.getByRole('tablist', { name: 'Editing sections' })
@@ -22,10 +94,10 @@ test('four destinations and inline settings preserve context @checks', async ({ 
   await navigate(page, 'Settings')
   await expect(page.getByRole('heading', { name: 'Settings', exact: true })).toBeVisible()
   await expect(page.getByRole('button', { name: /^Back/ })).toHaveCount(0)
-  await expect(page.getByLabel('Import .cube LUT', { exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Import .cube LUT', exact: true })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Imported creative LUT', exact: true })).toBeVisible()
-  await page.locator('details[data-task-id="signal-warnings"] > summary').click()
-  await expect(page.getByLabel('Import .cube LUT', { exact: true })).toBeVisible()
+  await expect(page.getByRole('checkbox', { name: 'Low recorded-signal warning', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Import .cube LUT', exact: true })).toBeVisible()
   await expect(page.getByLabel('Camera recording', { exact: true })).toBeVisible()
   await page.evaluate(() => window.scrollTo(0, 0))
   await page.screenshot({ path: `test-results/settings-${test.info().project.name}.png`, fullPage: true })
@@ -39,7 +111,7 @@ test('four destinations and inline settings preserve context @checks', async ({ 
   await expect(page.locator('.workspace')).toHaveAttribute('data-section', 'palette')
   expect((await tools.boundingBox())!.y).toBeCloseTo(toolsTop, 0)
   await navigate(page, 'Settings')
-  await expect(page.getByLabel('Import .cube LUT', { exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Import .cube LUT', exact: true })).toBeVisible()
   await page.goBack()
   await expect(page.locator('.workspace')).toHaveAttribute('data-section', 'palette')
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
@@ -120,7 +192,7 @@ test('OKLCH color controls fit and remain operable @checks', async ({ page }) =>
   expect(bounds.x + bounds.width).toBeLessThanOrEqual(page.viewportSize()!.width + 1)
   await page.screenshot({ path: `test-results/oklch-${test.info().project.name}.png` })
   const hex = await page.locator('input[aria-label="Band 1 color hex value"]').inputValue()
-  await picker.getByRole('group', { name: 'Color model', exact: true }).getByRole('button', { name: 'HSV', exact: true }).click()
+  await picker.getByRole('group', { name: 'Color model', exact: true }).getByRole('button', { name: 'HSV triangle', exact: true }).click()
   await expect(picker.getByRole('textbox', { name: 'Band 1 color hex color', exact: true })).toHaveValue(hex)
   await picker.getByRole('button', { name: 'Done', exact: true }).click()
   await expect(picker).not.toBeVisible()
@@ -143,8 +215,10 @@ test('export and import sheets dismiss with browser Back and restore focus @chec
   await navigate(page, 'Settings')
 
   const input = page.getByLabel('Import .cube LUT', { exact: true })
-  await input.focus()
-  await input.setInputFiles({ name: 'test.cube', mimeType: 'text/plain', buffer: Buffer.from(cube) })
+  const importButton = page.getByRole('button', { name: 'Import .cube LUT', exact: true })
+  const choosing = page.waitForEvent('filechooser')
+  await importButton.click()
+  await (await choosing).setFiles({ name: 'test.cube', mimeType: 'text/plain', buffer: Buffer.from(cube) })
   const confirmation = page.getByRole('dialog', { name: 'Confirm imported LUT', exact: true })
   await expect(confirmation).toBeVisible()
   await page.getByRole('combobox', { name: /^LUT camera input/ }).selectOption('Panasonic V-Log')
@@ -152,7 +226,7 @@ test('export and import sheets dismiss with browser Back and restore focus @chec
   expect((await new AxeBuilder({ page }).withTags(['wcag2a','wcag2aa','wcag21aa','wcag22aa']).analyze()).violations).toEqual([])
   await page.goBack()
   await expect(confirmation).not.toBeVisible()
-  await expect(input).toBeFocused()
+  await expect(importButton).toBeFocused()
   await expect(page.locator('.workspace')).toHaveAttribute('data-section', 'configuration')
   await input.setInputFiles({ name: 'test.cube', mimeType: 'text/plain', buffer: Buffer.from(cube) })
   await expect(confirmation).toBeVisible()

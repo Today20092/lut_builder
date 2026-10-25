@@ -11,11 +11,16 @@ const groups: { mode: string; icon: LucideIcon; presets: { id: ExposurePreset; a
   ] },
   { mode: "Fill", icon: PaintBucket, presets: [
     { id: "contrast-checker", name: "Contrast Checker", detail: "5 continuous zones for comparing face and scene contrast." },
+    { id: "portrait-contrast", name: "Portrait contrast", detail: "Half-stop zones from −2 to +2 for comparing key and fill across a face." },
+    { id: "wide-contrast", name: "Wide contrast", detail: "One-stop zones from −4 to +4 for interiors, windows and strong lighting differences." },
+    { id: "reference-emphasis", name: "Reference emphasis", detail: "7 continuous zones with a bright green reference and quieter surrounding colors." },
     { id: "contrast-checker", arrangement: "standard", name: "Standard Fill", detail: "5 false-color zones across the exposure range." },
     { id: "contrast-checker", arrangement: "detailed", name: "Detailed Fill", detail: "9 false-color zones for a more detailed exposure map." },
   ] },
   { mode: "Stops", icon: Sun, presets: [
     { id: "three-band", name: "Three-band Exposure", detail: "Blue at −2, green at 0, orange at +2 stops." },
+    { id: "highlight-placement", name: "Highlight placement", detail: "One-stop markers at +2, +3, +4 and +5 over a monochrome base; keeps imported looks." },
+    { id: "shadow-placement", name: "Shadow placement", detail: "One-stop markers at −2, −3, −4 and −5 over a monochrome base; keeps imported looks." },
     { id: "three-band", arrangement: "standard", name: "Standard Stops", detail: "7 bands from −3 to +3 stops." },
     { id: "three-band", arrangement: "detailed", name: "Detailed Stops", detail: "10 bands from −4 to +5 stops." },
   ] },

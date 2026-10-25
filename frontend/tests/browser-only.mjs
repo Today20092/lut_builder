@@ -41,7 +41,6 @@ try {
     const startupMs = performance.now() - started
     await panel("Configure")
     await page.getByRole("combobox", { name: /^Camera/ }).selectOption("Panasonic V-Log")
-    await page.locator("summary").filter({ hasText: "Customize output filename" }).click()
     await page.getByLabel("Output filename template", { exact: true }).fill("Browser acceptance.cube")
     await panel("Bands")
     await page.getByLabel("Band 1 stops", { exact: true }).fill("1.25")
