@@ -29,6 +29,10 @@ Use Tab and Shift+Tab to move through controls. Buttons activate with Enter or S
 
 Text fields keep text editing shortcuts. Editor shortcuts do not run underneath an open dialog or color picker. Frame shortcuts pause during decoding and ignore repeat. Wheel gestures scroll or zoom the browser rather than changing bands.
 
+In **HSV triangle**, Tab reaches the hue ring. Arrow keys change hue by one degree;
+Shift changes it by ten, and Home/End reach the red endpoint. Saturation and
+brightness also have numeric fields, so choosing a color never requires dragging.
+
 On touch screens, tap the numeric fields and swatches when a small drag handle is difficult to use. Scroll the table horizontally within its panel to reach the remaining columns. Export JSON before leaving the page if you need to keep the current setup.
 
 ## Navigate this manual

@@ -35,11 +35,12 @@ async function panel(page: Page, name: string) {
   }
   if (['Bands', 'Palette'].includes(name)) await page.getByRole('group', { name: 'Edit tools' }).getByRole('button', { name, exact: true }).click()
   if (name === 'Setups') await expect(page.getByRole('region', { name: 'Saved setups', exact: true })).toBeVisible()
-  if (name === 'Configure') await expect(page.getByLabel('Import .cube LUT', { exact: true })).toBeVisible()
+  if (name === 'Configure') await expect(page.getByRole('button', { name: /^(Import|Replace) \.cube LUT$/ })).toBeVisible()
 }
 
 async function disclosure(page: Page, title: string) {
   if (title === 'Output settings') { await expect(page.getByRole('group', { name: 'Cube size', exact: true })).toBeVisible(); return }
+  if (title === 'Recorded-signal limit warnings') { await expect(page.getByRole('checkbox', { name: 'Low recorded-signal warning', exact: true })).toBeVisible(); return }
   const summary = page.locator('summary').filter({ hasText: title })
   await expect(summary).toBeVisible()
   if (await summary.locator('..').getAttribute('open') === null) await summary.click()
@@ -148,8 +149,8 @@ test('frequent choices stay visible and numeric graph preferences preserve valid
   await expect(page.getByRole('region', { name: 'Saved setups', exact: true })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Import setup file', exact: true })).toBeVisible()
   await panel(page, 'Export')
-  await page.getByRole('radio', { name: /^External monitor/ }).check()
-  await expect(page.getByRole('radio', { name: /^External monitor/ })).toBeChecked()
+  await page.getByRole('radio', { name: /^General .cube/ }).check()
+  await expect(page.getByRole('radio', { name: /^General .cube/ })).toBeChecked()
   await accessible(page)
 })
 
@@ -410,6 +411,7 @@ test('complete presets lead into editable bands and undo without changing config
   await page.getByRole('button', { name: 'Customize gradient', exact: true }).click()
   await page.getByLabel('Color hue value', { exact: true }).fill('240')
   await panel(page, 'Presets')
+  await page.getByRole('img', { name: 'Contrast Checker preview', exact: true }).screenshot({ path: test.info().outputPath('contrast-checker.png') })
   await applyPreset(page, 'contrast-checker')
   await expect(page.getByRole('combobox', { name: /^Start with a preset/ })).toHaveCount(0)
   for (const mode of ['IRE', 'Fill', 'Stops']) {
@@ -539,7 +541,7 @@ test('phone destinations keep inline controls and direct access @checks', async 
   await disclosure(page, 'Recorded-signal limit warnings')
   await expect(page.getByRole('combobox', { name: /^Camera recording/ })).toBeVisible()
 
-  await expect(page.locator('details[data-task-id="signal-warnings"] > summary')).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Recorded-signal limit warnings', exact: true })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Back', exact: true })).toHaveCount(0)
   await panel(page, 'Media')
   await expect(page.getByRole('button', { name: /Choose camera still/ })).toBeVisible()

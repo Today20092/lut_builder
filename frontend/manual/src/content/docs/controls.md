@@ -30,13 +30,26 @@ other tasks use the full screen without the exposure stage above their controls.
 | --- | --- |
 | Camera recording | The input log decoder and camera gamut. Match both to the recording/export path. See [profiles](../profiles/). |
 | Target display | Rec.709 or SDR Rec.2020 diagnostic output. This is not the source gamut. |
-| Output settings | Contains cube size, base-image, range, and filename settings. These fields are already visible in Configure on a phone. |
+| LUT output | Groups cube size, base-image, range, and filename settings. All fields stay visible in Settings at every width. |
 | Cube size | 17³, 33³, or 65³ samples. Larger cubes better resolve narrow bands; host interpolation still softens boundaries. |
 | Monochrome base | Makes uncovered portions of the base image gray. Disabled in Fill because zones cover the image. |
 | Output range: Full / Data or Video / Legal | Full uses 0–1 (10-bit-equivalent codes 0–1023); Legal packs output into 64–940. Does not change input range or warning thresholds. Avoid a second legal-range conversion in the host. |
-| Which should I use? | Explains how to match the device applying the LUT, distinguish input conversion from LUT output packing, and test a grayscale ramp. |
-| Customize output filename | Contains the filename template. `%inputgamma%`, `%targetgamma%`, and `%id%` expand to profile, target, and a settings-derived ID. A fixed name also works. |
+| Output range help | Opens the guidance below for matching the device applying the LUT. |
+| Output filename template | `%inputgamma%`, `%targetgamma%`, and `%id%` expand to profile, target, and a settings-derived ID. A fixed name also works. |
 | Use automatic filename | Restores the built-in template. The ID is stable for the same settings; it is not a unique camera or media identifier. |
+
+### Choosing output range
+
+Match the monitor or device applying the LUT. Your camera model alone cannot
+determine this setting. Camera HDMI range and monitor input range must also agree;
+those settings are separate from LUT output range. Avoid a second level conversion
+if your device already converts levels.
+
+Check the device's LUT instructions. For example,
+[SmallHD has LUT data-range settings](https://guide.smallhd.com/a/1753041-look-3d-lut),
+while [Atomos Legalize is an input conversion](https://support.atomos.com/hc/en-us/articles/10342509794959-Input-Menu).
+Validate a known grayscale ramp and gray patch through your actual camera and
+monitor setup. LUT output packing does not correct a mismatched incoming signal.
 
 ## Exposure bands
 
@@ -82,7 +95,15 @@ The neutral 18% reference depends on the camera: approximately 41.1 for Sony, 42
 
 ## Color picker
 
-Click a band or warning swatch. Use the saturation/value area and hue control, numeric color controls where shown, or enter a six-digit `#RRGGBB` value. The bundled named swatches provide another starting point. Invalid colors must be corrected before they can be applied. Escape closes the picker and returns focus. See [keyboard controls](../keyboard/) for alternatives to pointing.
+Band swatches, warning colors and gradient points share two color models:
+**OKLCH · perceptual** uses lightness, chroma and hue sliders; **HSV triangle**
+uses a hue ring and a rotating saturation/brightness triangle. Drag the ring to
+choose a hue, then move within the triangle to mix that hue with white and black.
+Numeric fields and six-digit `#RRGGBB` entry remain available in both modes.
+Switching models keeps the current color. The bundled named swatches remain
+available as starting colors. Invalid colors must be corrected before applying.
+Escape closes the picker and returns focus. See [keyboard controls](../keyboard/)
+for alternatives to pointing.
 
 ## Palettes and gradients
 
@@ -92,11 +113,11 @@ Click a band or warning swatch. Use the saturation/value area and hue control, n
 
 | Control | Meaning |
 | --- | --- |
-| Start with a preset | Sets band mode, positions, widths, and colors together. Three-band Exposure marks −2, 0, and +2 stops with 0.6-stop bands; Contrast Checker fills five zones split at −1.5, −0.5, +0.5, and +1.5 stops; Camera-log IRE creates seven profile-matched bands. Camera, output, and warning settings are preserved. Undo restores the previous bands and mode. |
-| Choose a starting palette | Recolors the current arrangement. Standard false color applies fixed exposure thresholds immediately and supports undo. Exposure zones and Reference emphasis create blended gradient drafts. |
+| Start with a preset | Sets band mode, positions, widths, and colors together. Three-band Exposure marks −2, 0, and +2 stops with 0.6-stop bands; Contrast Checker fills five zones split at −1.5, −0.5, +0.5, and +1.5 stops; Reference emphasis fills seven zones with bright green centered on zero stops; Camera-log IRE creates seven profile-matched bands. Camera, output, and warning settings are preserved. Undo restores the previous bands and mode. |
+| Choose a starting palette | Recolors the current arrangement. Standard false color applies fixed exposure thresholds immediately and supports undo. Exposure zones, Reference emphasis and Dark → Bright create blended gradient drafts. Dark → Bright reuses Contrast Checker's colors with increasing OKLCH lightness and a direct blend. |
 | Shape your gradient | Edit the gradient dots and blend controls. |
 | What does the reference mean? / legend | Explains the reference and the low-to-high exposure colors. Green is a chosen reference, not universally correct exposure. |
-| Gradient dots | Change the anchor colors and their positions. Add, select, move, or remove editable dots using the shown controls. The exposure reference remains fixed in position. |
+| Gradient dots | New custom gradients start with two endpoint colors. Add, select, move, or remove any dot; keep at least two colors. The exposure reference is a scale guide, not a locked color point. Named palettes retain their predefined colors. |
 | Blend: Colorful · OKLCH | Blends around a hue circle; colors are fitted to sRGB. |
 | Hue path | Shorter or longer route around the hue circle. Only applies to Colorful. |
 | Blend: Direct · OKLab | Blends directly between colors and may pass through gray. |
@@ -111,6 +132,22 @@ Click a band or warning swatch. Use the saturation/value area and hue control, n
 | Save and reuse palettes | Opens the browser-local palette library; see [saving](../save-and-apply/#palettes-and-setups-are-different). |
 
 Starting exposure palettes anchor the reference at zero stops or the selected profile's neutral camera-log IRE value. Legacy target-IRE setups retain the neutral target reference. Their end colors extend beyond the palette scale. Changing cameras updates the reference and palette scale; existing band numbers remain user edits until a preset is applied. Older saved custom gradients can instead span the current band range; their center is not necessarily the exposure reference. In Fill, colors cover whole zones.
+
+### Task presets
+
+Choose these in **Presets** to apply their bands and colors together:
+
+| Preset | Exposure layout |
+| --- | --- |
+| Portrait contrast | Nine half-stop zones centered from −2 to +2 stops, with a neutral-gray zero zone. Outer colors extend beyond the scale. |
+| Wide contrast | Nine one-stop zones centered from −4 to +4 stops, with a neutral-gray zero zone. Outer colors extend beyond the scale. |
+| Highlight placement | One-stop-wide markers centered at +2, +3, +4 and +5 stops. |
+| Shadow placement | One-stop-wide markers centered at −5, −4, −3 and −2 stops. |
+
+Placement presets leave the rest of the image monochrome, or preserve the
+confirmed imported look. These are exposure guides; their colors do not establish
+sensor clipping or a noise floor. Camera, output settings and recorded-signal
+warnings stay unchanged. Band-edit undo restores the previous arrangement.
 
 ## Recorded-signal warnings
 

@@ -15,7 +15,7 @@ globalThis.requestAnimationFrame=callback=>setTimeout(callback,0)
 window.HTMLDialogElement.prototype.showModal=function(){this.open=true}
 window.HTMLDialogElement.prototype.close=function(){this.open=false}
 after(()=>dom.window.close())
-const bundle=await build({bundle:true,external:["@base-ui/react/*","lucide-react","react","react/jsx-runtime","react-dom","react-dom/client"],format:"esm",jsx:"automatic",platform:"node",stdin:{contents:`export {ImportedLookSettings} from "./src/ImportedLookSettings.tsx";export {ImportedLookPreview} from "./src/ImportedLookPreview.tsx";export {CheckedImage,SdrViewDescription} from "./src/CameraVerification.tsx";export {default as React,act} from "react";export {createRoot} from "react-dom/client";`,resolveDir:process.cwd(),sourcefile:"imported-ui.ts"},write:false})
+const bundle=await build({bundle:true,define:{"import.meta.env.BASE_URL":JSON.stringify("/lut_builder/")},external:["@base-ui/react/*","lucide-react","react","react/jsx-runtime","react-dom","react-dom/client"],format:"esm",jsx:"automatic",platform:"node",stdin:{contents:`export {ImportedLookSettings} from "./src/ImportedLookSettings.tsx";export {ImportedLookPreview} from "./src/ImportedLookPreview.tsx";export {CheckedImage,SdrViewDescription} from "./src/CameraVerification.tsx";export {default as React,act} from "react";export {createRoot} from "react-dom/client";`,resolveDir:process.cwd(),sourcefile:"imported-ui.ts"},write:false})
 stop()
 const directory=await mkdtemp(join(process.cwd(),"tests",".look-")),path=join(directory,"test.mjs")
 await writeFile(path,bundle.outputFiles[0].text)

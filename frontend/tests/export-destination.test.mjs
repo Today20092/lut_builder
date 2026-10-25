@@ -6,7 +6,7 @@ test("S5IIX export checks log input, cube limit and range without restricting ot
   const incompatible = { profile: "Sony S-Log3", cube_size: 65, legal_range: true }
   assert.equal(exportCompatibility(incompatible, "s5iix").length, 3)
   for (const cube_size of [17, 33]) assert.deepEqual(exportCompatibility({ profile: "Panasonic V-Log", cube_size, legal_range: false }, "s5iix"), [])
-  for (const destination of ["general", "monitor", "editor"]) assert.deepEqual(exportCompatibility(incompatible, destination), [])
+  assert.deepEqual(exportCompatibility(incompatible, "general"), [])
 })
 
 test("camera filenames meet SDHC limits without changing general export naming", () => {

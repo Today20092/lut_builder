@@ -91,6 +91,15 @@ export function reduceEditor(state: EditorState, action: EditorAction): EditorSt
 }
 
 export type PaletteColor = { name: string; hex: string }
+export const referenceEmphasisColors = ["#334e68", "#3b6c8e", "#4c8b93", "#22c55e", "#a3a044", "#a66b35", "#a33a3a"] as const
+export const darkToBrightColors: readonly string[] = [
+  { l: 0.3, c: 0.06, h: 250 },
+  { l: 0.46, c: 0.07, h: 230 },
+  { l: 0.62, c: 0, h: 0 },
+  { l: 0.78, c: 0.07, h: 80 },
+  { l: 0.94, c: 0.035, h: 95 },
+].map(oklchToHex)
+const contrastZoneColors = ["#5b21b6", "#2563eb", "#38bdf8", "#2dd4bf", "#a6a6a6", "#facc15", "#f59e0b", "#f97316", "#dc2626"]
 export type OklchAnchor = { l: number; c: number; h: number; position?: number }
 export type LightnessProfile = "ascending" | "even" | "custom"
 export type GradientBlend = "colorful" | "direct"
@@ -437,18 +446,38 @@ export function applyBandPreset(setup: Setup, palette: PaletteColor[], preset: B
   }, palette, "false-color")
 }
 
-export type ExposurePreset = "three-band" | "contrast-checker" | "camera-ire"
+export type ExposurePreset = "three-band" | "contrast-checker" | "camera-ire" | "reference-emphasis" | "portrait-contrast" | "wide-contrast" | "highlight-placement" | "shadow-placement"
 
 export function applyExposurePreset(setup: Setup, palette: PaletteColor[], preset: ExposurePreset, arrangement?: BandPreset): Setup {
-  const contrast = preset === "contrast-checker"
-  const next: Setup = preset === "camera-ire" ? applyBandPreset({ ...setup, band_mode: "ire", ire_basis: "camera", monochrome: !setup.imported_lut }, palette, "standard") : {
-    ...setup,
-    band_mode: "stops",
-    fill_mode: contrast,
-    monochrome: !contrast && !setup.imported_lut,
-    bands: contrast
-      ? ["#216638", "#78ff64", "#a6a6a6", "#f2d5e5", "#ff00b7"].map((color, index) => ({ stop: index - 1.5, width: 0, color }))
-      : [-2, 0, 2].map((stop, index) => ({ stop, width: 0.3, color: ["#2563eb", "#22c55e", "#f97316"][index] })),
+  let next: Setup = { ...setup, band_mode: "stops", fill_mode: false, monochrome: !setup.imported_lut, bands: [] }
+  switch (preset) {
+    case "camera-ire":
+      next = applyBandPreset({ ...setup, band_mode: "ire", ire_basis: "camera", monochrome: !setup.imported_lut }, palette, "standard")
+      break
+    case "three-band":
+      next.bands = [-2, 0, 2].map((stop, index) => ({ stop, width: 0.3, color: ["#2563eb", "#22c55e", "#f97316"][index] }))
+      break
+    case "contrast-checker":
+    case "reference-emphasis":
+      next.fill_mode = true
+      next.monochrome = false
+      // Fill stores upper zone boundaries; the final zone extends beyond its stored boundary.
+      next.bands = (preset === "contrast-checker" ? darkToBrightColors : referenceEmphasisColors).map((color, index, colors) => ({ stop: index - (colors.length - 2) / 2, width: 0, color }))
+      break
+    case "portrait-contrast":
+    case "wide-contrast": {
+      const step = preset === "portrait-contrast" ? 0.5 : 1
+      next.fill_mode = true
+      next.monochrome = false
+      next.bands = contrastZoneColors.map((color, index) => ({ stop: (index - 3.5) * step, width: 0, color }))
+      break
+    }
+    case "highlight-placement":
+      next.bands = [2, 3, 4, 5].map((stop, index) => ({ stop, width: 0.5, color: ["#facc15", "#f59e0b", "#f97316", "#dc2626"][index] }))
+      break
+    case "shadow-placement":
+      next.bands = [-5, -4, -3, -2].map((stop, index) => ({ stop, width: 0.5, color: ["#5b21b6", "#2563eb", "#38bdf8", "#2dd4bf"][index] }))
+      break
   }
   return arrangement ? next.fill_mode ? applyFillPreset(next, palette, arrangement) : applyBandPreset(next, palette, arrangement) : next
 }

@@ -6,6 +6,8 @@ import { pathToFileURL } from "node:url"
 
 import { build, stop } from "esbuild"
 import { JSDOM } from "jsdom"
+import { hsvTrianglePoint } from "../src/hsvTriangle.ts"
+import { applyExposurePreset } from "../src/editor.ts"
 
 const dom = new JSDOM("<!doctype html><html><body></body></html>", {
   url: "http://localhost/",
@@ -342,6 +344,26 @@ test("image preview samples and clamps the current LUT colors", () => {
   assert.equal(previewOverlayAt([null, "#ff0000", null], 0.5), "#ff0000")
 })
 
+test("monitoring presets render their intended stop regions and keep placement backgrounds uncovered", () => {
+  const portrait = applyExposurePreset(setup, [], "portrait-contrast")
+  const wide = applyExposurePreset(setup, [], "wide-contrast")
+  assert.equal(overlayForExposure(portrait, -10), "#5b21b6")
+  assert.equal(overlayForExposure(portrait, 0), "#a6a6a6")
+  assert.equal(overlayForExposure(portrait, 0.3), "#facc15")
+  assert.equal(overlayForExposure(wide, 0.3), "#a6a6a6")
+  assert.equal(overlayForExposure(wide, 0.6), "#facc15")
+  assert.equal(overlayForExposure(wide, 10), "#dc2626")
+  const highlights = applyExposurePreset(setup, [], "highlight-placement")
+  assert.equal(overlayForExposure(highlights, 2), "#facc15")
+  assert.equal(overlayForExposure(highlights, 5), "#dc2626")
+  assert.equal(overlayForExposure(highlights, 0), null)
+  assert.equal(overlayForExposure(highlights, 5.6), null)
+  const shadows = applyExposurePreset(setup, [], "shadow-placement")
+  assert.equal(overlayForExposure(shadows, -5), "#5b21b6")
+  assert.equal(overlayForExposure(shadows, -2), "#2dd4bf")
+  assert.equal(overlayForExposure(shadows, 0), null)
+})
+
 test("display-image middle gray samples the zero-stop overlay", () => {
   assert.equal(displayPreviewOverlayAt([null, "#ff0000", null], 0.18, -1, 1, "stops"), "#ff0000")
   assert.equal(displayPreviewOverlayAt([null, "#ff0000", null], 0.5, 0, 100, "IRE"), "#ff0000")
@@ -374,8 +396,8 @@ async function mountGraph(overrides = {}) {
   return { container, root }
 }
 
-function pointerEvent(type, { clientX, pointerId }) {
-  const event = new window.MouseEvent(type, { bubbles: true, clientX })
+function pointerEvent(type, { clientX, clientY = 0, pointerId }) {
+  const event = new window.MouseEvent(type, { bubbles: true, clientX, clientY })
   Object.defineProperty(event, "pointerId", { value: pointerId })
   return event
 }
@@ -502,6 +524,50 @@ test("exposure graph summarizes crowded edge values and exposes the selected one
   container.remove()
 })
 
+test("HSV triangle supports hue rotation, triangle dragging and neutral-color hue memory", async () => {
+  const container = document.createElement("div")
+  document.body.append(container)
+  const root = createRoot(container)
+  const props = { label: "Triangle test", value: "#ff0000", onChange(value) { props.value = value; root.render(React.createElement(ColorPicker, props)) } }
+  try {
+    await act(() => root.render(React.createElement(ColorPicker, props)))
+    await act(() => container.querySelector("[aria-label='Open Triangle test picker']").click())
+    const triangle = document.querySelector("[aria-label='HSV triangle color picker']")
+    triangle.getBoundingClientRect = () => ({ left: 0, top: 0, width: 220, height: 220 })
+    for (const method of ["setPointerCapture", "hasPointerCapture", "releasePointerCapture"]) triangle[method] = window.HTMLElement.prototype[method]
+    const pointer = async (type, point) => act(() => triangle.dispatchEvent(pointerEvent(type, { clientX: point.x, clientY: point.y, pointerId: 55 })))
+    await pointer("pointerdown", { x: 110, y: 201 })
+    assert.equal(props.value, "#80ff00")
+    await pointer("pointerup", { x: 110, y: 201 })
+    await pointer("pointerdown", hsvTrianglePoint(0.5, 0.8, 90))
+    assert.equal(props.value, "#99cc66")
+    await pointer("pointercancel", hsvTrianglePoint(0.5, 0.8, 90))
+    await pointer("pointermove", hsvTrianglePoint(1, 1, 90))
+    assert.equal(props.value, "#99cc66")
+    await pointer("pointerdown", hsvTrianglePoint(0, 1, 90))
+    await pointer("pointerup", hsvTrianglePoint(0, 1, 90))
+    assert.equal(props.value, "#ffffff")
+    await act(() => document.querySelector("[aria-label='Color hue']").dispatchEvent(new window.KeyboardEvent("keydown", { bubbles: true, key: "ArrowRight", shiftKey: true })))
+    assert.equal(document.querySelector("[aria-label='Color hue value']").value, "100")
+    const setChannel = async (name, value) => {
+      const input = document.querySelector(`[aria-label='Color ${name} value']`)
+      await act(() => {
+        Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set.call(input, String(value))
+        input.dispatchEvent(new window.Event("input", { bubbles: true }))
+      })
+      await act(() => input.dispatchEvent(new window.KeyboardEvent("keydown", { bubbles: true, key: "Enter" })))
+    }
+    await setChannel("saturation", 100)
+    assert.equal(props.value, "#55ff00")
+    await setChannel("brightness", 0)
+    assert.equal(props.value, "#000000")
+    await act(() => document.querySelector("[aria-label='Color hue']").dispatchEvent(new window.KeyboardEvent("keydown", { bubbles: true, key: "ArrowRight", shiftKey: true })))
+    assert.equal(document.querySelector("[aria-label='Color hue value']").value, "110")
+    await setChannel("brightness", 100)
+    assert.equal(props.value, "#2bff00")
+  } finally { await act(() => root.unmount()); container.remove() }
+})
+
 test("color picker hides the complete ordered preset grid until requested", async () => {
   const palette = [
     { name: "red-50", hex: "#fff1f2" },
@@ -516,7 +582,7 @@ test("color picker hides the complete ordered preset grid until requested", asyn
 
   assert.equal(document.querySelector("input[type='color']"), null)
   assert.equal(document.querySelector("[aria-label='red-50']"), null)
-  const pickerPanel = document.querySelector("[aria-label='Test color saturation and brightness']").parentElement
+  const pickerPanel = document.querySelector("[data-color-editor]").parentElement
   await act(() => document.querySelector("button[aria-expanded='false']").click())
   assert.equal(pickerPanel.className, "hidden")
   assert.deepEqual([...document.querySelectorAll("[aria-label='Test color picker'] button[title]")].map((item) => item.title), palette.map((color) => color.name))
@@ -592,6 +658,11 @@ test("custom palettes draft, persist, reload, and reach generation without chang
       await click([...field(label).querySelectorAll("button")].find(button => button.textContent === names[value]))
     }
     assert.equal(field("Gradient blend"), null, "gradient editing is optional")
+    await click(button("Customize gradient"))
+    assert.equal(container.querySelectorAll("[aria-label^='Color stop ']").length, 2)
+    assert.equal(field("Color stop 1").getAttribute("aria-valuenow"), "0")
+    assert.equal(field("Color stop 2").getAttribute("aria-valuenow"), "100")
+    await click(button("Choose a palette"))
     const persistent = field("Persistent exposure preview")
     const previewColors = () => [...persistent.querySelectorAll("svg:first-of-type rect")].slice(0, initial.bands.length).map((rect) => rect.getAttribute("fill"))
     assert.deepEqual(previewColors(), initial.bands.map((band) => band.color))
@@ -609,7 +680,7 @@ test("custom palettes draft, persist, reload, and reach generation without chang
     assert.match(persistent.textContent, /Current exposure bands/)
     await click(button("Undo last band edit"))
     assert.deepEqual((await generate()).bands, initial.bands)
-    for (const [name, count] of [["Exposure zones", 7], ["Reference emphasis", 7]]) {
+    for (const [name, count] of [["Dark → Bright", 5], ["Exposure zones", 7], ["Reference emphasis", 7]]) {
       const preset = container.querySelector(`[data-palette="${name}"]`)
       await click(preset)
       assert.equal(preset.getAttribute("aria-pressed"), "true")
@@ -622,13 +693,25 @@ test("custom palettes draft, persist, reload, and reach generation without chang
     await click(button("Customize gradient"))
     await click(field("Color stop 4"))
     await act(() => field("Color stop 4").dispatchEvent(new window.KeyboardEvent("keydown", { bubbles: true, key: "ArrowRight" })))
+    assert.equal(field("Color stop 4").getAttribute("aria-valuenow"), "51")
+    await act(() => field("Color stop 4").dispatchEvent(new window.KeyboardEvent("keydown", { bubbles: true, key: "ArrowLeft" })))
     assert.equal(field("Color stop 4").getAttribute("aria-valuenow"), "50")
-    assert.equal(field("Remove selected color").disabled, true)
+    assert.equal(field("Remove selected color").disabled, false)
+    await click(field("Remove selected color"))
+    assert.equal(container.querySelectorAll("[aria-label^='Color stop ']").length, 6)
+    assert.equal(button("Use palette").disabled, false)
     await type(field("Palette name"), "Anchored exposure")
     await click(button("Save new palette"))
     assert.equal(JSON.parse(window.localStorage.getItem("lut-builder.palettes.v1"))[0].mapping, "exposure")
     await act(() => root.unmount())
     window.localStorage.removeItem("lut-builder.workspace-session.v1")
+    root = createRoot(container)
+    await mount()
+    assert.doesNotMatch(container.textContent, /Saved palettes could not be read/)
+    await choose("Anchored exposure")
+    await click(button("Customize gradient"))
+    assert.equal(container.querySelectorAll("[aria-label^='Color stop ']").length, 6)
+    await act(() => root.unmount())
     root = createRoot(container)
     window.localStorage.setItem("lut-builder.palettes.v1", JSON.stringify([{ name: "Custom draft", colors: ["#2563eb", "#f59e0b"], brightness: "custom", intensity: 100, blend: "colorful", huePath: "shorter" }]))
     await mount()

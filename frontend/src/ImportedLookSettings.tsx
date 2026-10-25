@@ -1,6 +1,6 @@
 import { NativeSelect } from "@/components/ui/native-select"
 import { ChoiceField } from "./ChoiceField"
-import { Trash2, Check, X } from "lucide-react"
+import { Trash2, Check, Upload, X } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 import { Data, Effect } from "effect"
 import { Button } from "@/components/ui/button"
@@ -9,6 +9,7 @@ import { browserProfiles, browserTargets } from "./lutEngine"
 import { cubeSha256, MAX_CUBE_BYTES, parseImportedCube, type ImportedLut, type OutputTransfer } from "./importedLut"
 import { decodeSetup } from "./setupSchema"
 import { WorkspaceSheet } from "./WorkspaceSheet"
+import { HelpLink } from "./HelpLink"
 
 const field = "w-full min-w-0"
 class LookImportError extends Data.TaggedError("LookImportError")<{message:string;cause?:unknown}> {}
@@ -23,6 +24,7 @@ export function ImportedLookSettings({setup,onChange}:{setup:Setup;onChange:(cha
   const [busy,setBusy] = useState(false)
   const pending = useRef<AbortController|null>(null)
   const input = useRef<HTMLInputElement>(null)
+  const importButton = useRef<HTMLButtonElement>(null)
   useEffect(() => () => {pending.current?.abort()},[setup])
   function cancel() {pending.current?.abort();pending.current=null;setBusy(false);setDraft(null);setStatus("LUT import cancelled. The current look was kept.")}
   async function choose(file:File) {
@@ -60,15 +62,17 @@ export function ImportedLookSettings({setup,onChange}:{setup:Setup;onChange:(cha
     finally {if(pending.current===controller){pending.current=null;setBusy(false)}}
   }
   return <section className="grid min-w-0 gap-3" aria-label="Imported creative LUT">
-    <p className="text-xs text-muted-foreground">Optional. Replace your viewing LUT with the combined export, at the original camera-log input. Never apply it after that look. Exposure is measured before the look.</p>
+    <p className="text-sm text-muted-foreground">Combine a creative look with your exposure colors. Apply the exported LUT directly to the original camera-log footage.</p>
     {setup.imported_lut && <div className="grid gap-2 rounded-md border p-3 text-sm">
       <p className="break-all">{setup.imported_lut.name}</p>
       <p className="text-xs">{setup.imported_lut.source_profile} → {setup.imported_lut.output_gamut} / {setup.imported_lut.output_transfer} / {setup.imported_lut.output_range}</p>
+      <p className="text-xs text-muted-foreground">Camera and output settings follow this look. Replace or remove it to change them.</p>
       <Button variant="outline" onClick={()=>{cancel();onChange({imported_lut:undefined});setStatus("Imported look removed. Standard diagnostic pipeline restored.")}}><Trash2 data-icon="inline-start" aria-hidden="true" />Remove imported look</Button>
     </div>}
-    <label className="grid gap-2 text-sm">Import .cube LUT<input ref={input} className="min-h-11 max-w-full min-w-0 text-sm" type="file" accept=".cube" disabled={busy} onChange={e=>{const file=e.target.files?.[0];e.target.value="";if(file)void choose(file)}} /></label>
-    <p className="text-xs text-muted-foreground">Single 3D Iridas .cube, size 2–65, up to 16 MiB. 1D/shaper LUTs are unsupported; bake them into a 3D cube. Portable setups embed the exact LUT.</p>
-    <WorkspaceSheet open={Boolean(draft)} title="Confirm imported LUT" onClose={cancel} returnFocus={input}>
+    <Button ref={importButton} variant="outline" className="min-h-11 justify-self-start" disabled={busy} onClick={()=>input.current?.click()}><Upload data-icon="inline-start" aria-hidden="true" />{setup.imported_lut ? "Replace .cube LUT" : "Import .cube LUT"}</Button>
+    <input ref={input} hidden tabIndex={-1} aria-label="Import .cube LUT" type="file" accept=".cube" disabled={busy} onChange={e=>{const file=e.target.files?.[0];e.target.value="";if(file)void choose(file)}} />
+    <p className="text-xs text-muted-foreground">3D .cube · 2–65³ · Up to 16 MiB. <HelpLink className="underline" href={`${import.meta.env.BASE_URL}docs/save-and-apply/#compose-an-imported-look`} target="_blank" rel="noreferrer">Import help</HelpLink></p>
+    <WorkspaceSheet open={Boolean(draft)} title="Confirm imported LUT" onClose={cancel} returnFocus={importButton}>
     {draft && <fieldset className="grid gap-3" disabled={busy}>
       <legend className="mb-2 text-sm font-medium">Input and output</legend>
       <p className="break-all text-sm">{draft.name} · {draft.size}³</p>
@@ -82,6 +86,6 @@ export function ImportedLookSettings({setup,onChange}:{setup:Setup;onChange:(cha
     {draft && <Button variant="outline" onClick={cancel}><X data-icon="inline-start" aria-hidden="true" />Cancel LUT import</Button>}
     </WorkspaceSheet>
     {busy && !draft && <Button variant="outline" onClick={cancel}><X data-icon="inline-start" aria-hidden="true" />Cancel LUT import</Button>}
-    <p className="break-words text-xs" role="status" aria-live="polite">{status}</p>
+    <p className="break-words text-xs empty:hidden" role="status" aria-live="polite">{status}</p>
   </section>
 }
