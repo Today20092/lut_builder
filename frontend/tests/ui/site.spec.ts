@@ -54,7 +54,7 @@ test('selected band removal is grouped, confirmed, cancellable and undoable @che
   await page.getByRole('button', { name: 'Undo last band edit', exact: true }).click()
   await expect(table.locator('tbody tr')).toHaveCount(count)
   // The graph shortcut reaches the same confirmation without editing immediately.
-  const handle = page.getByRole('button', { name: /^Band 1, .* stops$/ }).first()
+  const handle = page.getByRole('slider', { name: 'Band 1 center', exact: true })
   await handle.focus()
   await handle.press('Delete')
   await expect(dialog).toBeVisible()

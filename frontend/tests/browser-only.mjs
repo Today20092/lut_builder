@@ -54,14 +54,14 @@ try {
     const increment = page.getByRole("group", { name: "Movement increment", exact: true })
     for (const [step, expected] of [[1, 2.25], [0.5, 1.75], [0.25, 1.5]]) {
       await increment.getByRole("button", { name: step === 1 ? "1 stop" : step === 0.5 ? "½ stop" : "¼ stop", exact: true }).click()
-      const marker = graph.getByRole("button", { name: /^Band 1,/ })
+      const marker = graph.getByRole("slider", { name: "Band 1 center", exact: true })
       await marker.focus()
       await page.keyboard.press("ArrowRight")
       assert.equal(Number(await stopField.inputValue()), expected)
       await stopField.fill("1.25")
       await stopField.press("Enter")
     }
-    const marker = graph.getByRole("button", { name: /^Band 1,/ })
+    const marker = graph.getByRole("slider", { name: "Band 1 center", exact: true })
     assert.equal(await marker.evaluate((element) => {
       const normal = new WheelEvent("wheel", { deltaY: 100, bubbles: true, cancelable: true })
       const zoom = new WheelEvent("wheel", { deltaY: 100, ctrlKey: true, bubbles: true, cancelable: true })
