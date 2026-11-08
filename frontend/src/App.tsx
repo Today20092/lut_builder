@@ -1,3 +1,7 @@
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Radio } from "@/components/ui/radio-group"
+import { RadioChoice, RadioChoices } from "./RadioChoices"
+import { PreviewDialog } from "./PreviewDialog"
 import { Badge } from "@/components/ui/badge"
 import { Empty, EmptyDescription } from "@/components/ui/empty"
 import { NumberField, NumberFieldGroup, NumberFieldInput } from "@/components/ui/number-field"
@@ -9,7 +13,7 @@ import { HelpLink } from "./HelpLink"
 import { Input } from "@/components/ui/input"
 import { NativeSelect } from "@/components/ui/native-select"
 import { ChoiceField } from "./ChoiceField"
-import { ImagePlus, VideoIcon, ImageIcon, X, Check, ChevronLeft, ChevronRight, Expand, Minimize, Plus, Download, RefreshCw, History, FolderOpen, Upload, RotateCcw, Trash2, Undo2, Save } from "lucide-react"
+import { ImagePlus, VideoIcon, ImageIcon, X, Check, ChevronLeft, ChevronRight, Expand, Plus, Download, RefreshCw, History, FolderOpen, Upload, RotateCcw, Trash2, Undo2, Save } from "lucide-react"
 import {
   Fragment,
   useId,
@@ -105,7 +109,6 @@ function srgbToLinear(value: number) {
 export function LutImagePreview({ preview, camera }: { preview: Preview | null; camera?: { setup: Setup; interpretations: SourceInterpretations } }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
-  const dialogRef = useRef<HTMLDialogElement>(null)
   const expandRef = useRef<HTMLButtonElement>(null)
   const [comparison, setComparison] = useState("Split view")
   const [expanded, setExpanded] = useState(false)
@@ -168,12 +171,10 @@ export function LutImagePreview({ preview, camera }: { preview: Preview | null; 
   const content = <div className="grid min-w-0 gap-3">
     {!camera && <>
     <canvas ref={canvasRef} className="aspect-video w-full rounded-md bg-black" height="540" width="960" aria-label={`Demonstration image: ${comparison}`} />
-    <fieldset className="flex flex-wrap gap-2">
-      <legend className="mb-2 text-sm font-medium">Compare demonstration</legend>
-      {["Original", "Split view", "Band colors"].map((choice) => <label key={choice} className="relative flex h-9 cursor-pointer items-center gap-2 rounded-md border px-3 text-sm has-checked:bg-accent has-focus-visible:ring-2 has-focus-visible:ring-ring">
-        <input type="radio" name="demonstration-comparison" value={choice} checked={comparison === choice} onChange={() => setComparison(choice)} />{choice}
-      </label>)}
-    </fieldset>
+    <RadioChoices value={comparison} onChange={setComparison} className="flex-row flex-wrap">
+      <legend className="mb-2 w-full text-sm font-medium">Compare demonstration</legend>
+      {["Original", "Split view", "Band colors"].map((choice) => <RadioChoice key={choice} value={choice} className="relative">{choice}</RadioChoice>)}
+    </RadioChoices>
     {comparison === "Split view" && <p className="text-xs text-muted-foreground">Original on the left. Band colors on the right.</p>}
     <label className="grid gap-2 text-sm font-medium">Viewing opacity · {opacity}%
       <Slider aria-label="Viewing opacity" min={0} max={100} value={opacity} onValueChange={(value) => setOpacity(value as number)} />
@@ -251,7 +252,7 @@ export function LutImagePreview({ preview, camera }: { preview: Preview | null; 
             hidden={!!camera}
             type="button"
             variant="ghost"
-            onClick={() => { setExpanded(true); dialogRef.current?.showModal() }}
+            onClick={() => setExpanded(true)}
           ><Expand data-icon="inline-start" aria-hidden="true" />
             Expand preview
           </Button>
@@ -261,14 +262,10 @@ export function LutImagePreview({ preview, camera }: { preview: Preview | null; 
           {!expanded && content}
         </CardContent>
       </Card>
-      <dialog ref={dialogRef} aria-labelledby="expanded-preview-title" className="m-auto max-h-[90dvh] w-[min(72rem,calc(100%-2rem))] overflow-auto rounded-xl border bg-card p-4 text-card-foreground backdrop:bg-black/70" onClose={() => { setExpanded(false); expandRef.current?.focus() }}>
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-          <h2 id="expanded-preview-title" className="text-lg font-semibold">Expanded demonstration</h2>
-          <Button type="button" variant="outline" onClick={() => dialogRef.current?.close()}><Minimize data-icon="inline-start" aria-hidden="true" />Close preview</Button>
-        </div>
+      <PreviewDialog open={expanded} onClose={() => setExpanded(false)} title="Expanded demonstration" closeLabel="Close preview" returnFocus={expandRef}>
         <p className="mb-3 text-sm text-muted-foreground">Illustration only. A graded image cannot verify original camera exposure; this does not apply the exported LUT.</p>
         {expanded && content}
-      </dialog>
+      </PreviewDialog>
     </aside>
   )
 }
@@ -278,11 +275,11 @@ function WorkbenchPreview({ preview, setup, catalog, browserOnly }: { preview: P
   const [sourceKind, setSourceKind] = useState("Still")
   if (browserOnly) return <BrowserVerification setup={setup} />
   return <div className="grid min-w-0 self-start gap-3 @min-[64rem]:sticky @min-[64rem]:top-6">
-    <fieldset className="flex flex-wrap gap-2">
-      <legend className="mb-2 text-sm font-medium">Preview mode</legend>
-      {["Demonstration", "Camera-matched"].map((choice) => <label key={choice} className="flex h-9 cursor-pointer items-center gap-2 rounded-md border px-3 text-sm has-checked:bg-accent has-focus-visible:ring-2 has-focus-visible:ring-ring"><input type="radio" name="preview-mode" checked={mode === choice} onChange={() => setMode(choice)} />{choice}</label>)}
-    </fieldset>
-    {mode === "Camera-matched" && <fieldset className="flex gap-3"><legend>Camera source</legend>{["Still", "Video"].map((kind) => <label key={kind} className="flex h-9 items-center gap-2"><input type="radio" name="camera-source" checked={sourceKind === kind} onChange={() => setSourceKind(kind)} />{kind}</label>)}</fieldset>}
+    <RadioChoices value={mode} onChange={setMode} className="flex-row flex-wrap">
+      <legend className="mb-2 w-full text-sm font-medium">Preview mode</legend>
+      {["Demonstration", "Camera-matched"].map((choice) => <RadioChoice key={choice} value={choice}>{choice}</RadioChoice>)}
+    </RadioChoices>
+    {mode === "Camera-matched" && <RadioChoices value={sourceKind} onChange={setSourceKind} className="flex-row flex-wrap gap-3"><legend className="w-full">Camera source</legend>{["Still", "Video"].map((kind) => <RadioChoice key={kind} value={kind} className="border-0 px-0 has-checked:bg-transparent">{kind}</RadioChoice>)}</RadioChoices>}
     {mode === "Demonstration" ? <LutImagePreview key="demo" preview={preview} /> : sourceKind === "Video" ? <LutImagePreview key="camera" preview={null} camera={{ setup, interpretations: catalog.source_interpretations ?? {} }} /> : <CameraVerification setup={setup} interpretations={catalog.source_interpretations ?? {}} />}
   </div>
 }
@@ -1105,16 +1102,15 @@ export function App() {
                   <Checkbox checked={setup.monochrome} disabled={setup.fill_mode || Boolean(setup.imported_lut)} onCheckedChange={(e: boolean) => patchSetup({ monochrome: e })} />
               Monochrome base
             </label>
-            <fieldset className="grid gap-3 sm:col-span-2">
+            <RadioChoices value={setup.legal_range ? "legal" : "full"} onChange={value => patchSetup({ legal_range: value === "legal" })} className="grid gap-3 sm:col-span-2">
               <legend className="mb-2 text-sm font-medium">LUT output range</legend>
               <div className="grid gap-2 sm:grid-cols-2">
-                {([false, true] as const).map((legal) => <label key={String(legal)} className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 has-focus-visible:ring-2 has-focus-visible:ring-ring ${setup.legal_range === legal ? "border-foreground bg-muted" : ""}`}>
-                  <input aria-label={legal ? "Video / Legal" : "Full / Data"} className="mt-1" type="radio" name="output-range" disabled={Boolean(setup.imported_lut)} checked={setup.legal_range === legal} onChange={() => patchSetup({ legal_range: legal })} />
+                {([false, true] as const).map((legal) => <RadioChoice key={String(legal)} value={legal ? "legal" : "full"} name={legal ? "Video / Legal" : "Full / Data"} disabled={Boolean(setup.imported_lut)} className={`items-start gap-3 rounded-lg p-3 has-checked:bg-transparent ${setup.legal_range === legal ? "border-foreground bg-muted has-checked:bg-muted" : ""}`}>
                   <span className="grid gap-1"><span className="text-sm font-medium">{legal ? "Video / Legal" : "Full / Data"}</span><span className="text-xs text-muted-foreground">{legal ? "Packs output into 64–940 (10-bit). Use only when your LUT destination requires it." : "Uses the full 0–1 output range. Tool default; keep unless your LUT destination requires video levels."}</span></span>
-                </label>)}
+                </RadioChoice>)}
               </div>
               <p className="text-xs text-muted-foreground">Match the device applying the LUT. Camera HDMI and monitor input levels are separate. <HelpLink className="underline" href={`${import.meta.env.BASE_URL}docs/controls/#choosing-output-range`} target="_blank" rel="noreferrer">Output range help</HelpLink></p>
-            </fieldset>
+            </RadioChoices>
             <div className="grid max-w-2xl gap-2 text-sm sm:col-span-2">
               <label className="grid gap-1 font-medium">Output filename template
                 <Input aria-label="Output filename template" className={fieldClass} value={setup.output} onChange={(e) => patchSetup({ output: e.target.value })} />
@@ -1148,14 +1144,14 @@ export function App() {
               {bandActions}
             </div>
             <div className="workspace-band-controls">
-            <fieldset className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,5rem),1fr))] gap-2" aria-label="Band mode">
+            <RadioChoices name="band-mode" value={mode} onChange={value => editSetup((current) => changeMode(current, value, catalog.palette))} className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,5rem),1fr))] gap-2" aria-label="Band mode">
               <legend className="sr-only">Band mode</legend>
               {([
                 ["stops", "Stops", "Mark exposure", "−7   0   +7"],
                 ["ire", "IRE", "Camera log level", "0   50   100"],
                 ["fill", "Fill", "Color every zone", "Low → High"],
               ] as const).map(([value, title, description, scale]) => <label key={value} className={`relative grid min-w-0 cursor-pointer gap-2 rounded-lg border p-2.5 has-focus-visible:ring-2 has-focus-visible:ring-ring ${mode === value ? "border-foreground bg-muted" : "hover:bg-muted/50"}`}>
-                <input className="absolute inset-0 size-full cursor-pointer opacity-0" type="radio" name="band-mode" value={value} checked={mode === value} onChange={() => editSetup((current) => changeMode(current, value, catalog.palette))} />
+                <Radio value={value} className="absolute inset-0 size-full cursor-pointer opacity-0" />
                   <span aria-hidden="true" className="workspace-mode-preview block">
                     <BandStrip setup={applyExposurePreset(setup, catalog.palette, value === "ire" ? "camera-ire" : value === "fill" ? "contrast-checker" : "three-band")} minimum={value === "ire" ? 0 : -7} maximum={value === "ire" ? 100 : 7} />
                 </span>
@@ -1163,7 +1159,7 @@ export function App() {
                 <span className="text-sm font-semibold">{title}</span>
                 <span className="text-xs text-muted-foreground">{description}</span>
               </label>)}
-            </fieldset>
+            </RadioChoices>
             {mode === "ire" && <p className="text-xs text-muted-foreground">{setup.ire_basis === "camera" ? `${setup.profile} · camera-log input · full-code-range scale` : "Legacy setup · target-display IRE"}{setup.ire_basis !== "camera" && <> · <button type="button" className="font-medium text-foreground underline" onClick={() => editSetup((current) => changeMode(current, "ire", catalog.palette))}>Switch to camera-log IRE</button></>}</p>}
             <div className="mt-4 grid min-w-0 gap-5">
               {(!setup.fill_mode || setup.band_mode === "stops") && <section className="grid gap-3 border-t pt-4" aria-label="Adjust bands and graph">
@@ -1202,24 +1198,22 @@ export function App() {
           <CardContent className="grid gap-4">
             {graphPreview ? (
               <>
-                <div className="relative overflow-x-auto">
-                  <table className="band-table w-full table-fixed min-w-[29rem] text-sm" role="table" aria-label="Band colors and positions">
+                <Table className="band-table table-fixed min-w-[29rem]" role="table" aria-label="Band colors and positions">
                     <caption className="caption-bottom pt-2 text-left text-xs text-muted-foreground sm:hidden">Scroll sideways for position and width.</caption>
-                    <thead className="text-left text-xs text-muted-foreground"><tr><th className="w-44 px-3 py-2">Color</th><th className="px-3 py-2">{setup.fill_mode ? "Boundary to next color" : mode === "ire" ? "Position (IRE)" : "Position (stops)"}</th><th className="px-3 py-2">{setup.fill_mode ? "Coverage" : `Total width (${mode === "ire" ? "IRE" : "stops"})`}</th></tr></thead>
-                    <tbody>{setup.bands.map((band, index) => (
-                      <tr className={`border-t ${selectedBand === index ? "bg-accent/60" : ""}`} data-selected={selectedBand === index} key={bandId(band)} onFocus={() => selectBand(index)} onClick={() => selectBand(index)}>
-                        <td className="p-2"><span className="band-field-label" aria-hidden="true">Color</span><ColorPicker hideLabel triggerRef={(element) => { if (element) colorTriggers.current.set(bandId(band), element); else colorTriggers.current.delete(bandId(band)) }} label={`Band ${index + 1} color`} value={band.color} onChange={(color) => editSetup((current) => updateBand(current, index, { color }), index)} /></td>
-                        <td className="p-2"><span className="band-field-label" aria-hidden="true">{setup.fill_mode ? "Next boundary" : `Position (${mode === "ire" ? "IRE" : "stops"})`}</span>{setup.fill_mode && index === setup.bands.length - 1
+                    <TableHeader className="text-left text-xs"><TableRow><TableHead className="whitespace-normal w-44 px-3 py-2">Color</TableHead><TableHead className="whitespace-normal px-3 py-2">{setup.fill_mode ? "Boundary to next color" : mode === "ire" ? "Position (IRE)" : "Position (stops)"}</TableHead><TableHead className="whitespace-normal px-3 py-2">{setup.fill_mode ? "Coverage" : `Total width (${mode === "ire" ? "IRE" : "stops"})`}</TableHead></TableRow></TableHeader>
+                    <TableBody>{setup.bands.map((band, index) => (
+                      <TableRow className={`border-t ${selectedBand === index ? "bg-accent/60" : ""}`} data-selected={selectedBand === index} key={bandId(band)} onFocus={() => selectBand(index)} onClick={() => selectBand(index)}>
+                        <TableCell className="whitespace-normal p-2"><span className="band-field-label" aria-hidden="true">Color</span><ColorPicker hideLabel triggerRef={(element) => { if (element) colorTriggers.current.set(bandId(band), element); else colorTriggers.current.delete(bandId(band)) }} label={`Band ${index + 1} color`} value={band.color} onChange={(color) => editSetup((current) => updateBand(current, index, { color }), index)} /></TableCell>
+                        <TableCell className="whitespace-normal p-2"><span className="band-field-label" aria-hidden="true">{setup.fill_mode ? "Next boundary" : `Position (${mode === "ire" ? "IRE" : "stops"})`}</span>{setup.fill_mode && index === setup.bands.length - 1
                           ? <span className="text-muted-foreground">—</span>
-                          : <BandNumberInput aria-label={setup.fill_mode ? `Next boundary after color ${index + 1}` : `Band ${index + 1} position (${mode === "ire" ? "IRE" : "stops"})`} className={fieldClass} step={movementIncrement} min={mode === "ire" ? 0 : undefined} max={mode === "ire" ? 100 : undefined} value={band.stop} onChange={(stop) => editSetup((current) => setup.fill_mode ? updateFillBoundary(current, index, stop, movementIncrement) : updateBand(current, index, { stop }), index)} />}</td>
-                        <td className="p-2"><span className="band-field-label" aria-hidden="true">{setup.fill_mode ? "Coverage" : `Total width (${mode === "ire" ? "IRE" : "stops"})`}</span>{setup.fill_mode
+                          : <BandNumberInput aria-label={setup.fill_mode ? `Next boundary after color ${index + 1}` : `Band ${index + 1} position (${mode === "ire" ? "IRE" : "stops"})`} className={fieldClass} step={movementIncrement} min={mode === "ire" ? 0 : undefined} max={mode === "ire" ? 100 : undefined} value={band.stop} onChange={(stop) => editSetup((current) => setup.fill_mode ? updateFillBoundary(current, index, stop, movementIncrement) : updateBand(current, index, { stop }), index)} />}</TableCell>
+                        <TableCell className="whitespace-normal p-2"><span className="band-field-label" aria-hidden="true">{setup.fill_mode ? "Coverage" : `Total width (${mode === "ire" ? "IRE" : "stops"})`}</span>{setup.fill_mode
                           ? <span className="text-sm text-muted-foreground">{index === setup.bands.length - 1 ? "Fills the rest" : "Until next boundary"}</span>
-                          : <BandNumberInput aria-label={`Band ${index + 1} total width (${mode === "ire" ? "IRE" : "stops"})`} className={fieldClass} min={0} step={0.2} value={band.width * 2} onChange={(width) => editSetup((current) => updateBand(current, index, { width: width / 2 }), index)} />}</td>
-                      </tr>
-                    ))}</tbody>
-                  </table>
+                          : <BandNumberInput aria-label={`Band ${index + 1} total width (${mode === "ire" ? "IRE" : "stops"})`} className={fieldClass} min={0} step={0.2} value={band.width * 2} onChange={(width) => editSetup((current) => updateBand(current, index, { width: width / 2 }), index)} />}</TableCell>
+                      </TableRow>
+                    ))}</TableBody>
+                  </Table>
                   {setup.bands.length === 0 && <Empty className="p-4"><EmptyDescription>No bands yet. Choose Add band to start, or choose an arrangement in Presets.</EmptyDescription></Empty>}
-                </div>
                 <p role="status" className="empty:hidden text-sm">{bandStatus}</p>
                 {preview?.warnings.map((warning) => <p className="text-sm text-amber-700 dark:text-amber-300" key={warning}>{warning}</p>)}
               </>

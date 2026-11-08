@@ -1,10 +1,11 @@
+import { PreviewDialog } from "./PreviewDialog"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { InlineDisclosure } from "./WorkspaceTask"
 import { Input } from "@/components/ui/input"
 import { NativeSelect } from "@/components/ui/native-select"
 import { ChoiceField } from "./ChoiceField"
-import { Scan, Download, Expand, Minimize, X } from "lucide-react"
+import { Scan, Download, Expand, X } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 import { Data, Effect, Schema } from "effect"
 import { Button } from "@/components/ui/button"
@@ -95,7 +96,6 @@ export function CheckedImage({ result }: { result: VerifiedResult }) {
   const [error, setError] = useState("")
   const [expanded, setExpanded] = useState(false)
   const [diagnostics, setDiagnostics] = useState(true)
-  const dialog = useRef<HTMLDialogElement>(null)
   const expand = useRef<HTMLButtonElement>(null)
   const sampleRequest = useRef(0)
   const sampleController = useRef<AbortController | null>(null)
@@ -167,12 +167,11 @@ export function CheckedImage({ result }: { result: VerifiedResult }) {
       if (!expanded) { event.preventDefault(); expand.current?.click() }
     }
   }}>
-    <Button ref={expand} variant="outline" aria-keyshortcuts="f" onClick={() => { setExpanded(true); dialog.current?.showModal() }}><Expand data-icon="inline-start" aria-hidden="true" />Expand verified image</Button>
+    <Button ref={expand} variant="outline" aria-keyshortcuts="f" onClick={() => setExpanded(true)}><Expand data-icon="inline-start" aria-hidden="true" />Expand verified image</Button>
     {!expanded && content}
-    <dialog ref={dialog} aria-labelledby="verified-dialog-title" className="m-auto max-h-[90dvh] w-[min(72rem,calc(100%-2rem))] overflow-auto rounded-xl border bg-card p-4 text-card-foreground backdrop:bg-black/70" onClose={() => { setExpanded(false); expand.current?.focus() }}>
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2"><h2 id="verified-dialog-title">Expanded verified image</h2><Button variant="outline" onClick={() => dialog.current?.close()}><Minimize data-icon="inline-start" aria-hidden="true" />Close verified image</Button></div>
+    <PreviewDialog open={expanded} onClose={() => setExpanded(false)} title="Expanded verified image" closeLabel="Close verified image" returnFocus={expand}>
       {expanded && content}
-    </dialog>
+    </PreviewDialog>
   </div>
 }
 
@@ -290,7 +289,7 @@ export function CameraVerification({ setup, interpretations, video }: { setup: S
       {current?.provenance.warnings.map((warning) => <p key={warning} className="text-sm text-amber-700 dark:text-amber-300">{warning}</p>)}
       {current && <CheckedImage key={result!.key} result={current} />}
       {!video && <>
-      <label className="grid min-w-0 gap-2 text-sm font-medium">Choose camera still<input type="file" accept=".png,.pfm" className="w-full min-w-0 max-w-full text-sm" onChange={(e) => { const file = e.target.files?.[0]; if (file) choose(file); e.target.value = "" }} /></label>
+      <label className="grid min-w-0 gap-2 text-sm font-medium">Choose camera still<Input type="file" accept=".png,.pfm" className="min-w-0" onChange={(e) => { const file = e.target.files?.[0]; if (file) choose(file); e.target.value = "" }} /></label>
       <p className="text-xs text-muted-foreground">Untagged, non-interlaced 16-bit RGB PNG, or float32 RGB PFM. No alpha. Up to 4,194,304 pixels and 48 MiB. PNG requires local FFmpeg. Files stay in this local workspace session.</p>
       <p className="text-xs" role="status">{reading ? "Reading still…" : source?.name ?? "No camera still selected."}</p>
       {fileError && <Alert variant="error"><AlertDescription>{fileError}</AlertDescription></Alert>}

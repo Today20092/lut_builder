@@ -111,7 +111,7 @@ test("demonstration compares pixels, preserves setup, replaces images, and keeps
   const before = structuredClone(configured)
   const draw = async () => { await act(() => images.at(-1).onload?.()) }
   const click = async (text) => {
-    const button = [...container.querySelectorAll("button")].find((item) => item.textContent === text)
+    const button = [...document.querySelectorAll("button")].find((item) => item.textContent === text)
     await act(() => button.click())
     return button
   }
@@ -137,8 +137,8 @@ test("demonstration compares pixels, preserves setup, replaces images, and keeps
     assert.deepEqual(rendered, original)
     assert.deepEqual(configured, before)
     const trigger = await click("Expand preview")
-    assert.equal(container.querySelector("dialog").open, true)
-    assert.equal(container.querySelector("dialog input[value='Band colors']").checked, true)
+    assert.ok(document.querySelector("[role='dialog']"))
+    assert.equal(document.querySelector("[role='dialog'] input[value='Band colors']").checked, true)
     await click("Close preview")
     assert.equal(document.activeElement, trigger)
     assert.equal(choice("Band colors").checked, true)
@@ -260,7 +260,7 @@ test("camera video selection confirms decoding, verifies, invalidates and reject
   const root = createRoot(container)
   let camera = { setup: { profile: "Sony", target: "Rec.709", cube_size: 17, bands: [] }, interpretations: { Sony: { transfer: "S-Log3", gamut: "S-Gamut3.Cine" } } }
   const render = () => act(() => root.render(React.createElement(LutImagePreview, { preview: null, camera })))
-  const button = (name) => [...container.querySelectorAll("button")].find((b) => b.textContent === name)
+  const button = (name) => [...document.querySelectorAll("button")].find((b) => b.textContent === name)
   const click = (name) => act(() => button(name).click())
   const set = async (label, value) => {
     const group = container.querySelector(`[role="group"][aria-label="${label}"]`)
@@ -296,7 +296,7 @@ test("camera video selection confirms decoding, verifies, invalidates and reject
     assert.ok(container.querySelector("img"))
     await click("Expand verified image")
     const frameRequests = calls.filter((call) => call.path === "/video/frame").length
-    await act(() => container.querySelector('dialog[open] button').dispatchEvent(new window.KeyboardEvent("keydown", { bubbles: true, cancelable: true, key: "ArrowRight" })))
+    await act(() => document.querySelector("[role='dialog'] button").dispatchEvent(new window.KeyboardEvent("keydown", { bubbles: true, cancelable: true, key: "ArrowRight" })))
     assert.equal(calls.filter((call) => call.path === "/video/frame").length, frameRequests, "verified-image dialogs cannot change the underlying selected frame")
     await click("Close verified image")
     assert.equal(button("Original").disabled, true)

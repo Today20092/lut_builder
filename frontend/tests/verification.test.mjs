@@ -43,7 +43,7 @@ test("still workflow requires facts, rejects stale responses, cancels, and inspe
   const interpretations = { Sony: { transfer: "S-Log3", gamut: "S-Gamut3.Cine" }, Other: { transfer: "V-Log", gamut: "V-Gamut" } }
   let setup = { profile: "Sony", target: "Rec.709", cube_size: 17, bands: [] }
   const render = () => act(() => root.render(React.createElement(CameraVerification, { setup, interpretations })))
-  const button = (text) => [...container.querySelectorAll("button")].find((e) => e.textContent === text)
+  const button = (text) => [...document.querySelectorAll("button")].find((e) => e.textContent === text)
   const click = (text) => act(() => button(text).click())
   const select = async (index, value) => { const input = container.querySelectorAll("select")[index]; await act(() => { input.value = value; input.dispatchEvent(new window.Event("change", { bubbles: true })) }) }
   const upload = async (name) => {
@@ -90,7 +90,7 @@ test("still workflow requires facts, rejects stale responses, cancels, and inspe
     assert.match(container.querySelector("output").textContent, /-0.1250000000/)
     const expand = button("Expand verified image")
     await click("Expand verified image")
-    assert.equal(container.querySelector("dialog").open, true)
+    assert.ok(document.querySelector("[role='dialog']"))
     await click("Close verified image")
     assert.equal(document.activeElement, expand)
     await select(0, "V-Log")

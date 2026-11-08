@@ -1,3 +1,5 @@
+import { Radio } from "@/components/ui/radio-group"
+import { RadioChoices } from "./RadioChoices"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { InlineDisclosure } from "./WorkspaceTask"
 import { useEffect, useRef, useState } from "react"
@@ -39,14 +41,14 @@ export function NewLut({ setup, profiles, targets, palette, busy, error, onCreat
         <Button size="lg" disabled={busy} onClick={() => setStep(1)}>Choose exposure preset<ArrowRight aria-hidden="true" /></Button>
       </> : <>
         <p className="text-sm">{profile} → {target} · 33³ · Full range</p>
-        <fieldset className="new-lut-presets"><legend className="sr-only">Starting exposure preset</legend>{starterGroups.map(({ mode, summary, presets }) => <section key={mode} aria-label={`${mode} presets`} className="new-lut-presets">
+        <RadioChoices value={preset.name} onChange={name => setPreset(starterGroups.flatMap(group => group.presets).find(option => option.name === name) ?? preset)} className="new-lut-presets"><legend className="sr-only">Starting exposure preset</legend>{starterGroups.map(({ mode, summary, presets }) => <section key={mode} aria-label={`${mode} presets`} className="new-lut-presets">
           <div><h2 className="font-semibold">{mode}</h2><p className="text-sm text-muted-foreground">{summary}</p></div>
           {presets.map(option => {
             const preview = applyExposurePreset(base, palette, option.id, option.arrangement)
             const ire = preview.band_mode === "ire"
-            return <label key={option.name} className="new-lut-preset"><span className="flex items-center gap-3"><input type="radio" name="new-lut-preset" value={option.name} checked={preset === option} onChange={() => setPreset(option)} /><strong>{option.name}</strong></span><span className="text-sm text-muted-foreground">{option.detail}</span><BandStrip setup={preview} minimum={ire ? 0 : -7} maximum={ire ? 100 : 7} label={`${option.name} preview`} /></label>
+            return <label key={option.name} className="new-lut-preset"><span className="flex items-center gap-3"><Radio value={option.name} /><strong>{option.name}</strong></span><span className="text-sm text-muted-foreground">{option.detail}</span><BandStrip setup={preview} minimum={ire ? 0 : -7} maximum={ire ? 100 : 7} label={`${option.name} preview`} /></label>
           })}
-        </section>)}</fieldset>
+        </section>)}</RadioChoices>
         <p className="text-sm text-muted-foreground">Colors describe the selected ranges, not a universal safe skin exposure. Your media is optional.</p>
         <div className="new-lut-actions"><Button variant="outline" disabled={busy} onClick={() => setStep(0)}><ArrowLeft aria-hidden="true" />Camera</Button><Button size="lg" disabled={busy} onClick={() => onCreate(applyExposurePreset(base, palette, preset.id, preset.arrangement))}><Check aria-hidden="true" />Start editing</Button></div>
       </>}

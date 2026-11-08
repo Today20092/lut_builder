@@ -18,5 +18,5 @@ export function WorkspaceDisclosure({ title, className, children, summaryClassNa
 }
 
 export function InlineDisclosure({ title, className, triggerClassName, children }: { title: string; className?: string; triggerClassName?: string; children: ReactNode }) {
-  return <Collapsible className={className}><CollapsibleTrigger className={cn("flex items-center gap-1 text-left [&[data-panel-open]>svg]:rotate-90", triggerClassName)}><ChevronRight aria-hidden="true" className="size-3.5 shrink-0 transition-transform" />{title}</CollapsibleTrigger><CollapsiblePanel keepMounted>{children}</CollapsiblePanel></Collapsible>
+  return <Collapsible className={className}><CollapsibleTrigger className={cn("flex min-h-6 items-center gap-1 text-left [&[data-panel-open]>svg]:rotate-90", triggerClassName)}><ChevronRight aria-hidden="true" className="size-3.5 shrink-0 transition-transform" />{title}</CollapsibleTrigger><CollapsiblePanel keepMounted>{children}</CollapsiblePanel></Collapsible>
 }

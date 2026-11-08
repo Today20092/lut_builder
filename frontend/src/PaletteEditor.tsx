@@ -1,3 +1,4 @@
+import { RadioChoice, RadioChoices } from "./RadioChoices"
 import { Slider } from "@/components/ui/slider"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { InlineDisclosure } from "./WorkspaceTask"
@@ -199,12 +200,10 @@ export function PaletteEditor({ setup, palette, onApply, onPreview }: { setup: S
     <WorkspaceTask id="palette-adjustments" title={`Advanced: adjust all colors${draft.intensity !== 100 || draft.brightness !== "custom" ? ` · ${draft.intensity}% · ${draft.brightness === "ascending" ? "dark to light" : draft.brightness === "even" ? "same lightness" : "chosen lightness"}` : ""}`} icon={SlidersHorizontal} className="rounded-md border p-3">
     <div className="mt-3 grid gap-3">
     <p className="text-xs text-muted-foreground">Optional finishing controls for the whole palette. They change the preview and applied colors, while your individual dots keep their chosen colors.</p>
-    <fieldset className="flex flex-wrap gap-2">
-      <legend className="mb-2 text-sm font-medium"><span className="inline-flex items-center gap-2">Lightness across the palette <PaletteHelp label="palette lightness">Keep chosen lightness uses the lightness you chose for each dot. Dark to light assigns increasing lightness from low to high exposure. Same lightness gives every dot their average lightness. Hue is retained; fitting to sRGB may reduce chroma.</PaletteHelp></span></legend>
-      {([["custom", "Keep chosen lightness"], ["ascending", "Dark to light"], ["even", "Same lightness"]] as const).map(([value, label]) => <label key={value} className="flex min-h-9 items-center gap-2 rounded-md border px-3 text-sm has-focus-visible:ring-2 has-focus-visible:ring-ring">
-        <input type="radio" name="palette-brightness" value={value} checked={draft.brightness === value} onChange={() => setDraft({ ...draft, brightness: value })} />{label}
-      </label>)}
-    </fieldset>
+    <RadioChoices value={draft.brightness} onChange={brightness => setDraft({ ...draft, brightness })} className="flex-row flex-wrap">
+      <legend className="mb-2 w-full text-sm font-medium"><span className="inline-flex items-center gap-2">Lightness across the palette <PaletteHelp label="palette lightness">Keep chosen lightness uses the lightness you chose for each dot. Dark to light assigns increasing lightness from low to high exposure. Same lightness gives every dot their average lightness. Hue is retained; fitting to sRGB may reduce chroma.</PaletteHelp></span></legend>
+      {([["custom", "Keep chosen lightness"], ["ascending", "Dark to light"], ["even", "Same lightness"]] as const).map(([value, label]) => <RadioChoice key={value} value={value}>{label}</RadioChoice>)}
+    </RadioChoices>
     <div className="flex items-center gap-2 text-sm font-medium"><label htmlFor="palette-intensity">Overall color strength · {draft.intensity}%</label><PaletteHelp label="overall color strength">Multiplies chroma for every dot before blending. 100% keeps the chosen strength, 0% produces gray, and 200% requests twice the chroma. Colors outside sRGB are reduced to fit, so more is not always visibly stronger.</PaletteHelp></div>
     <label className="grid gap-2 text-sm font-medium">
       <span className="sr-only">Overall color strength</span>

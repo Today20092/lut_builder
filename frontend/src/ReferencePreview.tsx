@@ -1,7 +1,8 @@
+import { PreviewDialog } from "./PreviewDialog"
 import { InlineDisclosure } from "./WorkspaceTask"
 import { HelpLink } from "./HelpLink"
 import { NativeSelect } from "@/components/ui/native-select"
-import { ChevronLeft, ChevronRight, Expand, Minimize, RefreshCw, ImagePlus } from "lucide-react"
+import { ChevronLeft, ChevronRight, Expand, RefreshCw, ImagePlus } from "lucide-react"
 import { useEffect, useRef, useState } from 'react'
 import { Data, Effect } from 'effect'
 import { Button } from '@/components/ui/button'
@@ -29,7 +30,6 @@ export function ReferencePreview({ setup, draft }: { setup: Setup; draft: boolea
   const [retry, setRetry] = useState(0)
   const source = custom ?? scenes[scene]
   const [expanded, setExpanded] = useState(false)
-  const dialog = useRef<HTMLDialogElement>(null)
   const expand = useRef<HTMLButtonElement>(null)
   const key = JSON.stringify([source.url, setup, retry, expanded])
   const current = result?.key === key ? result : null
@@ -93,11 +93,10 @@ export function ReferencePreview({ setup, draft }: { setup: Setup; draft: boolea
     <h2 className="text-lg font-semibold">How will your LUT look on an image?</h2>
     <p className="text-sm text-muted-foreground">Illustrative photo preview · {draft ? 'unapplied palette draft' : 'current output settings'}</p>
     {!expanded && photos}
-    <Button ref={expand} type="button" variant="outline" className="justify-self-start" onClick={() => { setExpanded(true); dialog.current?.showModal() }}><Expand data-icon="inline-start" aria-hidden="true" />Enlarge photos</Button>
-    <dialog ref={dialog} aria-labelledby="enlarged-photos-title" className="m-auto max-h-[90dvh] w-[min(72rem,calc(100%-2rem))] overflow-auto rounded-xl border bg-card p-4 text-card-foreground backdrop:bg-black/70" onClose={() => { setExpanded(false); expand.current?.focus() }}>
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-3"><h2 id="enlarged-photos-title" className="text-lg font-semibold">Enlarged photo preview</h2><Button type="button" variant="outline" onClick={() => dialog.current?.close()}><Minimize data-icon="inline-start" aria-hidden="true" />Close enlarged photos</Button></div>
+    <Button ref={expand} type="button" variant="outline" className="justify-self-start" onClick={() => setExpanded(true)}><Expand data-icon="inline-start" aria-hidden="true" />Enlarge photos</Button>
+    <PreviewDialog open={expanded} onClose={() => setExpanded(false)} title="Enlarged photo preview" closeLabel="Close enlarged photos" returnFocus={expand}>
       {expanded && photos}
-    </dialog>
+    </PreviewDialog>
     <div className="flex flex-wrap items-center gap-2">
       <Button type="button" variant="outline" aria-label="Previous scene" onClick={() => browse(-1)}><ChevronLeft data-icon="inline-start" aria-hidden="true" /></Button>
       <label className="flex min-w-0 flex-1 basis-24 flex-wrap items-center gap-2 text-sm">Scene<NativeSelect aria-label="Scene" className="w-full min-w-0 flex-1" value={custom ? 'custom' : scene} onChange={event => { setCustom(null); setScene(Number(event.target.value)) }}>{scenes.map((scene, index) => <option value={index} key={scene.name}>{scene.name}</option>)}{custom && <option value="custom">Your photo</option>}</NativeSelect></label>
@@ -105,7 +104,7 @@ export function ReferencePreview({ setup, draft }: { setup: Setup; draft: boolea
       {current?.error && <Button type="button" variant="outline" onClick={() => setRetry(retry + 1)}><RefreshCw data-icon="inline-start" aria-hidden="true" />Retry preview</Button>}
     </div>
     <InlineDisclosure className="text-sm" title="About this illustration & photo credits"><p className="mt-2">{custom ? 'Your photo is interpreted by the browser as a display image; untagged files use browser color defaults.' : `${scenes[scene].credit}. Embedded profile: ${scenes[scene].profile}.`} The browser converts to sRGB. Display light is treated as scene light, converted to the camera gamut and approximately log-encoded before applying the actual generated cube. This cannot recover camera exposure or prove profile accuracy.</p><HelpLink className="underline" href="https://scikit-image.org/docs/0.25.x/api/skimage.data.html" target="_blank" rel="noreferrer">Sample sources and licenses</HelpLink></InlineDisclosure>
-    <Button type="button" variant="outline" className="h-auto max-w-full justify-self-start whitespace-normal" onClick={() => input.current?.click()}><ImagePlus data-icon="inline-start" aria-hidden="true" />Use your own photo</Button>
+    <Button type="button" variant="outline" className="h-auto min-h-8 max-w-full justify-self-start whitespace-normal" onClick={() => input.current?.click()}><ImagePlus data-icon="inline-start" aria-hidden="true" />Use your own photo</Button>
     <input ref={input} type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" tabIndex={-1} aria-label="Choose display photo" onChange={event => {
       const file = event.target.files?.[0]
       event.target.value = ''

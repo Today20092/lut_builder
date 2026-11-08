@@ -104,7 +104,7 @@ try {
   await page.keyboard.press("Escape")
   await page.keyboard.press("Control+z")
   assert.equal(await centers.count(), 1)
-  await tabTo(page.locator('input[name="band-mode"][value="stops"]'))
+  await tabTo(page.getByRole('radio', { name: /^Stops/ }))
   await page.keyboard.press("ArrowRight")
   await page.keyboard.press("ArrowRight")
   assert.equal(await page.locator('input[name="band-mode"][value="fill"]').isChecked(), true)

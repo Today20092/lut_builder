@@ -1,3 +1,5 @@
+import { Input } from "@/components/ui/input"
+import { RadioChoice, RadioChoices } from "./RadioChoices"
 import { NumberField, NumberFieldGroup, NumberFieldInput } from "@/components/ui/number-field"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -98,7 +100,7 @@ export function BrowserVerification({ setup }: { setup: Setup }) {
     const next = Math.max(0, Math.min(video.frames.length - 1, frameIndex + direction * count))
     if (next !== frameIndex) { setOrdinal(String(next)); change("confirmed", false) }
   }
-  return <Card tabIndex={0} className="min-w-0 self-start" aria-label="Browser camera verification" onKeyDown={(event) => {
+  return <Card role="group" tabIndex={0} className="min-w-0 self-start" aria-label="Browser camera verification" onKeyDown={(event) => {
     if (event.defaultPrevented || event.nativeEvent.isComposing || isTypingTarget(event.target) || event.altKey || event.ctrlKey || event.metaKey || event.repeat ||
       (event.target instanceof Element && event.target.closest('dialog, [aria-label="Verified image preview"]'))) return
     if (kind === "Video" && video && (event.key === "ArrowLeft" || event.key === "ArrowRight")) {
@@ -109,8 +111,8 @@ export function BrowserVerification({ setup }: { setup: Setup }) {
     <CardHeader><CardTitle>Preview and camera verification</CardTitle><CardDescription>Apply the exact exported LUT to your camera still or selected video frame, entirely on this device.</CardDescription></CardHeader>
     <CardContent className="grid min-w-0 gap-3">
       <p className="text-xs text-muted-foreground">The decoder downloads from this site when used (about 31 MB). Media and LUTs stay on your device. Verification can take several minutes; Cancel releases its worker and memory.</p>
-      <fieldset className="flex gap-3"><legend>Camera source</legend>{["Still", "Video"].map((value) => <label key={value} className="flex h-9 items-center gap-2"><input type="radio" name="browser-camera-source" checked={kind === value} onChange={() => { choose(null); setKind(value) }} />{value}</label>)}</fieldset>
-      <label className="grid min-w-0 gap-2 text-sm font-medium">Choose camera {kind.toLowerCase()}<input key={kind} className="w-full min-w-0 max-w-full text-sm" type="file" accept={kind === "Still" ? ".png,.pfm" : ".mov,.mp4,.mkv"} onChange={(event) => { choose(event.target.files?.[0] ?? null); event.target.value = "" }} /></label>
+      <RadioChoices value={kind} onChange={value => { choose(null); setKind(value) }} className="flex-row flex-wrap gap-3"><legend className="w-full">Camera source</legend>{["Still", "Video"].map((value) => <RadioChoice key={value} value={value} className="border-0 px-0 has-checked:bg-transparent">{value}</RadioChoice>)}</RadioChoices>
+      <label className="grid min-w-0 gap-2 text-sm font-medium">Choose camera {kind.toLowerCase()}<Input key={kind} className="min-w-0" type="file" accept={kind === "Still" ? ".png,.pfm" : ".mov,.mp4,.mkv"} onChange={(event) => { choose(event.target.files?.[0] ?? null); event.target.value = "" }} /></label>
       <p className="break-all text-sm">{file?.name ?? "No source selected."}</p>
       <p className="text-xs text-muted-foreground">{kind === "Still" ? "Untagged, non-interlaced 16-bit RGB PNG without alpha, or float32 RGB PFM; up to 48 MiB plus header. Export unchanged camera RGB without a viewing transform. JPEG and RAW are unsupported." : "H.264, HEVC, ProRes 422 or FFV1; planar 4:2:0 8/10-bit or 4:2:2 10-bit, progressive square pixels. Up to 512 MiB and five minutes. Inspect a one-second interval, then choose a frame from it. No rotation or dynamic HDR."} Maximum 4,194,304 pixels.</p>
       {kind === "Video" && <><label className="grid gap-1 text-sm">Seek time (seconds from stream start)<NumberField min={0} max={300} step={0.1} value={seconds === "" ? null : Number(seconds)} onValueChange={(value) => { clear(); setSeconds(value === null ? "" : String(value)); setVideo(null); setOrdinal("0"); change("confirmed", false) }}><NumberFieldGroup><NumberFieldInput className={field} /></NumberFieldGroup></NumberField></label><Button variant="outline" disabled={!file || busy || seconds === "" || !Number.isFinite(Number(seconds)) || Number(seconds) < 0 || Number(seconds) > 300} onClick={() => void run(true)}><VideoIcon data-icon="inline-start" aria-hidden="true" />Inspect video</Button></>}
