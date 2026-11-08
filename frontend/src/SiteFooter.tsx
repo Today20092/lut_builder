@@ -1,4 +1,5 @@
-import { ArrowUpRight, Code2, Heart } from "lucide-react"
+import { Code2, Heart } from "lucide-react"
+import { ExternalLink } from "./HelpLink"
 
 export function SiteFooter() {
   return <footer className="site-footer">
@@ -6,8 +7,8 @@ export function SiteFooter() {
     <nav aria-label="Project links">
       <a href={`${import.meta.env.BASE_URL}docs/about/`}>About</a>
       <a href={`${import.meta.env.BASE_URL}docs/`}>Manual</a>
-      <a href="https://github.com/Today20092/lut_builder" target="_blank" rel="noreferrer"><Code2 aria-hidden="true" />GitHub<ArrowUpRight aria-hidden="true" /><span className="sr-only"> (opens in a new tab)</span></a>
-      <a href="https://ko-fi.com/ayoubab1" target="_blank" rel="noreferrer"><Heart aria-hidden="true" />Support this project<ArrowUpRight aria-hidden="true" /><span className="sr-only"> on Ko-fi (opens in a new tab)</span></a>
+      <ExternalLink href="https://github.com/Today20092/lut_builder"><Code2 aria-hidden="true" />GitHub</ExternalLink>
+      <ExternalLink href="https://ko-fi.com/ayoubab1"><Heart aria-hidden="true" />Support this project<span className="sr-only"> on Ko-fi</span></ExternalLink>
     </nav>
     <p>Support development with a donation or purchase on Ko-fi.</p>
   </footer>

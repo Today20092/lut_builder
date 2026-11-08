@@ -1,5 +1,6 @@
-import { Check, Minimize } from "lucide-react"
-import { useRef } from "react"
+import { PreviewDialog } from "./PreviewDialog"
+import { Check } from "lucide-react"
+import { useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { exposureReferenceValue, type Setup } from "./editor"
 import type { PalettePreview } from "./PaletteEditor"
@@ -20,7 +21,7 @@ export function BandStrip({ setup, minimum, maximum, expanded = false, label = "
 export function ExposurePreview({ setup, preview, minimum, maximum, unit }: {
   setup: Setup; preview: PalettePreview | null; minimum: number; maximum: number; unit: string
 }) {
-  const dialog = useRef<HTMLDialogElement>(null)
+  const [expanded, setExpanded] = useState(false)
   const trigger = useRef<HTMLButtonElement>(null)
   const displayed = preview?.setup ?? setup
   const label = preview ? preview.valid ? `Previewing ${preview.label}` : "Invalid draft · showing current bands" : "Current exposure bands"
@@ -29,7 +30,7 @@ export function ExposurePreview({ setup, preview, minimum, maximum, unit }: {
     {setup.high_signal_warning && <span role="img" aria-label="High signal enabled" title="High signal enabled" className="col-start-2 row-start-1 size-3 justify-self-end rounded-full border" style={{ backgroundColor: setup.high_signal_hex }} />}
   </span>
   function decide(action: () => void) {
-    if (dialog.current?.open) dialog.current.close()
+    setExpanded(false)
     action()
   }
   const actions = preview && <div className="flex items-center gap-2">
@@ -39,10 +40,10 @@ export function ExposurePreview({ setup, preview, minimum, maximum, unit }: {
   return <div tabIndex={0} role="group" className="sticky top-0 z-40 grid gap-2 border-b bg-card p-3 shadow-sm" aria-label="Persistent exposure preview"
     onKeyDown={(event) => {
       if (event.defaultPrevented || event.nativeEvent.isComposing || isTypingTarget(event.target) || event.altKey || event.ctrlKey || event.metaKey) return
-      if (event.key.toLowerCase() === "f" && !dialog.current?.open) { event.preventDefault(); trigger.current?.click() }
-      if (event.key === "Escape" && preview && !dialog.current?.open) { event.preventDefault(); decide(preview.cancel) }
+      if (event.key.toLowerCase() === "f" && !expanded) { event.preventDefault(); trigger.current?.click() }
+      if (event.key === "Escape" && preview && !expanded) { event.preventDefault(); decide(preview.cancel) }
     }}>
-    <button ref={trigger} type="button" aria-haspopup="dialog" className="grid gap-1 rounded text-left" onClick={() => dialog.current?.showModal()}>
+    <button ref={trigger} type="button" aria-haspopup="dialog" className="grid gap-1 rounded text-left" onClick={() => setExpanded(true)}>
       <span className="sr-only">Expand exposure preview</span>
       <span className="flex flex-wrap justify-between gap-x-3 text-xs"><span className="font-semibold" role="status">{label}</span><span className="text-muted-foreground">Tap to expand</span></span>
       <BandStrip setup={displayed} minimum={minimum} maximum={maximum} />
@@ -51,8 +52,7 @@ export function ExposurePreview({ setup, preview, minimum, maximum, unit }: {
     {(setup.low_signal_warning || setup.high_signal_warning) && warnings}
     {preview && <p className="text-xs text-muted-foreground">{preview.valid ? "Draft only · current bands and downloads are unchanged." : "Correct the invalid color before using this palette."}</p>}
     {actions}
-    <dialog ref={dialog} aria-labelledby="exposure-preview-title" className="fixed inset-0 m-0 h-dvh max-h-dvh w-screen max-w-none overflow-auto border bg-card p-4 text-card-foreground backdrop:bg-black/70 sm:m-auto sm:h-auto sm:max-h-[90dvh] sm:w-[min(48rem,calc(100%-2rem))] sm:rounded-xl" onClose={() => trigger.current?.focus()}>
-      <div className="sticky top-0 z-10 mb-4 flex flex-wrap items-center justify-between gap-3 bg-card pb-2"><h2 id="exposure-preview-title" className="font-semibold">Exposure band preview</h2><Button type="button" variant="outline" onClick={() => dialog.current?.close()}><Minimize data-icon="inline-start" aria-hidden="true" />Close preview</Button></div>
+    <PreviewDialog open={expanded} onClose={() => setExpanded(false)} title="Exposure band preview" closeLabel="Close preview" returnFocus={trigger} className="max-sm:h-dvh max-sm:max-h-dvh max-sm:max-w-none max-sm:rounded-none sm:max-w-3xl">
       <p className="mb-3 text-sm font-medium">{label}</p>
       <BandStrip setup={displayed} minimum={minimum} maximum={maximum} expanded />
       {(setup.low_signal_warning || setup.high_signal_warning) && <div className="mt-2">{warnings}</div>}
@@ -60,6 +60,6 @@ export function ExposurePreview({ setup, preview, minimum, maximum, unit }: {
       <ul className="my-4 grid gap-2 text-sm">{displayed.bands.map((band, index) => <li key={index} className="flex flex-wrap items-center gap-2"><span aria-hidden="true" className="size-5 rounded border" style={{ backgroundColor: band.color }} /><span>Band {index + 1}</span><span className="font-mono">{band.color}</span><span className="text-xs text-muted-foreground">{displayed.fill_mode ? index === displayed.bands.length - 1 ? "Fills the rest" : `Until ${band.stop} ${unit}` : `${band.stop} ${unit} · width ${Number((band.width * 2).toFixed(6))}`}</span></li>)}</ul>
       {preview && <p className="mb-3 text-xs text-muted-foreground">Closing this view keeps your draft. Use palette commits it; Cancel keeps the current band colors.</p>}
       {actions}
-    </dialog>
+    </PreviewDialog>
   </div>
 }

@@ -60,7 +60,7 @@ try {
     await page.keyboard.press("Alt+ArrowRight")
     assert.equal(await page.locator(":focus").getAttribute("data-band-center"), "1")
   }
-  await tabTo(page.getByRole("textbox", { name: "Band 1 stops", exact: true }))
+  await tabTo(page.getByRole("textbox", { name: "Band 1 position (stops)", exact: true }))
   await page.keyboard.press("Control+a")
   await page.keyboard.type("-")
   await page.keyboard.press("Delete")
@@ -104,7 +104,7 @@ try {
   await page.keyboard.press("Escape")
   await page.keyboard.press("Control+z")
   assert.equal(await centers.count(), 1)
-  await tabTo(page.locator('input[name="band-mode"][value="stops"]'))
+  await tabTo(page.getByRole('radio', { name: /^Stops/ }))
   await page.keyboard.press("ArrowRight")
   await page.keyboard.press("ArrowRight")
   assert.equal(await page.locator('input[name="band-mode"][value="fill"]').isChecked(), true)

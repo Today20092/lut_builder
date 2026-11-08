@@ -1,6 +1,8 @@
+import { PreviewDialog } from "./PreviewDialog"
+import { InlineDisclosure } from "./WorkspaceTask"
 import { HelpLink } from "./HelpLink"
 import { NativeSelect } from "@/components/ui/native-select"
-import { ChevronLeft, ChevronRight, RefreshCw, ImagePlus } from "lucide-react"
+import { ChevronLeft, ChevronRight, Expand, RefreshCw, ImagePlus } from "lucide-react"
 import { useEffect, useRef, useState } from 'react'
 import { Data, Effect } from 'effect'
 import { Button } from '@/components/ui/button'
@@ -27,7 +29,9 @@ export function ReferencePreview({ setup, draft }: { setup: Setup; draft: boolea
   const [result, setResult] = useState<{ key: string; url?: string; error?: string } | null>(null)
   const [retry, setRetry] = useState(0)
   const source = custom ?? scenes[scene]
-  const key = JSON.stringify([source.url, setup, retry])
+  const [expanded, setExpanded] = useState(false)
+  const expand = useRef<HTMLButtonElement>(null)
+  const key = JSON.stringify([source.url, setup, retry, expanded])
   const current = result?.key === key ? result : null
 
   useEffect(() => () => { if (custom) URL.revokeObjectURL(custom.url) }, [custom])
@@ -42,7 +46,7 @@ export function ReferencePreview({ setup, draft }: { setup: Setup; draft: boolea
         return yield* Effect.try({
           try: () => {
             const canvas = document.createElement('canvas')
-            const scale = Math.min(1, 384 / image.naturalWidth, 256 / image.naturalHeight)
+            const scale = Math.min(1, (expanded ? 1152 : 384) / image.naturalWidth, (expanded ? 768 : 256) / image.naturalHeight)
             canvas.width = Math.max(1, Math.round(image.naturalWidth * scale))
             canvas.height = Math.max(1, Math.round(image.naturalHeight * scale))
             const context = canvas.getContext('2d', { colorSpace: 'srgb', willReadFrequently: true })
@@ -68,33 +72,39 @@ export function ReferencePreview({ setup, draft }: { setup: Setup; draft: boolea
       })
     }, 200)
     return () => { window.clearTimeout(timer); controller.abort() }
-  }, [key, source.url, setup])
+  }, [key, source.url, setup, expanded])
 
   function browse(direction: number) {
     setCustom(null)
     setScene((scene + direction + scenes.length) % scenes.length)
   }
-  return <section className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3 rounded-xl border bg-card p-4" aria-label="Reference photo preview">
-    <h2 className="text-lg font-semibold">How will your LUT look on an image?</h2>
-    <p className="text-sm text-muted-foreground">Illustrative photo preview · {draft ? 'unapplied palette draft' : 'current output settings'}</p>
-    <div className="grid gap-3 sm:grid-cols-2 touch-pan-y" onTouchStart={event => { const touch = event.touches[0]; swipe.current = { x: touch.clientX, y: touch.clientY } }} onTouchCancel={() => { swipe.current = null }} onTouchEnd={event => {
+  const imageHeight = expanded ? 'h-[min(60dvh,36rem)]' : 'h-56'
+  const photos = <div className="grid gap-3 sm:grid-cols-2 touch-pan-y" onTouchStart={event => { const touch = event.touches[0]; swipe.current = { x: touch.clientX, y: touch.clientY } }} onTouchCancel={() => { swipe.current = null }} onTouchEnd={event => {
       const start = swipe.current
       swipe.current = null
       if (!start) return
       const touch = event.changedTouches[0], dx = touch.clientX - start.x, dy = touch.clientY - start.y
       if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 2) browse(dx < 0 ? 1 : -1)
     }}>
-      <figure><img className="h-56 w-full rounded object-contain bg-muted" src={source.url} alt={`${source.name} original`} /><figcaption className="mt-1 text-sm">Original · {source.name}</figcaption></figure>
-      <figure>{current?.url ? <img className="h-56 w-full rounded object-contain bg-muted" src={current.url} alt="Illustrative LUT result" /> : <div className="flex h-56 items-center justify-center rounded bg-muted p-4 text-sm" role="status">{current?.error ?? 'Updating photo preview…'}</div>}<figcaption className="mt-1 text-sm">{draft ? 'Draft result' : 'LUT result'} · {setup.profile} → {setup.target}</figcaption></figure>
+      <figure><img className={`${imageHeight} w-full rounded object-contain bg-muted`} src={source.url} alt={`${source.name} original`} /><figcaption className="mt-1 text-sm">Original · {source.name}</figcaption></figure>
+      <figure>{current?.url ? <img className={`${imageHeight} w-full rounded object-contain bg-muted`} src={current.url} alt="Illustrative LUT result" /> : <div className={`flex ${imageHeight} items-center justify-center rounded bg-muted p-4 text-sm`} role="status">{current?.error ?? 'Updating photo preview…'}</div>}<figcaption className="mt-1 text-sm">{draft ? 'Draft result' : 'LUT result'} · {setup.profile} → {setup.target}</figcaption></figure>
     </div>
+  return <section className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3 rounded-xl border bg-card p-4" aria-label="Reference photo preview">
+    <h2 className="text-lg font-semibold">How will your LUT look on an image?</h2>
+    <p className="text-sm text-muted-foreground">Illustrative photo preview · {draft ? 'unapplied palette draft' : 'current output settings'}</p>
+    {!expanded && photos}
+    <Button ref={expand} type="button" variant="outline" className="justify-self-start" onClick={() => setExpanded(true)}><Expand data-icon="inline-start" aria-hidden="true" />Enlarge photos</Button>
+    <PreviewDialog open={expanded} onClose={() => setExpanded(false)} title="Enlarged photo preview" closeLabel="Close enlarged photos" returnFocus={expand}>
+      {expanded && photos}
+    </PreviewDialog>
     <div className="flex flex-wrap items-center gap-2">
       <Button type="button" variant="outline" aria-label="Previous scene" onClick={() => browse(-1)}><ChevronLeft data-icon="inline-start" aria-hidden="true" /></Button>
       <label className="flex min-w-0 flex-1 basis-24 flex-wrap items-center gap-2 text-sm">Scene<NativeSelect aria-label="Scene" className="w-full min-w-0 flex-1" value={custom ? 'custom' : scene} onChange={event => { setCustom(null); setScene(Number(event.target.value)) }}>{scenes.map((scene, index) => <option value={index} key={scene.name}>{scene.name}</option>)}{custom && <option value="custom">Your photo</option>}</NativeSelect></label>
       <Button type="button" variant="outline" aria-label="Next scene" onClick={() => browse(1)}><ChevronRight data-icon="inline-start" aria-hidden="true" /></Button>
       {current?.error && <Button type="button" variant="outline" onClick={() => setRetry(retry + 1)}><RefreshCw data-icon="inline-start" aria-hidden="true" />Retry preview</Button>}
     </div>
-    <details className="text-sm"><summary className="cursor-pointer">About this illustration &amp; photo credits</summary><p className="mt-2">{custom ? 'Your photo is interpreted by the browser as a display image; untagged files use browser color defaults.' : `${scenes[scene].credit}. Embedded profile: ${scenes[scene].profile}.`} The browser converts to sRGB. Display light is treated as scene light, converted to the camera gamut and approximately log-encoded before applying the actual generated cube. This cannot recover camera exposure or prove profile accuracy.</p><HelpLink className="underline" href="https://scikit-image.org/docs/0.25.x/api/skimage.data.html" target="_blank" rel="noreferrer">Sample sources and licenses</HelpLink></details>
-    <Button type="button" variant="outline" className="h-auto max-w-full justify-self-start whitespace-normal" onClick={() => input.current?.click()}><ImagePlus data-icon="inline-start" aria-hidden="true" />Use your own photo</Button>
+    <InlineDisclosure className="text-sm" title="About this illustration & photo credits"><p className="mt-2">{custom ? 'Your photo is interpreted by the browser as a display image; untagged files use browser color defaults.' : `${scenes[scene].credit}. Embedded profile: ${scenes[scene].profile}.`} The browser converts to sRGB. Display light is treated as scene light, converted to the camera gamut and approximately log-encoded before applying the actual generated cube. This cannot recover camera exposure or prove profile accuracy.</p><HelpLink className="underline" href="https://scikit-image.org/docs/0.25.x/api/skimage.data.html" target="_blank" rel="noreferrer">Sample sources and licenses</HelpLink></InlineDisclosure>
+    <Button type="button" variant="outline" className="h-auto min-h-8 max-w-full justify-self-start whitespace-normal" onClick={() => input.current?.click()}><ImagePlus data-icon="inline-start" aria-hidden="true" />Use your own photo</Button>
     <input ref={input} type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" tabIndex={-1} aria-label="Choose display photo" onChange={event => {
       const file = event.target.files?.[0]
       event.target.value = ''

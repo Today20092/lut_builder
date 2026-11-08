@@ -1,5 +1,6 @@
 import { useContext, type ReactNode } from "react"
-import { Settings2, type LucideIcon } from "lucide-react"
+import { ChevronRight, Settings2, type LucideIcon } from "lucide-react"
+import { Collapsible, CollapsiblePanel, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { cn } from "@/lib/utils"
 import { WorkspaceNavigation } from "./workspaceNavigation"
 
@@ -14,4 +15,8 @@ export function WorkspaceTask({ id, title, children, lead, icon: Icon = Settings
 
 export function WorkspaceDisclosure({ title, className, children, summaryClassName = "" }: { title: ReactNode; className?: string; children: ReactNode; summaryClassName?: string }) {
   return <details className={cn("workspace-disclosure workspace-settings-group", className)}><summary className={summaryClassName}>{title}</summary><div className="workspace-disclosure-content">{children}</div></details>
+}
+
+export function InlineDisclosure({ title, className, triggerClassName, children }: { title: string; className?: string; triggerClassName?: string; children: ReactNode }) {
+  return <Collapsible className={className}><CollapsibleTrigger className={cn("flex min-h-6 items-center gap-1 text-left [&[data-panel-open]>svg]:rotate-90", triggerClassName)}><ChevronRight aria-hidden="true" className="size-3.5 shrink-0 transition-transform" />{title}</CollapsibleTrigger><CollapsiblePanel keepMounted>{children}</CollapsiblePanel></Collapsible>
 }

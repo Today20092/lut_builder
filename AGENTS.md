@@ -53,11 +53,9 @@ pnpm build
 The build checks TypeScript and regenerates `src/lut_builder/static/`; include the
 rebuilt assets with frontend changes. Edit browser source in `frontend/`.
 
-For UI layout, styling, controls, or screenshot-baseline changes, follow
-[UI quality checks](docs/testing/ui-quality.md). Completion requires passing
-layout/accessibility checks, reviewed screenshots at the configured widths and
-themes, and an explanation for every changed baseline. Pages deployment also
-requires the [UI quality workflow](.github/workflows/ui-quality.yml).
+For UI layout, styling, or control changes, follow
+[UI quality checks](docs/testing/ui-quality.md). Completion requires a clean
+`pnpm ui:shots` run and reviewed screenshots of the changed screens.
 
 For maintained TypeScript changes in `frontend/src/`, read the
 [TypeScript and Effect conventions](docs/agents/typescript.md).

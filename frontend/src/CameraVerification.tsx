@@ -1,7 +1,11 @@
+import { PreviewDialog } from "./PreviewDialog"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { InlineDisclosure } from "./WorkspaceTask"
 import { Input } from "@/components/ui/input"
 import { NativeSelect } from "@/components/ui/native-select"
 import { ChoiceField } from "./ChoiceField"
-import { Scan, Download, Expand, Minimize, X } from "lucide-react"
+import { Scan, Download, Expand, X } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 import { Data, Effect, Schema } from "effect"
 import { Button } from "@/components/ui/button"
@@ -92,7 +96,6 @@ export function CheckedImage({ result }: { result: VerifiedResult }) {
   const [error, setError] = useState("")
   const [expanded, setExpanded] = useState(false)
   const [diagnostics, setDiagnostics] = useState(true)
-  const dialog = useRef<HTMLDialogElement>(null)
   const expand = useRef<HTMLButtonElement>(null)
   const sampleRequest = useRef(0)
   const sampleController = useRef<AbortController | null>(null)
@@ -152,11 +155,10 @@ export function CheckedImage({ result }: { result: VerifiedResult }) {
       </output>}
     </fieldset>
     <Button variant="outline" onClick={() => void download()}><Download data-icon="inline-start" aria-hidden="true" />Download checked cube</Button>
-    <details className="min-w-0 text-xs">
-      <summary className="cursor-pointer text-sm font-medium">Verification provenance</summary>
+    <InlineDisclosure className="min-w-0 text-xs" triggerClassName="text-sm font-medium" title="Verification provenance">
       <pre className="mt-2 max-h-80 overflow-auto whitespace-pre-wrap break-all">{JSON.stringify(result.provenance, null, 2)}</pre>
-    </details>
-    {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+    </InlineDisclosure>
+    {error && <Alert variant="error"><AlertDescription>{error}</AlertDescription></Alert>}
   </div>
   return <div tabIndex={0} role="group" aria-label="Verified image preview" onKeyDown={(event) => {
     if (event.defaultPrevented || event.nativeEvent.isComposing || isTypingTarget(event.target) || event.altKey || event.ctrlKey || event.metaKey) return
@@ -165,12 +167,11 @@ export function CheckedImage({ result }: { result: VerifiedResult }) {
       if (!expanded) { event.preventDefault(); expand.current?.click() }
     }
   }}>
-    <Button ref={expand} variant="outline" aria-keyshortcuts="f" onClick={() => { setExpanded(true); dialog.current?.showModal() }}><Expand data-icon="inline-start" aria-hidden="true" />Expand verified image</Button>
+    <Button ref={expand} variant="outline" aria-keyshortcuts="f" onClick={() => setExpanded(true)}><Expand data-icon="inline-start" aria-hidden="true" />Expand verified image</Button>
     {!expanded && content}
-    <dialog ref={dialog} aria-labelledby="verified-dialog-title" className="m-auto max-h-[90dvh] w-[min(72rem,calc(100%-2rem))] overflow-auto rounded-xl border bg-card p-4 text-card-foreground backdrop:bg-black/70" onClose={() => { setExpanded(false); expand.current?.focus() }}>
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2"><h2 id="verified-dialog-title">Expanded verified image</h2><Button variant="outline" onClick={() => dialog.current?.close()}><Minimize data-icon="inline-start" aria-hidden="true" />Close verified image</Button></div>
+    <PreviewDialog open={expanded} onClose={() => setExpanded(false)} title="Expanded verified image" closeLabel="Close verified image" returnFocus={expand}>
       {expanded && content}
-    </dialog>
+    </PreviewDialog>
   </div>
 }
 
@@ -288,10 +289,10 @@ export function CameraVerification({ setup, interpretations, video }: { setup: S
       {current?.provenance.warnings.map((warning) => <p key={warning} className="text-sm text-amber-700 dark:text-amber-300">{warning}</p>)}
       {current && <CheckedImage key={result!.key} result={current} />}
       {!video && <>
-      <label className="grid min-w-0 gap-2 text-sm font-medium">Choose camera still<input type="file" accept=".png,.pfm" className="w-full min-w-0 max-w-full text-sm" onChange={(e) => { const file = e.target.files?.[0]; if (file) choose(file); e.target.value = "" }} /></label>
+      <label className="grid min-w-0 gap-2 text-sm font-medium">Choose camera still<Input type="file" accept=".png,.pfm" className="min-w-0" onChange={(e) => { const file = e.target.files?.[0]; if (file) choose(file); e.target.value = "" }} /></label>
       <p className="text-xs text-muted-foreground">Untagged, non-interlaced 16-bit RGB PNG, or float32 RGB PFM. No alpha. Up to 4,194,304 pixels and 48 MiB. PNG requires local FFmpeg. Files stay in this local workspace session.</p>
       <p className="text-xs" role="status">{reading ? "Reading still…" : source?.name ?? "No camera still selected."}</p>
-      {fileError && <p className="text-sm text-destructive" role="alert">{fileError}</p>}
+      {fileError && <Alert variant="error"><AlertDescription>{fileError}</AlertDescription></Alert>}
       </>}
       {video && <>
         <p className="text-sm">Frame at {video.frame.seconds.toFixed(6)} s · exact {video.frame.relative_time} s · PTS {video.frame.pts}, time base {video.frame.time_base}.</p>
@@ -314,11 +315,11 @@ export function CameraVerification({ setup, interpretations, video }: { setup: S
       <p className="text-xs text-muted-foreground">The file cannot prove its camera profile. Confirm these facts from the recording/export workflow. Unknowns prevent verification.</p>
       <label className="grid gap-1 text-sm">Source transfer function<NativeSelect className={field} value={transfer} onChange={(e) => { setTransfer(e.target.value); setConfirmed(false) }}><option value="">Unknown</option>{[...new Set(Object.values(interpretations).map((v) => v.transfer))].map((v) => <option key={v}>{v}</option>)}</NativeSelect></label>
       <label className="grid gap-1 text-sm">Source gamut<NativeSelect className={field} value={gamut} onChange={(e) => { setGamut(e.target.value); setConfirmed(false) }}><option value="">Unknown</option>{[...new Set(Object.values(interpretations).map((v) => v.gamut))].map((v) => <option key={v}>{v}</option>)}</NativeSelect></label>
-      {!video && <><label className="flex items-start gap-2 text-sm"><input type="checkbox" aria-label="Normalized camera code values" checked={range === "camera-code-values"} onChange={event => { setRange(event.target.checked ? "camera-code-values" : ""); setConfirmed(false) }} />Normalized camera code values</label>
+      {!video && <><label className="flex items-start gap-2 text-sm"><Checkbox aria-label="Normalized camera code values" checked={range === "camera-code-values"} onCheckedChange={(event: boolean) => { setRange(event ? "camera-code-values" : ""); setConfirmed(false) }} />Normalized camera code values</label>
       <p className="text-xs text-muted-foreground">PNG codes are divided by 65535. PFM values are unchanged. No YCbCr matrix or input range expansion is applied. Resolve any transport conversion before export. Excursions are clamped only at the cube's [0, 1] boundary and reported.</p></>}
-      <label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} />{video ? "I confirm the recording transfer/gamut, matrix, transport range, chroma location and component depth. This is camera-encoded media with no viewing transform." : "I confirm unchanged camera-encoded RGB, this transfer/gamut and range, with no viewing transform or additional range scaling."}</label>
-      {mismatch && <p role="alert" className="text-sm text-destructive">Source interpretation does not match {setup.profile}. Correct the source interpretation or LUT camera profile.</p>}
-      {!supported && <p role="alert" className="text-sm text-destructive">Unsupported SDR view. Choose Rec.709 or SDR Rec.2020. HDR/log viewing is unavailable.</p>}
+      <label className="flex items-start gap-2 text-sm"><Checkbox checked={confirmed} onCheckedChange={(e: boolean) => setConfirmed(e)} />{video ? "I confirm the recording transfer/gamut, matrix, transport range, chroma location and component depth. This is camera-encoded media with no viewing transform." : "I confirm unchanged camera-encoded RGB, this transfer/gamut and range, with no viewing transform or additional range scaling."}</label>
+      {mismatch && <Alert variant="error"><AlertDescription>Source interpretation does not match {setup.profile}. Correct the source interpretation or LUT camera profile.</AlertDescription></Alert>}
+      {!supported && <Alert variant="error"><AlertDescription>Unsupported SDR view. Choose Rec.709 or SDR Rec.2020. HDR/log viewing is unavailable.</AlertDescription></Alert>}
       <p className="text-xs text-muted-foreground"><SdrViewDescription setup={setup} /></p>
       <div className="flex flex-wrap gap-2"><Button disabled={busy || reading || !(source || video) || !transfer || !gamut || (video ? !matrix || !signalRange || !chroma || !bitDepth : !range) || !confirmed || mismatch || !supported} onClick={() => void verify()}>Verify {video ? "selected frame" : "still"}</Button>{busy && <Button variant="outline" onClick={cancel}><X data-icon="inline-start" aria-hidden="true" />Cancel verification</Button>}</div>
       <p className="text-sm" role="status" aria-live="polite">{status.key === key ? status.text : status.key || busyKey ? "Source, interpretation or settings changed. Verify again; the previous result is no longer current." : "Confirm the source interpretation to verify."}</p>

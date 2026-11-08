@@ -17,10 +17,10 @@ so a PR touching Python and the manual runs both sets of checks.
 | Affected paths | Validation |
 | --- | --- |
 | Python implementation or Python tests | Python format/lint/types, full Python tests including media, and browser/Python numerical parity including imported looks |
-| Frontend components, styles, public assets or entry HTML | Frontend lint/unit/build, Chromium/Firefox/WebKit export and manual acceptance, and all three UI shards |
+| Frontend components, styles, public assets or entry HTML | Frontend lint/unit/build, Chromium/Firefox/WebKit export and manual acceptance |
 | Plain TypeScript logic under `frontend/src/` | The frontend checks above plus Python/parity, covering calculation, worker, setup and storage contracts |
 | Published manual source/assets or its browser test | Production build and manual links/navigation/accessibility in Chromium, Firefox and WebKit |
-| UI tests or screenshot baselines | UI type checks and all three UI shards; TypeScript test changes also retain frontend lint/unit/build |
+| UI tests | TypeScript test changes run frontend lint/unit/build; these tests are not run in CI |
 | Frontend unit tests | Frontend lint/unit/build; live Python parity runs separately in the Python job |
 | Known repository Markdown guides | Selector tests and aggregate status only; these guides are not deployed |
 | Dependencies, CI/build configuration, shared fixtures/helpers, unknown paths | Complete suite |
@@ -65,7 +65,7 @@ Cancel-in-progress keeps only the latest workflow for a ref.
 During editing, run the affected Python test file or frontend unit/UI test before
 the broader checks required by [AGENTS.md](../../AGENTS.md). Use
 [UI quality guidance](ui-quality.md) for representative viewport/theme selection
-and screenshot review. Focused local results do not replace release acceptance.
+and screenshot review.
 
 Run the selection/gate tests without installing project dependencies:
 
@@ -77,8 +77,7 @@ The implementation lives in
 [select-checks.mjs](../../.github/scripts/select-checks.mjs) and
 [deploy-pages.yml](../../.github/workflows/deploy-pages.yml). When introducing a
 new shared contract or moving runtime code, update the selector tests first.
-Keep unknown paths conservative. Do not narrow UI viewport/theme, screenshot or
-accessibility coverage merely to shorten a run.
+Keep unknown paths conservative.
 
 The job/required-check design follows GitHub's
 [conditional job guidance](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/control-jobs-with-conditions),

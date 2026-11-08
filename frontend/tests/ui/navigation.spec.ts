@@ -126,7 +126,7 @@ test('four destinations and inline settings preserve context @checks', async ({ 
 test('fill coverage aligns with its boundary field on phones @checks', async ({ page }) => {
   test.skip(page.viewportSize()!.width >= 960, 'Phone field layout')
   await page.getByRole('radio', { name: 'Fill Color every zone', exact: true }).check()
-  const boundary = page.getByRole('textbox', { name: 'Boundary after color 1', exact: true })
+  const boundary = page.getByRole('textbox', { name: 'Next boundary after color 1', exact: true })
   await boundary.scrollIntoViewIfNeeded()
   const coverage = page.locator('.band-table tbody tr[data-selected="true"] td').nth(2).locator('span').last()
   const field = (await boundary.boundingBox())!

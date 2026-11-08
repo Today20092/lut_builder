@@ -1,3 +1,7 @@
+import { RadioChoice, RadioChoices } from "./RadioChoices"
+import { Slider } from "@/components/ui/slider"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { InlineDisclosure } from "./WorkspaceTask"
 import { Input } from "@/components/ui/input"
 import { NativeSelect } from "@/components/ui/native-select"
 import { Palette, SlidersHorizontal, RotateCcw, Eye, Check, X, Save, Pencil, Trash2 } from "lucide-react"
@@ -181,7 +185,7 @@ export function PaletteEditor({ setup, palette, onApply, onPreview }: { setup: S
     </>}
     {mapping === "exposure" ? <div className="grid gap-1 text-xs text-muted-foreground">
       <p>18% gray reference: <strong className="text-foreground">{exposureReferenceValue(setup).toFixed(setup.band_mode === "stops" ? 0 : 1)} {setup.band_mode === "stops" ? "stops" : "IRE"}</strong>{setup.band_mode === "ire" ? ` · ${setup.ire_basis === "camera" ? setup.profile : "Legacy target-display signal"}` : " · scene-linear exposure"}.</p>
-      <details><summary className="cursor-pointer">What does the reference mean?</summary><p className="mt-2">The reference marks 18% scene gray, not a universal correct exposure for every subject. {setup.band_mode === "ire" && setup.ire_basis === "camera" ? "Camera-log IRE measures encoded input luma using the source gamut weights, on a full-code-range scale (0–1023). Match your monitor's signal range; legal-range waveform readings may differ. Stops measures scene-linear luminance and is preferable for exposure comparisons of colored subjects." : "Stops measures scene-linear luminance; older IRE setups measure the target-display signal."} Your gradient determines its color. Red does not establish sensor clipping.</p></details>
+      <InlineDisclosure title="What does the reference mean?"><p className="mt-2">The reference marks 18% scene gray, not a universal correct exposure for every subject. {setup.band_mode === "ire" && setup.ire_basis === "camera" ? "Camera-log IRE measures encoded input luma using the source gamut weights, on a full-code-range scale (0–1023). Match your monitor's signal range; legal-range waveform readings may differ. Stops measures scene-linear luminance and is preferable for exposure comparisons of colored subjects." : "Stops measures scene-linear luminance; older IRE setups measure the target-display signal."} Your gradient determines its color. Red does not establish sensor clipping.</p></InlineDisclosure>
       {setup.fill_mode && <p>Fill colors cover entire existing zones: the zone containing the reference uses its color, and the outer zones use the end colors.</p>}
       <ul className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-7" aria-label="Exposure palette legend">{["Deep shadows", "Shadows", "Below reference", "Reference", "Above reference", "Highlights", "Very high"].map((label, index) => <li key={label} className="grid grid-cols-[2rem_4.5rem_1fr] items-center gap-2 sm:grid-cols-1 sm:content-start sm:items-start sm:gap-1"><span aria-hidden="true" className="h-4 rounded border" style={{ backgroundColor: ramp[Math.round(index / 6 * 64)] }} /><span className="font-medium text-foreground">{setup.band_mode === "stops" && index > 3 ? "+" : ""}{Number(exposurePaletteScale(setup)[index].toFixed(1))} {setup.band_mode === "stops" ? "stops" : "IRE"}</span><span>{label}</span></li>)}</ul>
     </div> : <p className="text-xs text-muted-foreground">Saved custom gradient: colors span your current band range. Its middle color is not anchored to the exposure reference.</p>}
@@ -196,16 +200,14 @@ export function PaletteEditor({ setup, palette, onApply, onPreview }: { setup: S
     <WorkspaceTask id="palette-adjustments" title={`Advanced: adjust all colors${draft.intensity !== 100 || draft.brightness !== "custom" ? ` · ${draft.intensity}% · ${draft.brightness === "ascending" ? "dark to light" : draft.brightness === "even" ? "same lightness" : "chosen lightness"}` : ""}`} icon={SlidersHorizontal} className="rounded-md border p-3">
     <div className="mt-3 grid gap-3">
     <p className="text-xs text-muted-foreground">Optional finishing controls for the whole palette. They change the preview and applied colors, while your individual dots keep their chosen colors.</p>
-    <fieldset className="flex flex-wrap gap-2">
-      <legend className="mb-2 text-sm font-medium"><span className="inline-flex items-center gap-2">Lightness across the palette <PaletteHelp label="palette lightness">Keep chosen lightness uses the lightness you chose for each dot. Dark to light assigns increasing lightness from low to high exposure. Same lightness gives every dot their average lightness. Hue is retained; fitting to sRGB may reduce chroma.</PaletteHelp></span></legend>
-      {([["custom", "Keep chosen lightness"], ["ascending", "Dark to light"], ["even", "Same lightness"]] as const).map(([value, label]) => <label key={value} className="flex min-h-9 items-center gap-2 rounded-md border px-3 text-sm has-focus-visible:ring-2 has-focus-visible:ring-ring">
-        <input type="radio" name="palette-brightness" value={value} checked={draft.brightness === value} onChange={() => setDraft({ ...draft, brightness: value })} />{label}
-      </label>)}
-    </fieldset>
+    <RadioChoices value={draft.brightness} onChange={brightness => setDraft({ ...draft, brightness })} className="flex-row flex-wrap">
+      <legend className="mb-2 w-full text-sm font-medium"><span className="inline-flex items-center gap-2">Lightness across the palette <PaletteHelp label="palette lightness">Keep chosen lightness uses the lightness you chose for each dot. Dark to light assigns increasing lightness from low to high exposure. Same lightness gives every dot their average lightness. Hue is retained; fitting to sRGB may reduce chroma.</PaletteHelp></span></legend>
+      {([["custom", "Keep chosen lightness"], ["ascending", "Dark to light"], ["even", "Same lightness"]] as const).map(([value, label]) => <RadioChoice key={value} value={value}>{label}</RadioChoice>)}
+    </RadioChoices>
     <div className="flex items-center gap-2 text-sm font-medium"><label htmlFor="palette-intensity">Overall color strength · {draft.intensity}%</label><PaletteHelp label="overall color strength">Multiplies chroma for every dot before blending. 100% keeps the chosen strength, 0% produces gray, and 200% requests twice the chroma. Colors outside sRGB are reduced to fit, so more is not always visibly stronger.</PaletteHelp></div>
     <label className="grid gap-2 text-sm font-medium">
       <span className="sr-only">Overall color strength</span>
-      <input className="pointer-adjustment" id="palette-intensity" aria-label="Color intensity" aria-describedby="palette-intensity-help" type="range" min="0" max="200" value={draft.intensity} onChange={(event) => setDraft({ ...draft, intensity: Number(event.target.value) })} />
+      <Slider className="pointer-adjustment" id="palette-intensity" aria-label="Color intensity" aria-describedby="palette-intensity-help" min={0} max={200} value={draft.intensity} onValueChange={(value) => setDraft({ ...draft, intensity: value as number })} />
       <BandNumberInput className={`${fieldClass} touch-adjustment`} aria-label="Color intensity" value={draft.intensity} min={0} max={200} step={10} onChange={intensity => setDraft({ ...draft, intensity })} />
     </label>
     <p id="palette-intensity-help" className="text-xs text-muted-foreground">100% keeps your chosen color strength. 0% makes the palette gray.</p>
@@ -213,7 +215,7 @@ export function PaletteEditor({ setup, palette, onApply, onPreview }: { setup: S
     </div>
     </WorkspaceTask>
     </>}
-    {!valid && <p role="alert" className="text-sm text-destructive">Correct the invalid anchor color before applying or saving.</p>}
+    {!valid && <Alert variant="error"><AlertDescription>Correct the invalid anchor color before applying or saving.</AlertDescription></Alert>}
     <p role="status" className="text-sm">{audition ? "Draft · review your bands above." : !pending ? "Palette applied to bands." : "Current band colors are kept."}</p>
     {!audition && method === "gradient" && <Button type="button" variant="outline" className="justify-self-start" onClick={() => setDraft(draft, draftLabel)}><Eye data-icon="inline-start" aria-hidden="true" />Preview gradient</Button>}
     {applied && applied.colors !== bandColors && <p className="text-xs text-muted-foreground">Applying will replace manual overrides.</p>}
