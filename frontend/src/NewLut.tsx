@@ -1,3 +1,5 @@
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { InlineDisclosure } from "./WorkspaceTask"
 import { useEffect, useRef, useState } from "react"
 import { ArrowLeft, ArrowRight, Check, Layers } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -30,9 +32,9 @@ export function NewLut({ setup, profiles, targets, palette, busy, error, onCreat
       <nav aria-label="New LUT progress"><ol className="new-lut-progress"><li aria-current={step === 0 ? "step" : undefined}>1. Camera</li><li aria-current={step === 1 ? "step" : undefined}>2. Exposure preset</li></ol></nav>
       <h1 id="new-lut-title" ref={heading} tabIndex={-1}>{step === 0 ? "Start with your camera" : "Choose your exposure guide"}</h1>
       <p className="text-muted-foreground">{step === 0 ? "Build an exposure-monitoring LUT for the log signal you actually shoot." : "Start with a complete arrangement. Adjust every band and color in the editor."}</p>
-      {error && <p role="alert">{error} Your existing setup is unchanged. Try again or continue editing.</p>}
+      {error && <Alert variant="error"><AlertDescription>{error} Your existing setup is unchanged. Try again or continue editing.</AlertDescription></Alert>}
       {step === 0 ? <>
-        <details className="new-lut-explanation"><summary>What does this LUT do?</summary><p>It turns exposure ranges into colors so you can judge your camera signal while shooting. It is a monitoring aid, not a creative grade or proof of sensor clipping. No footage upload is needed.</p></details>
+        <InlineDisclosure className="new-lut-explanation" title="What does this LUT do?"><p>It turns exposure ranges into colors so you can judge your camera signal while shooting. It is a monitoring aid, not a creative grade or proof of sensor clipping. No footage upload is needed.</p></InlineDisclosure>
         <label htmlFor="new-lut-profile" className="grid gap-2 font-medium">Camera / log profile<NativeSelect id="new-lut-profile" value={profile} onChange={event => setProfile(event.target.value)}>{profiles.map(value => <option key={value}>{value}</option>)}</NativeSelect></label>
         <p className="text-sm text-muted-foreground">For a Lumix S5IIX recording V-Log, choose Panasonic V-Log.</p>
         <ChoiceField label="Display color space" value={target} onChange={setTarget} options={targets.map(value => ({ value, label: value }))} />

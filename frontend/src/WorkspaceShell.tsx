@@ -1,5 +1,5 @@
 import { Children, isValidElement, useState, type ReactNode } from "react"
-import { Tabs } from "@base-ui/react/tabs"
+import { Tabs, TabsPanel, TabsPrimitive, TabsTab } from "@/components/ui/tabs"
 import { ArrowUpRight, BookOpen, Download, Image, Layers, MessageSquareWarning, Settings2, SlidersHorizontal, WandSparkles } from "lucide-react"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
@@ -46,9 +46,9 @@ export function WorkspaceShell({ setup, stage, illustration, feedback, shortcuts
       <div className="workspace-brand"><Layers aria-hidden="true" /><h1>LUT Builder</h1><span>Workbench</span></div>
       <div className="workspace-header-actions">{shortcuts}<Button className="workspace-new-desktop" variant="ghost" onClick={onNew} disabled={busy}>New LUT</Button><Button type="button" onClick={() => setExporting(true)}><Download data-icon="inline-start" aria-hidden="true" />Export LUT</Button></div>
     </header>
-    <div className="workspace-interpretation" aria-label="Active interpretation"><span>{setup.profile}</span><span aria-hidden="true">→</span><span>{setup.target}{setup.imported_lut ? ` / ${setup.imported_lut.output_transfer}` : ""}</span><span>{setup.cube_size}³ · {setup.legal_range ? "Legal" : "Full"} range</span><button type="button" onClick={() => open("configuration")} disabled={busy}>Change<span className="sr-only"> configuration</span></button></div>
-    <Tabs.Root value={destination} onValueChange={value => open(value as typeof destination)} className="workspace-body">
-      <nav className="workspace-navigation" aria-label="Workbench sections"><Tabs.List className="workspace-tabs" activateOnFocus={false} aria-label="Editing sections">{destinations.map(({ value, label, icon: Icon }) => <Tabs.Tab key={value} value={value} disabled={busy} className="workspace-tab"><Icon aria-hidden="true" /><span>{label}</span></Tabs.Tab>)}</Tabs.List></nav>
+    <div className="workspace-interpretation" role="group" aria-label="Active interpretation"><span>{setup.profile}</span><span aria-hidden="true">→</span><span>{setup.target}{setup.imported_lut ? ` / ${setup.imported_lut.output_transfer}` : ""}</span><span>{setup.cube_size}³ · {setup.legal_range ? "Legal" : "Full"} range</span><button type="button" onClick={() => open("configuration")} disabled={busy}>Change<span className="sr-only"> configuration</span></button></div>
+    <Tabs value={destination} onValueChange={value => open(value as typeof destination)} className="workspace-body">
+      <nav className="workspace-navigation" aria-label="Workbench sections"><TabsPrimitive.List className="workspace-tabs" activateOnFocus={false} aria-label="Editing sections">{destinations.map(({ value, label, icon: Icon }) => <TabsTab key={value} value={value} disabled={busy} className="workspace-tab"><Icon aria-hidden="true" /><span>{label}</span></TabsTab>)}</TabsPrimitive.List></nav>
       <div className="workspace-mobile-title">
         <div className="workspace-screen-heading"><ScreenIcon aria-hidden="true" /><h2 id="workspace-screen-title" tabIndex={-1}>{screen.label}</h2></div><p>{screen.description}</p>
         {destination === "bands" && <ToggleGroup className="workspace-edit-tools w-full" aria-label="Edit tools" value={[section]} onValueChange={values => { const next = values[0]; if (next === "bands" || next === "palette") open(next) }} disabled={busy}>{(["bands", "palette"] as const).map(value => <ToggleGroupItem key={value} value={value}>{value === "bands" ? "Bands" : "Palette"}</ToggleGroupItem>)}</ToggleGroup>}
@@ -56,7 +56,7 @@ export function WorkspaceShell({ setup, stage, illustration, feedback, shortcuts
       <section className="workspace-stage" aria-label="Exposure workspace">{stage(editBands)}</section>
       <aside id="workspace-adjustments" className="workspace-adjustments" aria-label="Workspace adjustments"><div id="workspace-panel-content" className="workspace-panel-content">
         {!mobile && feedback}
-        {destinations.map(({ value }) => <Tabs.Panel key={value} value={value} keepMounted tabIndex={0}>
+        {destinations.map(({ value }) => <TabsPanel key={value} value={value} keepMounted tabIndex={0}>
           <fieldset disabled={busy} className="@container workspace-fields">
             {value === "media" && <div className="mx-5 mb-6">{illustration(editBands)}</div>}
             {value === "bands" ? <><div hidden={section !== "bands"}>{content("bands")}</div><div hidden={section !== "palette"}>{content("palette")}</div></> : content(value)}
@@ -65,10 +65,10 @@ export function WorkspaceShell({ setup, stage, illustration, feedback, shortcuts
               <section className="workspace-settings-actions" aria-label="Workspace actions"><Button type="button" variant="outline" onClick={onNew}><WandSparkles aria-hidden="true" />New LUT</Button>{[{ label: "Help / Manual", href: `${import.meta.env.BASE_URL}docs/`, icon: BookOpen }, { label: "Report an issue", href: "https://github.com/Today20092/lut_builder/issues/new/choose", icon: MessageSquareWarning }].map(({ label, href, icon: Icon }) => <a key={label} className={buttonVariants({ variant: "ghost" })} href={href} target="_blank" rel="noreferrer"><Icon data-icon="inline-start" aria-hidden="true" />{label}<ArrowUpRight data-icon="inline-end" aria-hidden="true" /><span className="sr-only"> (opens in a new tab)</span></a>)}</section>
             </>}
           </fieldset>
-        </Tabs.Panel>)}
+        </TabsPanel>)}
         {mobile && <div className="workspace-feedback-area">{feedback}</div>}
       </div></aside>
-    </Tabs.Root>
+    </Tabs>
     <nav className="workspace-mobile-navigation" aria-label="Mobile navigation">{destinations.map(({ value, label, icon: Icon }) => <button key={value} type="button" disabled={busy} aria-current={destination === value ? "page" : undefined} onClick={() => open(value)}><Icon aria-hidden="true" /><span>{label}</span></button>)}</nav>
     <WorkspaceSheet open={exporting} title="Export LUT" onClose={() => setExporting(false)}><fieldset disabled={busy} className="workspace-fields">{content("export")}</fieldset>{extras}</WorkspaceSheet>
   </main></WorkspaceNavigation.Provider>

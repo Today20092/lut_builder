@@ -60,7 +60,7 @@ try {
     await page.keyboard.press("Alt+ArrowRight")
     assert.equal(await page.locator(":focus").getAttribute("data-band-center"), "1")
   }
-  await tabTo(page.getByRole("textbox", { name: "Band 1 stops", exact: true }))
+  await tabTo(page.getByRole("textbox", { name: "Band 1 position (stops)", exact: true }))
   await page.keyboard.press("Control+a")
   await page.keyboard.type("-")
   await page.keyboard.press("Delete")

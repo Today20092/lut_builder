@@ -36,7 +36,7 @@ for (const [engine, width, touch] of [['chromium', 320, true], ['chromium', 390,
     const committed = await colors()
     const summary = await outputColors()
     await page.locator('summary').filter({ hasText: 'Graph view' }).click()
-    const range = page.getByLabel('Graph range in stops')
+    const range = page.getByLabel('Visible range (± stops)')
     assert.equal(await range.evaluate(node => node.tagName), 'INPUT')
     await range.fill('20'); await range.press('Enter')
     assert.deepEqual(await colors(), committed)

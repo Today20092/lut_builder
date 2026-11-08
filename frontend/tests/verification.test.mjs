@@ -7,6 +7,8 @@ import { build, stop } from "esbuild"
 import { JSDOM } from "jsdom"
 
 const dom = new JSDOM("<!doctype html><html><body></body></html>", { url: "http://localhost/" })
+globalThis.requestAnimationFrame ??= (callback) => setTimeout(callback, 0)
+globalThis.cancelAnimationFrame ??= clearTimeout
 for (const key of ["window", "document", "Element", "HTMLElement", "Node", "FileReader"]) globalThis[key] = key === "window" ? dom.window : dom.window[key]
 globalThis.IS_REACT_ACT_ENVIRONMENT = true
 Object.defineProperty(globalThis, "navigator", { value: dom.window.navigator })
@@ -60,13 +62,13 @@ test("still workflow requires facts, rejects stale responses, cancels, and inspe
     await upload("camera.png")
     await select(0, "S-Log3")
     await select(1, "V-Gamut")
-    await act(() => container.querySelector('input[aria-label="Normalized camera code values"]').click())
-    await act(() => container.querySelector("input[type=checkbox]:not([aria-label])").click())
+    await act(() => container.querySelector('[role=checkbox][aria-label="Normalized camera code values"]').click())
+    await act(() => container.querySelector("[role=checkbox]:not([aria-label])").click())
     assert.match(container.textContent, /does not match/)
     assert.equal(button("Verify still").disabled, true)
     await select(1, "S-Gamut3.Cine")
-    assert.equal(container.querySelector("input[type=checkbox]:not([aria-label])").checked, false)
-    await act(() => container.querySelector("input[type=checkbox]:not([aria-label])").click())
+    assert.equal(container.querySelector("[role=checkbox]:not([aria-label])").getAttribute("aria-checked"), "false")
+    await act(() => container.querySelector("[role=checkbox]:not([aria-label])").click())
     await click("Verify still")
     const first = calls.at(-1)
     assert.equal(first.payload.source.name, "camera.png")
@@ -95,7 +97,7 @@ test("still workflow requires facts, rejects stale responses, cancels, and inspe
     assert.equal(container.querySelector("img"), null)
     assert.ok(calls.some((call) => call.path === "/verify-cancel" && call.payload.request_id === sample.payload.request_id))
     await select(0, "S-Log3")
-    await act(() => container.querySelector("input[type=checkbox]:not([aria-label])").click())
+    await act(() => container.querySelector("[role=checkbox]:not([aria-label])").click())
     await click("Verify still")
     const cancelled = calls.at(-1)
     await click("Cancel verification")

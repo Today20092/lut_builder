@@ -68,10 +68,10 @@ async function accessible(page: Page) {
         if (!element.closest('[aria-label^="Editable exposure graph"]')) return null
         const label = element.getAttribute('aria-label') ?? ''
         const edge = label.match(/^Resize (?:left|right) edge of band (\d+)$/)
-        const center = label.match(/^Band (\d+), .* stops$/)
+        const center = label.match(/^Band (\d+) center$/)
         const boundary = label.match(/^Boundary between colors (\d+) and /)
         const fillColor = label.match(/^Edit fill color (\d+)$/)
-        return edge ? `Band ${edge[1]} total width` : center ? `Band ${center[1]} stops` : boundary ? `Boundary after color ${boundary[1]}` : fillColor ? `Open Band ${fillColor[1]} color picker` : null
+        return edge ? `Band ${edge[1]} total width (stops)` : center ? `Band ${center[1]} position (stops)` : boundary ? `Next boundary after color ${boundary[1]}` : fillColor ? `Open Band ${fillColor[1]} color picker` : null
       })
       if (!equivalent) { unresolved.push(node); continue }
       const field = page.getByRole(equivalent === 'Add color' || equivalent.startsWith('Open Band ') ? 'button' : 'textbox', { name: equivalent, exact: true })
@@ -125,7 +125,7 @@ test('configuration help opens by tap and fields keep a single control surface @
 })
 
 test('frequent choices stay visible and numeric graph preferences preserve valid work @checks', async ({ page }) => {
-  await expect(page.getByRole('textbox', { name: 'All total widths', exact: true })).toBeVisible()
+  await expect(page.getByRole('textbox', { name: 'All band widths (stops)', exact: true })).toBeVisible()
   const steps = page.getByRole('group', { name: 'Movement increment', exact: true })
   await expect(steps).toBeVisible()
   await steps.getByRole('button', { name: '½ stop', exact: true }).click()
@@ -133,7 +133,7 @@ test('frequent choices stay visible and numeric graph preferences preserve valid
   await steps.getByRole('button', { name: '½ stop', exact: true }).click()
   await expect(steps.getByRole('button', { name: '½ stop', exact: true })).toHaveAttribute('aria-pressed', 'true')
   await disclosure(page, 'Graph view')
-  const range = page.getByRole('textbox', { name: 'Graph range in stops', exact: true })
+  const range = page.getByRole('textbox', { name: 'Visible range (± stops)', exact: true })
   await range.fill('20')
   await range.press('Enter')
   await expect(page.getByRole('group', { name: 'Editable exposure graph from -20 to 20 stops', exact: true })).toBeVisible()
@@ -258,7 +258,7 @@ test('band editor uses selected phone fields and a desktop table with confirmed 
     await expect(page.getByRole('button', { name: 'Select band 1', exact: true })).toHaveAttribute('aria-pressed', 'true')
   }
   await table.locator('..').screenshot({ path: `../.scratch/band-table-${test.info().project.name}.png` })
-  const position = page.getByRole('textbox', { name: 'Band 1 stops', exact: true })
+  const position = page.getByRole('textbox', { name: 'Band 1 position (stops)', exact: true })
   await position.fill('-3.5')
   await position.press('Enter')
   await expect(position).toHaveValue('-3.5')
@@ -393,7 +393,7 @@ test('mode choices have visible examples and routine recovery stays in Setups @c
       save.call(this, key, value)
     }
   })
-  const position = page.getByRole('textbox', { name: 'Band 1 stops', exact: true })
+  const position = page.getByRole('textbox', { name: 'Band 1 position (stops)', exact: true })
   await position.fill('0.5')
   await position.press('Enter')
   await expect(page.locator('.workspace-session-error')).toContainText('Could not save your session')
@@ -427,7 +427,7 @@ test('complete presets lead into editable bands and undo without changing config
   await bandMode(page, 'Fill Color every zone')
   const table = page.getByRole('table', { name: 'Band colors and positions' })
   await expect(table.locator('tbody tr')).toHaveCount(5)
-  await expect(page.getByRole('textbox', { name: 'Boundary after color 1', exact: true })).toHaveValue('-1.5')
+  await expect(page.getByRole('textbox', { name: 'Next boundary after color 1', exact: true })).toHaveValue('-1.5')
   await expect(page.getByRole('button', { name: 'Cancel preview', exact: true })).toHaveCount(0)
   await expect(camera).toHaveValue(cameraBefore)
   await page.evaluate(() => window.scrollTo(0, 0))
@@ -440,7 +440,7 @@ test('complete presets lead into editable bands and undo without changing config
   await applyPreset(page, 'three-band')
   await panel(page, 'Bands')
   await expect(table.locator('tbody tr')).toHaveCount(3)
-  await expect(page.getByRole('textbox', { name: 'Band 1 stops', exact: true })).toHaveValue('-2')
+  await expect(page.getByRole('textbox', { name: 'Band 1 position (stops)', exact: true })).toHaveValue('-2')
   await panel(page, 'Presets')
   await applyPreset(page, 'camera-ire')
   await panel(page, 'Bands')
@@ -468,9 +468,9 @@ test('phone graph supports touch editing and page scrolling @checks', async ({ p
     for (let i = 1; i <= 12; i++) await session.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: x + dx * i / 12, y: y + dy * i / 12 }] })
     await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
   }
-  const center = (await page.getByRole('button', { name: 'Band 1, 0 stops', exact: true }).boundingBox())!
+  const center = (await page.getByRole('slider', { name: 'Band 1 center', exact: true }).boundingBox())!
   await swipe(center.x + center.width / 2, center.y + center.height / 2, 50, 0)
-  const field = page.getByRole('textbox', { name: 'Band 1 stops', exact: true })
+  const field = page.getByRole('textbox', { name: 'Band 1 position (stops)', exact: true })
   await expect(field).not.toHaveValue('0')
   const position = await field.inputValue()
   await page.evaluate(() => window.scrollTo(0, 0))
@@ -555,13 +555,13 @@ test('phone destinations keep inline controls and direct access @checks', async 
   await expect(page.locator('.workspace')).toHaveAttribute('data-section', 'bands')
   await panel(page, 'Bands')
 
-  await expect(page.getByRole('textbox', { name: 'Band 1 stops', exact: true })).toBeVisible()
+  await expect(page.getByRole('textbox', { name: 'Band 1 position (stops)', exact: true })).toBeVisible()
   await expect(page.getByRole('radio', { name: 'Stops Mark exposure', exact: true })).toBeVisible()
   const advanced = page.locator('summary').filter({ hasText: 'Graph view' })
   await advanced.focus()
   await advanced.press('Enter')
   await expect(advanced).toBeFocused()
-  const field = page.getByRole('textbox', { name: 'Band 1 stops', exact: true })
+  const field = page.getByRole('textbox', { name: 'Band 1 position (stops)', exact: true })
   await field.scrollIntoViewIfNeeded()
   await expect(field).toBeVisible()
   const graph = page.locator('.workspace-stage')
@@ -578,7 +578,7 @@ test('selected band, panels, session restore and keyboard remain usable @checks'
   await panel(page, 'Bands')
   await page.getByRole('button', { name: 'Select band 2', exact: true }).click()
   await expect(page.locator('.workspace')).toHaveAttribute('data-section', 'bands')
-  const position = page.getByRole('textbox', { name: 'Band 2 stops', exact: true })
+  const position = page.getByRole('textbox', { name: 'Band 2 position (stops)', exact: true })
   await position.fill('0.75')
   await position.press('Enter')
   await panel(page, 'Configure')
@@ -643,7 +643,7 @@ test('corrupt sessions remain recoverable until explicit replacement @checks @be
   await page.evaluate(() => localStorage.setItem('lut-builder.workspace-session.v1', '{unreadable'))
   await page.reload()
   await expect(page.getByText(/Your saved session could not be recovered/)).toBeVisible()
-  const field = page.getByRole('textbox', { name: 'Band 1 stops', exact: true })
+  const field = page.getByRole('textbox', { name: 'Band 1 position (stops)', exact: true })
   await field.fill('1')
   await field.press('Enter')
   expect(await page.evaluate(() => localStorage.getItem('lut-builder.workspace-session.v1'))).toBe('{unreadable')
@@ -684,8 +684,8 @@ test('confirmed imported look edits, compares and exports portably without chang
   }
   await panel(page, 'Bands')
   await page.getByRole('button', { name: 'Select band 1', exact: true }).click()
-  await page.getByRole('textbox', { name: 'Band 1 total width', exact: true }).fill('4')
-  await page.getByRole('textbox', { name: 'Band 1 total width', exact: true }).press('Enter')
+  await page.getByRole('textbox', { name: 'Band 1 total width (stops)', exact: true }).fill('4')
+  await page.getByRole('textbox', { name: 'Band 1 total width (stops)', exact: true }).press('Enter')
   await expect(comparison.locator('[aria-label="Neutral camera patches at labeled stops"] > div')).toHaveCount(9)
   const save = async (label: string) => {
     const pending = page.waitForEvent('download')
@@ -784,4 +784,25 @@ test('open configuration and imported draft survive responsive resizing @checks'
   await panel(page, 'Media')
   await panel(page, 'Bands')
   await expect(page.locator('.workspace')).toHaveAttribute('data-section', 'bands')
+})
+test('text fields show a visible boundary and explain invalid entries @checks', async ({ page }) => {
+  const field = page.getByRole('textbox', { name: 'Band 1 position (stops)', exact: true })
+  if (!await field.isVisible()) await page.getByRole('button', { name: 'Select band 1', exact: true }).click()
+  await expect(field).toBeVisible()
+  const [border, surface] = await field.evaluate(element => {
+    const paint = document.createElement('canvas').getContext('2d', { willReadFrequently: true })!
+    const rgb = (color: string) => { paint.clearRect(0, 0, 1, 1); paint.fillStyle = color; paint.fillRect(0, 0, 1, 1); return [...paint.getImageData(0, 0, 1, 1).data].slice(0, 3) }
+    let parent = element.parentElement!
+    while (getComputedStyle(parent).backgroundColor === 'rgba(0, 0, 0, 0)') parent = parent.parentElement ?? document.documentElement
+    return [rgb(getComputedStyle(element).borderTopColor), rgb(getComputedStyle(parent).backgroundColor)]
+  })
+  const luminance = (rgb: number[]) => rgb.map(value => value / 255).map(value => value <= .04045 ? value / 12.92 : ((value + .055) / 1.055) ** 2.4).reduce((sum, value, index) => sum + value * [.2126, .7152, .0722][index], 0)
+  const [high, low] = [luminance(border), luminance(surface)].sort((a, b) => b - a)
+  expect((high + .05) / (low + .05)).toBeGreaterThanOrEqual(3)
+  await field.fill('abc')
+  await expect(field).toHaveAttribute('aria-invalid', 'true')
+  await expect(field).toHaveAccessibleDescription(/Enter a number/)
+  await field.press('Escape')
+  await expect(field).toHaveValue('0')
+  await expect(field).not.toHaveAttribute('aria-invalid', 'true')
 })

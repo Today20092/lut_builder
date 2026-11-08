@@ -23,6 +23,7 @@
     --color-chart-1: var(--chart-1);
     --color-ring: var(--ring);
     --color-input: var(--input);
+    --color-control: var(--control-border);
     --color-border: var(--border);
     --color-destructive: var(--destructive);
     --color-accent-foreground: var(--accent-foreground);
@@ -47,6 +48,19 @@
     --radius-2xl: calc(var(--radius) * 1.8);
     --radius-3xl: calc(var(--radius) * 2.2);
     --radius-4xl: calc(var(--radius) * 2.6);
+    --animate-skeleton: skeleton 2s -1s infinite linear;
+    --color-warning-foreground: var(--warning-foreground);
+    --color-warning: var(--warning);
+    --color-success-foreground: var(--success-foreground);
+    --color-success: var(--success);
+    --color-info-foreground: var(--info-foreground);
+    --color-info: var(--info);
+    --color-destructive-foreground: var(--destructive-foreground);
+  @keyframes skeleton {
+  to {
+    background-position: -200% 0;
+        }
+    }
 }
 
 :root {
@@ -68,7 +82,8 @@
     --destructive: oklch(0.50 0.20 27.325);
     --border: oklch(0.922 0 0);
     --input: oklch(0.922 0 0);
-    --ring: oklch(0.708 0 0);
+    --control-border: oklch(0.62 0 0);
+    --ring: oklch(0.556 0 0);
     --chart-1: oklch(0.87 0 0);
     --chart-2: oklch(0.556 0 0);
     --chart-3: oklch(0.439 0 0);
@@ -84,6 +99,13 @@
     --sidebar-accent-foreground: oklch(0.205 0 0);
     --sidebar-border: oklch(0.922 0 0);
     --sidebar-ring: oklch(0.708 0 0);
+    --destructive-foreground: var(--color-red-700);
+    --info: var(--color-blue-500);
+    --info-foreground: var(--color-blue-700);
+    --success: var(--color-emerald-500);
+    --success-foreground: var(--color-emerald-700);
+    --warning: var(--color-amber-500);
+    --warning-foreground: var(--color-amber-700);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -106,6 +128,7 @@
     --destructive: oklch(0.704 0.191 22.216);
     --border: oklch(1 0 0 / 10%);
     --input: oklch(1 0 0 / 15%);
+    --control-border: oklch(0.62 0 0);
     --ring: oklch(0.556 0 0);
     --chart-1: oklch(0.87 0 0);
     --chart-2: oklch(0.556 0 0);
@@ -414,7 +437,7 @@ details.border[open] > summary { margin-bottom: 0; }
 .new-lut-progress [aria-current="step"] { color: var(--foreground); font-weight: 650; }
 .new-lut-content select, .new-lut-content button { min-height: 3rem; font-size: 1rem; }
 .new-lut-explanation { font-size: .875rem; border-block: 1px solid var(--border); }
-.new-lut-explanation summary { min-height: 3rem; align-content: center; cursor: pointer; }
+.new-lut-explanation [data-slot="collapsible-trigger"] { min-height: 3rem; align-content: center; cursor: pointer; }
 .new-lut-explanation p { padding-bottom: 1rem; }
 .new-lut-presets { display: grid; gap: .75rem; min-width: 0; }
 .new-lut-preset { display: grid; gap: .75rem; border: 1px solid var(--border); border-radius: .75rem; padding: 1rem; cursor: pointer; }
@@ -532,3 +555,20 @@ html { scrollbar-gutter: stable; }
   [data-slot="toast"] { transition: none; }
 }
 
+.dark {
+    --destructive-foreground: var(--color-red-400);
+    --info: var(--color-blue-500);
+    --info-foreground: var(--color-blue-400);
+    --success: var(--color-emerald-500);
+    --success-foreground: var(--color-emerald-400);
+    --warning: var(--color-amber-500);
+    --warning-foreground: var(--color-amber-400);
+}
+/* Band colors are arbitrary, so graph focus needs both a light and a dark edge. */
+[data-exposure-graph] button:focus-visible { outline: 2px solid #fff; outline-offset: -2px; box-shadow: inset 0 0 0 4px #000; }
+@media (forced-colors: active) {
+  /* Inline colors are the LUT data itself, not decoration. */
+  [style*="background"], [data-exposure-graph] { forced-color-adjust: none; }
+  [data-slot="toggle-group-item"][data-pressed], .workspace-band-picker [aria-pressed="true"], .workspace-mobile-navigation [aria-current="page"] { forced-color-adjust: none; background: Highlight; color: HighlightText; }
+  label:has(input:focus-visible) { outline: 2px solid Highlight; outline-offset: 2px; }
+}

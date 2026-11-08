@@ -1,3 +1,10 @@
+import { Badge } from "@/components/ui/badge"
+import { Empty, EmptyDescription } from "@/components/ui/empty"
+import { NumberField, NumberFieldGroup, NumberFieldInput } from "@/components/ui/number-field"
+import { Slider } from "@/components/ui/slider"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { InlineDisclosure } from "./WorkspaceTask"
 import { HelpLink } from "./HelpLink"
 import { Input } from "@/components/ui/input"
 import { NativeSelect } from "@/components/ui/native-select"
@@ -5,6 +12,7 @@ import { ChoiceField } from "./ChoiceField"
 import { ImagePlus, VideoIcon, ImageIcon, X, Check, ChevronLeft, ChevronRight, Expand, Minimize, Plus, Download, RefreshCw, History, FolderOpen, Upload, RotateCcw, Trash2, Undo2, Save } from "lucide-react"
 import {
   Fragment,
+  useId,
   useCallback,
   useEffect,
   useMemo,
@@ -168,7 +176,7 @@ export function LutImagePreview({ preview, camera }: { preview: Preview | null; 
     </fieldset>
     {comparison === "Split view" && <p className="text-xs text-muted-foreground">Original on the left. Band colors on the right.</p>}
     <label className="grid gap-2 text-sm font-medium">Viewing opacity · {opacity}%
-      <input type="range" min="0" max="100" value={opacity} onChange={(event) => setOpacity(Number(event.target.value))} />
+      <Slider aria-label="Viewing opacity" min={0} max={100} value={opacity} onValueChange={(value) => setOpacity(value as number)} />
     </label>
     <p className="text-xs text-muted-foreground">Opacity changes this view only, never the exported LUT.</p>
     </>}
@@ -189,10 +197,10 @@ export function LutImagePreview({ preview, camera }: { preview: Preview | null; 
     </div>
     <p className="break-all text-xs text-muted-foreground" role="status">{camera && !video ? "No camera video selected." : imageName} · {camera || video ? "Video stays on this computer in temporary server storage." : "Still images stay in this browser session. Maximum 25 MB."}</p>
     <p className="text-xs text-muted-foreground">Video: MP4/MOV/MKV, H.264, HEVC, ProRes 422 or FFV1. Progressive, square pixels, no rotation. Up to 256 MB, 1920 × 1080, 120 seconds and 10,000 frames. Processing limit: 60 seconds per stage. One video per app launch; expires after 15 idle minutes.</p>
-    {videoBusy && <div className="flex flex-wrap items-center gap-2"><p role="status" className="text-sm">{videoBusy}</p><Button type="button" variant="outline" onClick={() => reference("Video cancelled and temporary data released.")}><X data-icon="inline-start" aria-hidden="true" />Cancel video</Button></div>}
+    <p role="status" className="empty:hidden text-sm">{videoBusy}</p>{videoBusy && <div className="flex flex-wrap items-center gap-2"><Button type="button" variant="outline" onClick={() => reference("Video cancelled and temporary data released.")}><X data-icon="inline-start" aria-hidden="true" />Cancel video</Button></div>}
     {video && <div className="grid gap-3 rounded-md border p-3">
       <label className="grid gap-2 text-sm">Requested relative time in seconds
-        <Input type="number" min="0" step="any" className={fieldClass} value={videoTime} onChange={(event) => setVideoTime(event.target.value)} disabled={!!videoBusy} />
+        <NumberField min={0} step={0.001} value={videoTime === "" ? null : Number(videoTime)} onValueChange={(value) => setVideoTime(value === null ? "" : String(value))} disabled={!!videoBusy}><NumberFieldGroup><NumberFieldInput className={fieldClass} /></NumberFieldGroup></NumberField>
       </label>
       <div className="flex flex-wrap gap-2">
         <Button type="button" variant="outline" disabled={!!videoBusy || !videoTime.trim()} onClick={() => void selectVideoFrame({ time: videoTime })}><Check data-icon="inline-start" aria-hidden="true" />Select frame</Button>
@@ -202,19 +210,18 @@ export function LutImagePreview({ preview, camera }: { preview: Preview | null; 
       </div>
       <p role="status" className="text-sm">Selected {video.frame.seconds.toFixed(6)} s · exact {video.frame.relative_time} s · frame {video.frame.index + 1} of {video.frame.count}. PTS {video.frame.pts}, time base {video.frame.time_base}; first PTS {video.frame.first_pts}.</p>
       <p className="text-xs text-muted-foreground">First decoded presentation frame at or after the request. Previous/Next follows decoded frames, including variable frame rate.</p>
-      <details>
-        <summary className="cursor-pointer text-sm">Reported by file</summary>
+      <InlineDisclosure triggerClassName="text-sm" title={"Reported by file"}>
         <dl className="mt-2 grid gap-2 text-xs">
           {["codec_name", "profile", "width", "height", "pix_fmt", "color_range", "color_space", "color_transfer", "color_primaries", "chroma_location", "sample_aspect_ratio", "field_order", "tags", "side_data_list"].map((key) => <div key={key} className="break-all"><dt className="font-medium">{key.replaceAll("_", " ")}</dt><dd>Stream: {JSON.stringify(video.facts.stream[key] ?? "unknown")} · Frame: {JSON.stringify(video.facts.frame[key] ?? "unknown")}</dd></div>)}
         </dl>
         <p className="mt-2 text-xs">Decoded component depth: {video.source.precision_bits} bits. Camera profile suggestions: none. Missing metadata stays unknown; codec and matrix do not identify camera gamma or gamut.</p>
-      </details>
-      {!camera && <details><summary className="cursor-pointer text-sm">Demonstration decoding assumptions</summary>
+      </InlineDisclosure>
+      {!camera && <InlineDisclosure triggerClassName="text-sm" title={"Demonstration decoding assumptions"}>
         <p className="mt-2 text-xs">Unconfirmed matrix {video.provenance.matrix}, range {video.provenance.range}, chroma location {video.provenance.chroma_location}. Supported frame tags take precedence over stream tags; missing or unsupported tags use BT.709 / limited / left for this illustration.</p>
         <p className="mt-2 text-xs">{video.provenance.view} Native {video.source.pixel_format} samples are retained separately for later verification. No exported LUT has been applied.</p>
-      </details>}
+      </InlineDisclosure>}
     </div>}
-    {imageError && <p className="text-sm text-destructive" role="alert">{imageError}</p>}
+    {imageError && <Alert variant="error"><AlertDescription>{imageError}</AlertDescription></Alert>}
     {camera && video && !videoBusy && !imageError && <CameraVerification key={`${video.source_id}:${frameRevision}`} {...camera} video={video} />}
   </div>
 
@@ -328,6 +335,7 @@ export function ColorPicker({
   triggerRef?: Ref<HTMLButtonElement>
   onChange: (value: string) => void
 }) {
+  const hexErrorId = useId()
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState("")
   const [showPresets, setShowPresets] = useState(false)
@@ -364,7 +372,7 @@ export function ColorPicker({
         <Popover.Trigger
           ref={triggerRef}
           aria-label={`Open ${label} picker`}
-          className={`flex ${hideLabel ? "size-7 sm:size-9" : "size-9"} shrink-0 items-center justify-center rounded-md border border-input outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50`}
+          className={`flex ${hideLabel ? "size-7 sm:size-9" : "size-9"} shrink-0 items-center justify-center rounded-md border border-control outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50`}
           disabled={disabled}
         >
           <span
@@ -373,7 +381,7 @@ export function ColorPicker({
             style={{ backgroundColor: isHexColor(value) ? value : "#000000" }}
           />
         </Popover.Trigger>
-        <Input aria-label={`${label} hex value`} title="Copy or paste a six-digit hex color, such as #2563eb" className={`${fieldClass} ${hideLabel ? "!px-1 sm:!px-2" : "!px-2"} min-w-0 font-mono text-xs`} value={hexValue} spellCheck={false} aria-invalid={!isHexColor(hexValue)}
+        <Input aria-label={`${label} hex value`} aria-describedby={isHexColor(hexValue) ? undefined : hexErrorId} title="Copy or paste a six-digit hex color, such as #2563eb" className={`${fieldClass} ${hideLabel ? "!px-1 sm:!px-2" : "!px-2"} min-w-0 font-mono text-xs`} value={hexValue} spellCheck={false} aria-invalid={!isHexColor(hexValue)}
           onChange={(event) => {
             const next = event.target.value
             setHexDraft(next)
@@ -382,6 +390,7 @@ export function ColorPicker({
           onBlur={() => setHexDraft(value)}
           onKeyDown={(event) => { if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); setHexDraft(value) } }} />
         </div>
+        <span id={hexErrorId} role="status" className="empty:hidden text-xs text-destructive">{isHexColor(hexValue) ? "" : "Enter six hex digits, such as #2563eb. Leaving restores the last color."}</span>
         <Popover.Portal>
           <Popover.Positioner
             data-color-positioner
@@ -398,10 +407,10 @@ export function ColorPicker({
             >
                 <div className="sticky top-0 z-10 grid gap-3 bg-popover pb-3">
                 <div className="flex items-center justify-between gap-2">
-                  <Button type="button" size="sm" variant="outline" aria-expanded={showPresets} onClick={() => setShowPresets((shown) => !shown)}>{showPresets ? "Custom color" : "Tailwind presets"}</Button>
+                  <Button type="button" size="sm" variant="outline" onClick={() => setShowPresets((shown) => !shown)}>{showPresets ? "Custom color" : "Tailwind presets"}</Button>
                   <Popover.Close render={<Button size="sm" variant="ghost" />}>Done</Popover.Close>
                 </div>
-                <div className="flex min-h-16 items-center gap-3 rounded-lg border p-2" aria-label="Saved color preview">
+                <div className="flex min-h-16 items-center gap-3 rounded-lg border p-2" role="group" aria-label="Saved color preview">
                   <span role="img" aria-label={`Saved sRGB color ${isHexColor(value) ? value : "invalid"}`} className="size-12 shrink-0 rounded-md border" style={{ backgroundColor: isHexColor(value) ? value : "transparent" }} />
                   <div className="grid min-w-0 gap-1"><span className="text-xs text-muted-foreground">Saved color · sRGB</span><output aria-label="Saved color hex" className="font-mono text-sm">{isHexColor(value) ? value.toUpperCase() : "Invalid HEX"}</output></div>
                 </div>
@@ -542,6 +551,7 @@ export function ExposureGraph({
       ref={graph}
       tabIndex={setup.bands.length ? -1 : 0}
       role="group"
+      data-exposure-graph
       aria-keyshortcuts="Delete Backspace Alt+ArrowLeft Alt+ArrowRight"
       onKeyDown={(event) => {
         if (event.defaultPrevented || event.nativeEvent.isComposing || isTypingTarget(event.target) || event.ctrlKey || event.metaKey) return
@@ -579,22 +589,22 @@ export function ExposureGraph({
           onDoubleClick={() => onEditColor?.(index)} />
       })}
       {setup.low_signal_warning && (
-        <span
-          className="pointer-events-none absolute bottom-1 left-1 z-30 rounded px-1.5 py-0.5 text-[10px] font-semibold shadow"
+        <Badge
+          className="pointer-events-none absolute bottom-1 left-1 z-30 shadow"
           style={{ backgroundColor: setup.low_signal_hex, color: contrastTextColor(setup.low_signal_hex) }}
           title="Low recorded-signal warning is enabled; shadow detail may be buried in noise"
         >
           Low signal
-        </span>
+        </Badge>
       )}
       {setup.high_signal_warning && (
-        <span
-          className="pointer-events-none absolute bottom-1 right-1 z-30 rounded px-1.5 py-0.5 text-[10px] font-semibold shadow"
+        <Badge
+          className="pointer-events-none absolute bottom-1 right-1 z-30 shadow"
           style={{ backgroundColor: setup.high_signal_hex, color: contrastTextColor(setup.high_signal_hex) }}
           title="High recorded-signal warning is enabled; one or more recorded channels may be clipped"
         >
           High signal
-        </span>
+        </Badge>
       )}
         {ticks.filter((tick) => tick === 0).map((tick) => (
         <span
@@ -608,7 +618,7 @@ export function ExposureGraph({
       {belowIndexes.length > 0 && (
         <button
           type="button"
-          className="absolute left-1 top-1 z-20 rounded bg-background/90 px-1 text-xs font-medium"
+          className="absolute left-1 top-1 z-20 min-h-6 rounded bg-background/90 px-1 text-xs font-medium"
           aria-label={`${belowIndexes.length} bands below the visible range`}
           onClick={() => onSelect(belowIndexes[0])}
         >
@@ -618,7 +628,7 @@ export function ExposureGraph({
       {aboveIndexes.length > 0 && (
         <button
           type="button"
-          className="absolute right-1 top-1 z-20 rounded bg-background/90 px-1 text-xs font-medium"
+          className="absolute right-1 top-1 z-20 min-h-6 rounded bg-background/90 px-1 text-xs font-medium"
           aria-label={`${aboveIndexes.length} bands above the visible range`}
           onClick={() => onSelect(aboveIndexes[0])}
         >
@@ -658,9 +668,10 @@ export function ExposureGraph({
                 <button
                   aria-label={`Resize ${side < 0 ? "left" : "right"} edge of band ${index + 1}`}
                   aria-valuemin={0.1}
+                  aria-valuemax={Math.max(preview.maximum - preview.minimum, band.width)}
                   aria-valuenow={band.width}
                   aria-valuetext={`${Number((band.width * 2).toFixed(6))} ${preview.unit} total width`}
-                  className={`absolute inset-y-0 z-20 w-3 -translate-x-1/2 cursor-ew-resize bg-transparent outline-none after:absolute after:inset-y-0 after:left-1/2 after:w-0.5 after:-translate-x-1/2 after:bg-white after:shadow hover:after:w-1 focus-visible:ring-2 focus-visible:ring-ring ${selectedBand === index ? "after:w-1" : ""}`}
+                  className={`absolute inset-y-0 z-20 w-3 -translate-x-1/2 cursor-ew-resize bg-transparent outline-none after:absolute after:inset-y-0 after:left-1/2 after:w-0.5 after:-translate-x-1/2 after:bg-white after:shadow after:outline after:outline-1 after:outline-black hover:after:w-1 focus-visible:ring-2 focus-visible:ring-ring ${selectedBand === index ? "after:w-1" : ""}`}
                   key={`${bandId(band)}-${side}`}
                   role="slider"
                   style={{ left: `${position(band.stop + side * band.width)}%`, zIndex: selectedBand === index ? 30 : undefined }}
@@ -687,8 +698,8 @@ export function ExposureGraph({
               data-band-center={index}
               type="button"
               className={setup.fill_mode
-                  ? `absolute inset-y-0 z-10 w-6 -translate-x-1/2 cursor-ew-resize bg-transparent after:absolute after:inset-y-0 after:left-1/2 after:w-0.5 after:-translate-x-1/2 after:bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${selectedBand === index ? "after:w-1" : ""}`
-                  : `absolute z-10 size-4 cursor-ew-resize rounded-full border-2 border-background shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${selectedBand === index ? "ring-2 ring-ring ring-offset-2" : ""}`}
+                  ? `absolute inset-y-0 z-10 w-6 -translate-x-1/2 cursor-ew-resize bg-transparent after:absolute after:inset-y-0 after:left-1/2 after:w-0.5 after:-translate-x-1/2 after:bg-white after:outline after:outline-1 after:outline-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${selectedBand === index ? "after:w-1" : ""}`
+                  : `absolute z-10 size-4 cursor-ew-resize rounded-full border-2 border-white shadow outline outline-1 outline-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${selectedBand === index ? "ring-2 ring-ring ring-offset-2" : ""}`}
               style={{
                 left: `${position(band.stop)}%`,
                 zIndex: selectedBand === index ? 40 : undefined,
@@ -701,9 +712,12 @@ export function ExposureGraph({
                     : "translate(-50%, -50%)",
                 }),
               }}
-              aria-label={setup.fill_mode
-                ? `Boundary between colors ${index + 1} and ${index + 2}, ${band.stop} ${preview.unit}`
-                : `Band ${index + 1}, ${band.stop} ${preview.unit}${edge ? ", outside visible range" : ""}`}
+              role="slider"
+              aria-label={setup.fill_mode ? `Boundary between colors ${index + 1} and ${index + 2}` : `Band ${index + 1} center`}
+              aria-valuemin={Math.min(preview.minimum, band.stop)}
+              aria-valuemax={Math.max(preview.maximum, band.stop)}
+              aria-valuenow={band.stop}
+              aria-valuetext={`${band.stop} ${preview.unit}${edge ? ", outside visible range" : ""}`}
                 title={`${band.stop} ${preview.unit}${edge ? " · outside visible range" : " · drag to move"}`}
               onClick={() => onSelect(index)}
               onFocus={() => onFocusSelect(index)}
@@ -720,7 +734,7 @@ export function ExposureGraph({
         )
       })}
     </div>
-    <div className="relative h-8 text-[10px] text-muted-foreground" aria-label={`${preview.unit} scale`}>
+    <div className="relative h-8 text-[10px] text-muted-foreground" data-exposure-scale aria-hidden="true">
       {ticks.map((tick) => (
         <span className="absolute top-0 flex -translate-x-1/2 flex-col items-center" key={tick} style={{ left: `${position(tick)}%` }}>
           <span aria-hidden="true" className="h-2 border-l border-current" />
@@ -889,7 +903,7 @@ export function App() {
     if (controller) workerRef.current = controller
     try {
       const outcome = await Effect.runPromise(Effect.result(runtime.generate(setup, destinationFilename(setup, exportDestination), (progress) => {
-        setStatus(`Generating ${setup.cube_size}³ LUT… ${Math.round(progress * 100)}%`)
+        setStatus(`Generating ${setup.cube_size}³ LUT… ${Math.floor(progress * 10) * 10}%`)
       })), { signal: controller?.signal })
       if (Result.isFailure(outcome)) throw outcome.failure
       const artifact = outcome.success
@@ -1028,21 +1042,21 @@ export function App() {
             onChange={(index, stop) => editSetup((current) => setup.fill_mode ? updateFillBoundary(current, index, stop, movementIncrement) : updateBand(current, index, { stop }), index)}
             onWidthChange={(index, width) => editSetup((current) => updateBand(current, index, { width }), index)} />
         </fieldset>
-        <div className="workspace-band-toolbar"><div className="workspace-band-picker" aria-label="Select exposure band">
+        <div className="workspace-band-toolbar"><div className="workspace-band-picker" role="group" aria-label="Select exposure band">
           {setup.bands.map((band, index) => <Button key={bandId(band)} type="button" variant={selectedBand === index ? "secondary" : "ghost"} aria-pressed={selectedBand === index} aria-label={`Select band ${index + 1}`} disabled={isGenerating || isLoadingSetup || !sessionReady} onClick={() => { selectBand(index); openBands() }}><span className="workspace-swatch" style={{ backgroundColor: band.color }} aria-hidden="true" />{index + 1}</Button>)}
         </div><div className="workspace-mobile-band-actions">{bandActions}</div></div>
         <ImportedLookPreview setup={setup} />
         <p className="workspace-stage-hint">Select a band to edit its color and exposure range.</p>
       </>}
       feedback={<>
-        {sessionReady && presetsBlocked && loadStatus && <p role="alert" className="p-3 text-sm">{loadStatus}</p>}
-        {sessionProblem && <p className="workspace-session-error" role="status">{sessionStatus}</p>}
+        {sessionReady && presetsBlocked && loadStatus && <Alert variant="error" className="p-3"><AlertDescription>{loadStatus}</AlertDescription></Alert>}
+        {sessionProblem && <p className="workspace-session-error" role="alert">{sessionStatus}</p>}
         {sessionBlocked && <div className="grid gap-2 p-3"><Button type="button" variant="outline" onClick={downloadSessionBackup}><Download data-icon="inline-start" aria-hidden="true" />Download saved session backup</Button><Button type="button" variant="outline" onClick={() => { setSessionBlocked(false); setSessionRetry((value) => value + 1) }}><RefreshCw data-icon="inline-start" aria-hidden="true" />Replace saved session with current setup</Button></div>}
         {!sessionBlocked && sessionStatus.startsWith("Could not") && <Button type="button" variant="outline" onClick={() => setSessionRetry((value) => value + 1)}><RefreshCw data-icon="inline-start" aria-hidden="true" />Retry session save</Button>}
       </>}>
         <WorkspacePanel value="files">
         <p className="workspace-session-status" role="status">{!sessionProblem ? sessionStatus || (!sessionReady ? "Restoring workspace…" : "") : ""}</p>
-        <div className={loadStatus || isLoadingSetup || previousSetup ? "workspace-feedback" : "hidden"} aria-label="Setup loading feedback">
+        <div className={loadStatus || isLoadingSetup || previousSetup ? "workspace-feedback" : "sr-only"} role="group" aria-label="Setup loading feedback">
           <p role="status" className="text-sm">{isLoadingSetup ? "Loading setup…" : loadStatus}</p>
           {previousSetup && <Button type="button" variant="outline" onClick={setupReplacement.restore}><History data-icon="inline-start" aria-hidden="true" />Restore previous setup</Button>}
         </div>
@@ -1058,7 +1072,7 @@ export function App() {
               <Button type="button" variant="outline" onClick={() => importInput.current?.click()}><Upload data-icon="inline-start" aria-hidden="true" />Import setup file</Button>
               <input ref={importInput} className="sr-only" tabIndex={-1} aria-label="Import setup JSON file" type="file" accept="application/json,.json" onChange={(event) => { const file = event.target.files?.[0]; if (file) void importFile(file); event.target.value = "" }} />
             </div>
-              {deletingPreset && <p className="text-sm sm:col-span-2">Delete “{selectedPreset}” from this browser? This cannot be undone. Your current editing setup will stay open.</p>}
+              {deletingPreset && <p role="alert" className="text-sm sm:col-span-2">Delete “{selectedPreset}” from this browser? This cannot be undone. Your current editing setup will stay open.</p>}
           </div>
         </section>
         </WorkspacePanel>
@@ -1088,7 +1102,7 @@ export function App() {
               <ChoiceField label="Cube size" value={String(setup.cube_size)} onChange={value => patchSetup({ cube_size: Number(value) })} options={[17, 33, 65].map(size => ({ value: String(size), label: `${size}³` }))} />
             </Field>
             <label className="flex items-center gap-2 text-sm font-medium">
-                  <input type="checkbox" checked={setup.monochrome} disabled={setup.fill_mode || Boolean(setup.imported_lut)} onChange={(e) => patchSetup({ monochrome: e.target.checked })} />
+                  <Checkbox checked={setup.monochrome} disabled={setup.fill_mode || Boolean(setup.imported_lut)} onCheckedChange={(e: boolean) => patchSetup({ monochrome: e })} />
               Monochrome base
             </label>
             <fieldset className="grid gap-3 sm:col-span-2">
@@ -1157,7 +1171,7 @@ export function App() {
                 {!setup.fill_mode && (
                 <label className="grid min-w-0 gap-1.5 text-xs font-medium">All band widths ({mode === "ire" ? "IRE" : "stops"})
                   <BandNumberInput
-                    aria-label="All total widths"
+                    aria-label={`All band widths (${mode === "ire" ? "IRE" : "stops"})`}
                     className={fieldClass}
                     disabled={setup.bands.length === 0}
                     min={0}
@@ -1173,7 +1187,7 @@ export function App() {
                 )}
               {setup.band_mode === "stops" && <WorkspaceDisclosure className="sm:col-span-2" title={`Graph view · ±${graphRange} stops`}>
                 <label className="grid gap-2 text-sm">Visible range (± stops)
-                  <BandNumberInput aria-label="Graph range in stops" className={fieldClass} value={graphRange} min={1} max={20} step={1} onChange={value => setGraphRange(Math.round(value))} />
+                  <BandNumberInput aria-label="Visible range (± stops)" className={fieldClass} value={graphRange} min={1} max={20} step={1} onChange={value => setGraphRange(Math.round(value))} />
                   <span className="text-xs text-muted-foreground">1–20 stops. Zooms the graph; your bands stay unchanged.</span>
                 </label>
               </WorkspaceDisclosure>}
@@ -1194,20 +1208,20 @@ export function App() {
                         <td className="p-2"><span className="band-field-label" aria-hidden="true">Color</span><ColorPicker hideLabel triggerRef={(element) => { if (element) colorTriggers.current.set(bandId(band), element); else colorTriggers.current.delete(bandId(band)) }} label={`Band ${index + 1} color`} value={band.color} onChange={(color) => editSetup((current) => updateBand(current, index, { color }), index)} /></td>
                         <td className="p-2"><span className="band-field-label" aria-hidden="true">{setup.fill_mode ? "Next boundary" : `Position (${mode === "ire" ? "IRE" : "stops"})`}</span>{setup.fill_mode && index === setup.bands.length - 1
                           ? <span className="text-muted-foreground">—</span>
-                          : <BandNumberInput aria-label={setup.fill_mode ? `Boundary after color ${index + 1}` : `Band ${index + 1} ${mode === "ire" ? "IRE" : "stops"}`} className={fieldClass} step={movementIncrement} min={mode === "ire" ? 0 : undefined} max={mode === "ire" ? 100 : undefined} value={band.stop} onChange={(stop) => editSetup((current) => setup.fill_mode ? updateFillBoundary(current, index, stop, movementIncrement) : updateBand(current, index, { stop }), index)} />}</td>
+                          : <BandNumberInput aria-label={setup.fill_mode ? `Next boundary after color ${index + 1}` : `Band ${index + 1} position (${mode === "ire" ? "IRE" : "stops"})`} className={fieldClass} step={movementIncrement} min={mode === "ire" ? 0 : undefined} max={mode === "ire" ? 100 : undefined} value={band.stop} onChange={(stop) => editSetup((current) => setup.fill_mode ? updateFillBoundary(current, index, stop, movementIncrement) : updateBand(current, index, { stop }), index)} />}</td>
                         <td className="p-2"><span className="band-field-label" aria-hidden="true">{setup.fill_mode ? "Coverage" : `Total width (${mode === "ire" ? "IRE" : "stops"})`}</span>{setup.fill_mode
                           ? <span className="text-sm text-muted-foreground">{index === setup.bands.length - 1 ? "Fills the rest" : "Until next boundary"}</span>
-                          : <BandNumberInput aria-label={`Band ${index + 1} total width`} className={fieldClass} min={0} step={0.2} value={band.width * 2} onChange={(width) => editSetup((current) => updateBand(current, index, { width: width / 2 }), index)} />}</td>
+                          : <BandNumberInput aria-label={`Band ${index + 1} total width (${mode === "ire" ? "IRE" : "stops"})`} className={fieldClass} min={0} step={0.2} value={band.width * 2} onChange={(width) => editSetup((current) => updateBand(current, index, { width: width / 2 }), index)} />}</td>
                       </tr>
                     ))}</tbody>
                   </table>
-                  {setup.bands.length === 0 && <p className="p-4 text-sm text-muted-foreground">No bands yet. Choose Add band to start, or choose an arrangement in Presets.</p>}
+                  {setup.bands.length === 0 && <Empty className="p-4"><EmptyDescription>No bands yet. Choose Add band to start, or choose an arrangement in Presets.</EmptyDescription></Empty>}
                 </div>
                 <p role="status" className="empty:hidden text-sm">{bandStatus}</p>
                 {preview?.warnings.map((warning) => <p className="text-sm text-amber-700 dark:text-amber-300" key={warning}>{warning}</p>)}
               </>
             ) : <p className="text-sm text-muted-foreground">{browserOnly ? "The browser build creates LUTs locally; exposure preview is not included in this release." : "Preparing preview…"}</p>}
-            {validationError && <p className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive" role="alert">{validationError}</p>}
+            {validationError && <Alert variant="error"><AlertDescription>{validationError}</AlertDescription></Alert>}
           </CardContent>
         </Card>
         </WorkspacePanel>
@@ -1226,14 +1240,14 @@ export function App() {
             <CardContent className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,14rem),1fr))] gap-5">
               <div className="grid gap-3">
                 <label className="flex items-center gap-2 text-sm font-medium">
-                  <input type="checkbox" checked={setup.low_signal_warning} onChange={(e) => patchSetup({ low_signal_warning: e.target.checked })} />
+                  <Checkbox checked={setup.low_signal_warning} onCheckedChange={(e: boolean) => patchSetup({ low_signal_warning: e })} />
                   Low recorded-signal warning
                 </label>
                 <ColorPicker label="Low-limit indicator color" value={setup.low_signal_hex} disabled={!setup.low_signal_warning} onChange={(low_signal_hex) => patchSetup({ low_signal_hex })} />
               </div>
               <div className="grid gap-3">
                 <label className="flex items-center gap-2 text-sm font-medium">
-                  <input type="checkbox" checked={setup.high_signal_warning} onChange={(e) => patchSetup({ high_signal_warning: e.target.checked })} />
+                  <Checkbox checked={setup.high_signal_warning} onCheckedChange={(e: boolean) => patchSetup({ high_signal_warning: e })} />
                   High recorded-signal warning
                 </label>
                 <ColorPicker label="High-limit indicator color" value={setup.high_signal_hex} disabled={!setup.high_signal_warning} onChange={(high_signal_hex) => patchSetup({ high_signal_hex })} />
