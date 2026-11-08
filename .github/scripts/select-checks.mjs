@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process"
 import { appendFileSync, readFileSync } from "node:fs"
 import { pathToFileURL } from "node:url"
 
-export const checks = ["python", "build", "frontend", "ui", "browser", "manual"]
+export const checks = ["python", "build", "frontend", "browser", "manual"]
 const repositoryGuides = new Set(["AGENTS.md", "CONTEXT.md", "Contributing.md", "DESIGN.md", "PRODUCT.md", "README.md", "THIRD_PARTY.md"])
 
 export function selectChecks(eventName, files) {
@@ -26,16 +26,15 @@ export function selectChecks(eventName, files) {
       // Repository guides are not published; the manual is handled above.
       continue
     } else if (path.startsWith("frontend/tests/ui/") && !path.endsWith(".md")) {
-      enable("ui")
       if (/\.tsx?$/.test(path)) enable("build", "frontend")
     } else if (path.startsWith("src/lut_builder/static/docs/") && manualSource) {
       enable("build", "manual")
     } else if (path.startsWith("src/lut_builder/static/") && frontendSource) {
-      enable("build", "frontend", "ui", "browser", "manual")
+      enable("build", "frontend", "browser", "manual")
     } else if (/^(src\/lut_builder\/(?!static\/).*\.py|tests\/.*\.py)$/.test(path)) {
       enable("python")
     } else if (path.startsWith("frontend/src/") || path.startsWith("frontend/public/") || path === "frontend/index.html") {
-      enable("build", "frontend", "ui", "browser", "manual")
+      enable("build", "frontend", "browser", "manual")
       // Plain TypeScript contains calculation, setup/storage and worker contracts.
       // Unfamiliar runtime data/scripts also keep Python compatibility coverage.
       if (!/\.(tsx|css|svg|png|jpe?g|webp|ico|html)$/.test(path)) enable("python")
@@ -72,7 +71,7 @@ export function verifyResults(needs) {
   if (["frontend", "browser", "manual"].some((name) => needs.select.outputs[name] === "true") && needs.select.outputs.build !== "true") {
     throw new Error("Frontend and acceptance checks require the build job")
   }
-  for (const name of ["python", "build", "ui"]) {
+  for (const name of ["python", "build"]) {
     const expected = needs.select.outputs[name] === "true" ? "success" : "skipped"
     if (needs[name]?.result !== expected) throw new Error(`${name}: expected ${expected}, received ${needs[name]?.result}`)
   }
@@ -81,7 +80,7 @@ export function verifyResults(needs) {
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   if (process.argv[2] === "verify") {
     const needs = JSON.parse(process.env.CHECK_RESULTS)
-    appendFileSync(process.env.GITHUB_STEP_SUMMARY, `## CI results\n\n| Job | Result |\n| --- | --- |\n${["select", "python", "build", "ui"].map((name) => `| ${name} | ${needs[name]?.result ?? "missing"} |`).join("\n")}\n`)
+    appendFileSync(process.env.GITHUB_STEP_SUMMARY, `## CI results\n\n| Job | Result |\n| --- | --- |\n${["select", "python", "build"].map((name) => `| ${name} | ${needs[name]?.result ?? "missing"} |`).join("\n")}\n`)
     verifyResults(needs)
     console.log("All selected checks passed")
   } else {

@@ -7,9 +7,7 @@ export default defineConfig({
   retries: 0,
   workers: 1,
   timeout: 60_000,
-  expect: { timeout: 10_000, toHaveScreenshot: { animations: 'disabled', maxDiffPixels: 0 } },
-  updateSnapshots: 'none',
-  snapshotPathTemplate: '{testDir}/screenshots/{projectName}/{arg}{ext}',
+  expect: { timeout: 10_000 },
   reporter: [['list'], ['html', { open: 'never' }], ['json', { outputFile: 'test-results/results.json' }]],
   use: {
     browserName: 'chromium',

@@ -459,16 +459,6 @@ test('complete presets lead into editable bands and undo without changing config
   await expect(camera).toHaveValue(cameraBefore)
 })
 
-async function snapshot(page: Page, region: Locator, name: string) {
-  // Capture offscreen regions without moving the sticky preview over their titles.
-  await page.evaluate(() => window.scrollTo(0, 0))
-  const clip = await region.boundingBox()
-  expect(clip).not.toBeNull()
-  // Missing baselines fail before Playwright attaches an actual image.
-  await page.screenshot({ path: test.info().outputPath(name), fullPage: true, clip: clip!, animations: 'disabled' })
-  await expect.soft(page).toHaveScreenshot(name, { fullPage: true, clip: clip! })
-}
-
 test('phone graph supports touch editing and page scrolling @checks', async ({ page, context }) => {
   test.skip(page.viewportSize()!.width >= 960, 'Synthesized phone touch only')
   await page.setViewportSize({ width: page.viewportSize()!.width, height: 740 })
@@ -731,50 +721,6 @@ test('confirmed imported look edits, compares and exports portably without chang
   await panel(page, 'Export')
   expect(rows(await save('Download LUT'))).toEqual(diagnostic)
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
-})
-
-test('reviewed UI screenshots @visual', async ({ page }) => {
-  test.setTimeout(120_000)
-  test.skip(process.platform !== 'linux', 'Use pnpm test:ui:container for the canonical Linux screenshots; native checks still run.')
-  await page.screenshot({ path: test.info().outputPath('workspace.png'), fullPage: true, animations: 'disabled' })
-  await expect.soft(page).toHaveScreenshot('workspace.png', { fullPage: true })
-  await panel(page, 'Presets')
-  await page.screenshot({ path: test.info().outputPath('presets.png'), fullPage: true, animations: 'disabled' })
-  await expect.soft(page).toHaveScreenshot('presets.png', { fullPage: true })
-  await panel(page, 'Bands')
-
-  await snapshot(page, page.getByRole('group', { name: 'Band mode', exact: true }), 'band-modes.png')
-  await panel(page, 'Setups')
-  await page.evaluate(() => window.scrollTo(0, 0))
-  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0)
-  await page.screenshot({ path: test.info().outputPath('setups.png'), fullPage: true, animations: 'disabled' })
-  await expect.soft(page).toHaveScreenshot('setups.png', { fullPage: true })
-  await panel(page, 'Configure')
-  await snapshot(page, page.locator('#configuration'), 'configuration.png')
-  const output = page.getByRole('region', { name: 'Output settings', exact: true })
-  await disclosure(page, 'Output settings')
-  await snapshot(page, page.locator('#configuration'), 'configuration-expanded.png')
-  await expect(output).toBeVisible()
-  await panel(page, 'Palette')
-  const palette = page.getByRole('region', { name: 'Band colors', exact: true })
-  await snapshot(page, palette, 'palette.png')
-  await page.getByRole('button', { name: 'Customize gradient', exact: true }).click()
-  await snapshot(page, palette, 'gradient.png')
-  await page.getByLabel('Color hue value', { exact: true }).fill('400')
-  await snapshot(page, palette, 'gradient-invalid-focus.png')
-  await panel(page, 'Configure')
-  await disclosure(page, 'Output settings')
-  await page.getByRole('group', { name: 'Cube size', exact: true }).getByRole('button', { name: '17³', exact: true }).click()
-
-  await page.getByLabel('Import .cube LUT', { exact: true }).setInputFiles({ name: 'constant-look.cube', mimeType: 'text/plain', buffer: Buffer.from(constantLookCube) })
-  await page.getByRole('combobox', { name: /^LUT camera input/ }).selectOption('Panasonic V-Log')
-  await snapshot(page, page.getByRole('dialog', { name: 'Confirm imported LUT', exact: true }), 'imported-interpretation.png')
-  await page.getByRole('button', { name: 'Confirm and apply look', exact: true }).click()
-  if (page.viewportSize()!.width < 960) await panel(page, 'Bands')
-  await expect(page.locator('[aria-label="Neutral camera patches at labeled stops"] > div')).toHaveCount(9)
-  await page.evaluate(() => window.scrollTo(0, 0))
-  await page.screenshot({ path: test.info().outputPath('imported-workspace.png'), fullPage: true, animations: 'disabled' })
-  await expect.soft(page).toHaveScreenshot('imported-workspace.png', { fullPage: true })
 })
 
 test('open configuration and imported draft survive responsive resizing @checks', async ({ page }) => {

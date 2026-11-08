@@ -31,8 +31,8 @@ checks. Rebuild bundled browser assets after integrating frontend changes; a
 source merge does not rebuild an already packaged artifact.
 
 Use the Python and frontend check commands in [AGENTS.md](../AGENTS.md).
-Frontend work also requires the [UI quality gate](testing/ui-quality.md) for
-layout, controls or baseline changes. Follow
+Frontend work also requires the [UI quality review](testing/ui-quality.md) for
+layout or control changes. Follow
 [integration acceptance](testing/integration.md) for workspace behavior and its
 linked media checks when applicable. Record results and omissions against the
 combined commit, rather than treating an isolated branch's results as sufficient.
@@ -51,8 +51,8 @@ combined commit, rather than treating an isolated branch's results as sufficient
    **Create a merge commit**. Squash and rebase merging are disabled for this
    repository to preserve promotion ancestry. Done: the reviewed source is in
    `main`, the complete release gate has passed, and the resulting Pages deployment
-   has been checked. The main-push gate always runs Python, build/browser and full
-   UI checks, including checks intentionally omitted from the focused PR run.
+   has been checked. The main-push gate always runs Python and build/browser checks,
+   including checks intentionally omitted from the focused PR run.
 4. Merge `main` back into `development` before the next batch. This also applies
    to urgent main-only fixes. Done: development contains the release merge and
    all main-only changes; rebuild affected local artifacts before using them.
@@ -65,11 +65,10 @@ covering those actions. Workflow setup alone does not authorize a promotion.
 | Event | Effect |
 | --- | --- |
 | PR targeting `development` or `main` | `deploy-pages.yml` selects checks for affected Python, frontend, published manual and shared boundaries, with a stable aggregate `CI checks` status. Configuration/dependency/unknown changes select the full suite. |
-| Push to `main` | Runs Python once, frontend lint/test/build, browser/manual acceptance and the full UI gate across three parallel shards. |
+| Push to `main` | Runs Python once, frontend lint/test/build and browser/manual acceptance. |
 | Push to `development` or a feature branch | Backup only; open/update a PR or manually dispatch Pages on that ref for validation. |
 | Successful push to `main` | Pages deploys the built website and manual. |
 | Manual Pages workflow | Runs the checks; deployment is allowed only when the selected ref is `main`. |
-| Manual UI-quality workflow | Runs the selected UI suite; the visual-only mode does not replace the full gate. |
 | Manual Python workflow | Runs Python quality/tests and browser/Python numerical parity independently when needed. |
 | Version tag | No configured checks, package publication or GitHub Release automation. Validate the source through Pages before tagging. |
 

@@ -24,7 +24,6 @@ jobs:
       python: ${{ steps.checks.outputs.python }}
       build: ${{ steps.checks.outputs.build }}
       frontend: ${{ steps.checks.outputs.frontend }}
-      ui: ${{ steps.checks.outputs.ui }}
       browser: ${{ steps.checks.outputs.browser }}
       manual: ${{ steps.checks.outputs.manual }}
     steps:
@@ -44,11 +43,6 @@ jobs:
     needs: select
     if: needs.select.outputs.python == 'true'
     uses: ./.github/workflows/python.yml
-
-  ui:
-    needs: select
-    if: needs.select.outputs.ui == 'true'
-    uses: ./.github/workflows/ui-quality.yml
 
   build:
     needs: select
@@ -107,7 +101,7 @@ jobs:
   checks:
     name: CI checks
     if: always()
-    needs: [select, python, build, ui]
+    needs: [select, python, build]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:

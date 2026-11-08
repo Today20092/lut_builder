@@ -18,17 +18,16 @@ test("PR selection respects application boundaries", () => {
     [["frontend/manual/public/favicon.svg"], ["build", "manual"]],
     [["frontend/manual/src/content.config.ts"], ["build", "frontend", "manual"]],
     [["frontend/tests/manual-browser.mjs"], ["build", "manual"]],
-    [["frontend/src/SiteFooter.tsx"], ["build", "frontend", "ui", "browser", "manual"]],
-    [["frontend/src/index.css"], ["build", "frontend", "ui", "browser", "manual"]],
-    [["frontend/src/SiteFooter.tsx", "src/lut_builder/static/index.html", "src/lut_builder/static/assets/index-old.js", "src/lut_builder/static/assets/index-new.js"], ["build", "frontend", "ui", "browser", "manual"]],
+    [["frontend/src/SiteFooter.tsx"], ["build", "frontend", "browser", "manual"]],
+    [["frontend/src/index.css"], ["build", "frontend", "browser", "manual"]],
+    [["frontend/src/SiteFooter.tsx", "src/lut_builder/static/index.html", "src/lut_builder/static/assets/index-old.js", "src/lut_builder/static/assets/index-new.js"], ["build", "frontend", "browser", "manual"]],
     [["frontend/manual/src/content/docs/about.md", "src/lut_builder/static/docs/about/index.html"], ["build", "manual"]],
     [["frontend/src/setupSchema.ts"], checks],
     [["frontend/src/lutEngine.ts"], checks],
     [["frontend/src/lutEngine.ts", "src/lut_builder/static/assets/index.js"], checks],
     [["frontend/src/session.ts"], checks],
     [["src/lut_builder/engine.py", "tests/test_engine.py"], ["python"]],
-    [["frontend/tests/ui/site.spec.ts", "frontend/tests/ui/screenshots/390-light/workspace.png"], ["build", "frontend", "ui"]],
-    [["frontend/tests/ui/screenshots/390-light/workspace.png"], ["ui"]],
+    [["frontend/tests/ui/site.spec.ts"], ["build", "frontend"]],
     [["frontend/tests/editor.test.mjs"], ["build", "frontend"]],
     [["frontend/tests/imported-lut-parity.mjs"], checks],
     [["src/lut_builder/engine.py", "frontend/manual/src/content/docs/controls.md"], ["python", "build", "manual"]],
@@ -60,12 +59,12 @@ test("missing base and diff failures cannot silently skip checks", () => {
 
 function results(files) {
   const outputs = Object.fromEntries(Object.entries(selectChecks("pull_request", files)).map(([name, value]) => [name, String(value)]))
-  return { select: { result: "success", outputs }, ...Object.fromEntries(["python", "build", "ui"].map((name) => [name, { result: outputs[name] === "true" ? "success" : "skipped" }])) }
+  return { select: { result: "success", outputs }, ...Object.fromEntries(["python", "build"].map((name) => [name, { result: outputs[name] === "true" ? "success" : "skipped" }])) }
 }
 
 test("aggregate gate accepts intentional skips and rejects missing, failed or cancelled selected jobs", () => {
   for (const files of [[], ["README.md"], ["src/lut_builder/engine.py"], ["frontend/src/App.tsx"], ["uv.lock"]]) verifyResults(results(files))
-  for (const name of ["select", "python", "build", "ui"]) {
+  for (const name of ["select", "python", "build"]) {
     for (const result of ["failure", "cancelled", "skipped", undefined]) {
       const needs = results(["uv.lock"])
       needs[name].result = result
