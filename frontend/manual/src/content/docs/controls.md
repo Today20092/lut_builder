@@ -76,7 +76,7 @@ Older setups can retain target-display IRE. Check the **Legacy setup** label bef
 | Undo last band edit | Restores the last band edit and selection, including a drag as one edit. Unrelated configuration changes are preserved. No redo or long history. |
 | Presets → Standard / Detailed → Use | Replaces the arrangement and colors. Each named option has an exposure preview. Undo restores the previous arrangement. |
 | All band widths / All total widths | Sets every ordinary band's **total** width. “Mixed” means the individual widths differ. |
-| Movement increment | Visible choices select 1, ½, or ¼ stop movement. IRE editing uses its own increment. |
+| Movement increment | Sets the 1, ½, or ¼ stop step for dragging band centers or Fill dividers and for arrow keys. Changing it does not move existing bands. Typed values stay exact, width handles use finer steps, and IRE editing uses its own increment. |
 | Graph view → Visible range | Enter 1–20 for the ± Stops diagram viewport, not the LUT. Values outside it remain editable in numeric fields. |
 | Color | Opens the individual band's color picker. |
 | Position / Boundary to next color | Sets the band center or Fill boundary. |

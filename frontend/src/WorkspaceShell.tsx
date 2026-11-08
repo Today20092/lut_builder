@@ -52,6 +52,7 @@ export function WorkspaceShell({ setup, stage, illustration, feedback, shortcuts
       <div className="workspace-mobile-title">
         <div className="workspace-screen-heading"><ScreenIcon aria-hidden="true" /><h2 id="workspace-screen-title" tabIndex={-1}>{screen.label}</h2></div><p>{screen.description}</p>
         {destination === "bands" && <ToggleGroup className="workspace-edit-tools w-full" aria-label="Edit tools" value={[section]} onValueChange={values => { const next = values[0]; if (next === "bands" || next === "palette") open(next) }} disabled={busy}>{(["bands", "palette"] as const).map(value => <ToggleGroupItem key={value} value={value}>{value === "bands" ? "Bands" : "Palette"}</ToggleGroupItem>)}</ToggleGroup>}
+        {destination === "bands" && <p>Bands set which exposure ranges are marked. Palette sets the colors they use.</p>}
       </div>
       <section className="workspace-stage" aria-label="Exposure workspace">{stage(editBands)}</section>
       <aside id="workspace-adjustments" className="workspace-adjustments" aria-label="Workspace adjustments"><div id="workspace-panel-content" className="workspace-panel-content">

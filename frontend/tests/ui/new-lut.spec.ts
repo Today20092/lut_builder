@@ -11,6 +11,7 @@ test('first visit creates a LUT and return visits resume it @checks', async ({ p
   expect((await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa']).analyze()).violations).toEqual([])
   await page.getByRole('combobox', { name: 'Camera / log profile', exact: true }).selectOption('Panasonic V-Log')
   await page.getByRole('button', { name: 'Choose exposure preset', exact: true }).click()
+  for (const group of ['IRE', 'Fill', 'Stops']) await expect(page.getByRole('region', { name: `${group} presets`, exact: true }).getByRole('radio')).toHaveCount(2)
   await page.getByRole('radio', { name: 'Three-band Exposure', exact: false }).check()
   await expect(page.getByRole('heading', { name: 'Choose your exposure guide' })).toBeVisible()
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
