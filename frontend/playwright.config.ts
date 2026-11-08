@@ -1,5 +1,8 @@
 import { defineConfig, devices } from '@playwright/test'
 
+// Set UI_PORT when 4187 is taken, for example by another checkout's dev server.
+const port = Number(process.env.UI_PORT ?? 4187)
+
 export default defineConfig({
   testDir: './tests/ui',
   fullyParallel: true,
@@ -11,7 +14,7 @@ export default defineConfig({
   reporter: [['list'], ['html', { open: 'never' }], ['json', { outputFile: 'test-results/results.json' }]],
   use: {
     browserName: 'chromium',
-    baseURL: 'http://127.0.0.1:4187/lut_builder/',
+    baseURL: `http://127.0.0.1:${port}/lut_builder/`,
     locale: 'en-US',
     timezoneId: 'UTC',
     contextOptions: { reducedMotion: 'reduce' },
@@ -26,8 +29,8 @@ export default defineConfig({
     use: { viewport, colorScheme, hasTouch: viewport.width < 960, isMobile: viewport.width < 960, deviceScaleFactor: 1 },
   }))),
   webServer: {
-    command: 'pnpm exec vite --host 127.0.0.1 --port 4187 --strictPort',
-    url: 'http://127.0.0.1:4187/lut_builder/',
+    command: `pnpm exec vite --host 127.0.0.1 --port ${port} --strictPort`,
+    url: `http://127.0.0.1:${port}/lut_builder/`,
     env: { LUT_BUILDER_PAGES: 'true' },
     reuseExistingServer: false,
     timeout: 60_000,

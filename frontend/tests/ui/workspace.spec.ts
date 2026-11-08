@@ -125,6 +125,7 @@ test('configuration help opens by tap and fields keep a single control surface @
 })
 
 test('reference photos can be enlarged and return focus @checks', async ({ page }) => {
+  await panel(page, 'Media')
   const enlarge = page.getByRole('region', { name: 'Reference photo preview', exact: true }).getByRole('button', { name: 'Enlarge photos', exact: true })
   await enlarge.click()
   const dialog = page.getByRole('dialog', { name: 'Enlarged photo preview', exact: true })
@@ -386,7 +387,7 @@ test('mode choices have visible examples and routine recovery stays in Setups @c
   await expect(page.locator('.workspace-session-status')).toBeHidden()
   await expect(page.getByRole('button', { name: 'Restore previous setup', exact: true })).toBeHidden()
 
-  const choices = page.getByRole('group', { name: 'Band mode', exact: true })
+  const choices = page.getByRole('radiogroup', { name: 'Band mode', exact: true })
   await expect(choices.locator('.workspace-mode-preview svg')).toHaveCount(3)
   for (const preview of await choices.locator('.workspace-mode-preview svg').all()) {
     await expect(preview).toBeVisible()
@@ -671,7 +672,7 @@ test('confirmed imported look edits, compares and exports portably without chang
   await page.getByRole('button', { name: 'Confirm and apply look', exact: true }).click()
   await expect(page.getByRole('combobox', { name: /^Camera recording/ })).toBeDisabled()
   for (const choice of await page.getByRole('group', { name: 'Target display', exact: true }).getByRole('button').all()) await expect(choice).toBeDisabled()
-  await expect(page.getByRole('radio', { name: 'Full / Data', exact: true })).toBeDisabled()
+  await expect(page.getByRole('radio', { name: /^Full \/ Data/ })).toBeDisabled()
   await expect(page.getByRole('checkbox', { name: 'Monochrome base', exact: true })).toBeDisabled()
   const comparison = page.getByRole('region', { name: 'Imported look comparison', exact: true })
   if (page.viewportSize()!.width < 960) await panel(page, 'Bands')

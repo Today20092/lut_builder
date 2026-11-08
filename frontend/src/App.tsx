@@ -1105,7 +1105,7 @@ export function App() {
             <RadioChoices value={setup.legal_range ? "legal" : "full"} onChange={value => patchSetup({ legal_range: value === "legal" })} className="grid gap-3 sm:col-span-2">
               <legend className="mb-2 text-sm font-medium">LUT output range</legend>
               <div className="grid gap-2 sm:grid-cols-2">
-                {([false, true] as const).map((legal) => <RadioChoice key={String(legal)} value={legal ? "legal" : "full"} name={legal ? "Video / Legal" : "Full / Data"} disabled={Boolean(setup.imported_lut)} className={`items-start gap-3 rounded-lg p-3 has-checked:bg-transparent ${setup.legal_range === legal ? "border-foreground bg-muted has-checked:bg-muted" : ""}`}>
+                {([false, true] as const).map((legal) => <RadioChoice key={String(legal)} value={legal ? "legal" : "full"} disabled={Boolean(setup.imported_lut)} className={`items-start gap-3 rounded-lg p-3 has-checked:bg-transparent ${setup.legal_range === legal ? "border-foreground bg-muted has-checked:bg-muted" : ""}`}>
                   <span className="grid gap-1"><span className="text-sm font-medium">{legal ? "Video / Legal" : "Full / Data"}</span><span className="text-xs text-muted-foreground">{legal ? "Packs output into 64–940 (10-bit). Use only when your LUT destination requires it." : "Uses the full 0–1 output range. Tool default; keep unless your LUT destination requires video levels."}</span></span>
                 </RadioChoice>)}
               </div>
