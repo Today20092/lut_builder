@@ -124,6 +124,16 @@ test('configuration help opens by tap and fields keep a single control surface @
   await expect(camera).toHaveValue('Sony S-Log3')
 })
 
+test('reference photos can be enlarged and return focus @checks', async ({ page }) => {
+  const enlarge = page.getByRole('region', { name: 'Reference photo preview', exact: true }).getByRole('button', { name: 'Enlarge photos', exact: true })
+  await enlarge.click()
+  const dialog = page.getByRole('dialog', { name: 'Enlarged photo preview', exact: true })
+  await expect(dialog.getByRole('img', { name: 'Illustrative LUT result', exact: true })).toBeVisible()
+  await dialog.getByRole('button', { name: 'Close enlarged photos', exact: true }).click()
+  await expect(dialog).not.toBeVisible()
+  await expect(enlarge).toBeFocused()
+})
+
 test('frequent choices stay visible and numeric graph preferences preserve valid work @checks', async ({ page }) => {
   await expect(page.getByRole('textbox', { name: 'All band widths (stops)', exact: true })).toBeVisible()
   const steps = page.getByRole('group', { name: 'Movement increment', exact: true })

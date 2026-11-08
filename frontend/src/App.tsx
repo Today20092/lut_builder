@@ -1182,8 +1182,11 @@ export function App() {
                   />
                 </label>
                 )}
-                {mode === "stops" && (
-                  <ChoiceField label="Movement increment" value={String(stopIncrement)} onChange={value => setStopIncrement(Number(value) as 1 | 0.5 | 0.25)} options={[{ value: "1", label: "1 stop" }, { value: "0.5", label: "½ stop" }, { value: "0.25", label: "¼ stop" }]} />
+                {setup.band_mode === "stops" && (
+                  <div className="grid gap-2">
+                    <ChoiceField label="Movement increment" value={String(stopIncrement)} onChange={value => setStopIncrement(Number(value) as 1 | 0.5 | 0.25)} options={[{ value: "1", label: "1 stop" }, { value: "0.5", label: "½ stop" }, { value: "0.25", label: "¼ stop" }]} />
+                    <p className="text-xs text-muted-foreground">Sets the step for dragging band centers or Fill dividers and for arrow keys. Bands stay where they are until you next move them; typed values stay exact, and width handles use finer steps.</p>
+                  </div>
                 )}
               {setup.band_mode === "stops" && <WorkspaceDisclosure className="sm:col-span-2" title={`Graph view · ±${graphRange} stops`}>
                 <label className="grid gap-2 text-sm">Visible range (± stops)
