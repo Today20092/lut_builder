@@ -8,6 +8,6 @@ export function RadioChoices<T extends string>({ value, onChange, className, ...
 }
 
 /** The whole label is the target, so a small radio still meets target-size guidance. */
-export function RadioChoice({ value, name, disabled, className, children }: { value: string; name?: string; disabled?: boolean; className?: string; children: ReactNode }) {
-  return <label className={cn("flex min-h-9 cursor-pointer items-center gap-2 rounded-md border px-3 text-sm has-checked:bg-accent has-focus-visible:ring-2 has-focus-visible:ring-ring", className)}><Radio value={value} aria-label={name} disabled={disabled} />{children}</label>
+export function RadioChoice({ value, disabled, className, children }: { value: string; disabled?: boolean; className?: string; children: ReactNode }) {
+  return <label className={cn("flex min-h-9 cursor-pointer items-center gap-2 rounded-md border px-3 text-sm has-checked:bg-accent has-focus-visible:ring-2 has-focus-visible:ring-ring", className)}><Radio value={value} disabled={disabled} />{children}</label>
 }

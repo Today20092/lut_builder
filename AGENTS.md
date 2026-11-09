@@ -50,6 +50,9 @@ pnpm test
 pnpm build
 ```
 
+For markup, control or accessible-name changes, also run `pnpm check:browser`: it
+builds in Pages mode and runs the same browser acceptance test as CI (about 30 seconds).
+
 The build checks TypeScript and regenerates `src/lut_builder/static/`; include the
 rebuilt assets with frontend changes. Edit browser source in `frontend/`.
 

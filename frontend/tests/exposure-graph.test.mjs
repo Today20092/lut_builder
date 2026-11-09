@@ -883,6 +883,7 @@ test("band editing preserves valid generation data, selection, and one-step reco
   document.body.append(container)
   const root = createRoot(container)
   const field = (label) => container.querySelector(`[aria-label='${label}']`)
+  const radioLabel = (text) => [...container.querySelectorAll("label")].find((label) => label.textContent.startsWith(text))
   const button = (text) => [...container.querySelectorAll("button")].find((item) => item.textContent === text)
   const click = async (element) => { assert.ok(element); await act(() => element.click()) }
   const key = async (element, key, options = {}) => { await act(() => element.dispatchEvent(new window.KeyboardEvent("keydown", { bubbles: true, cancelable: true, key, ...options }))) }
@@ -903,9 +904,9 @@ test("band editing preserves valid generation data, selection, and one-step reco
     const table = container.querySelector('table[aria-label="Band colors and positions"]')
     assert.equal(table.querySelectorAll("thead th").length, 3)
     assert.equal(table.querySelector("thead th").textContent, "Color")
-    await click(field("Video / Legal"))
+    await click(radioLabel("Video / Legal"))
     assert.equal((await generate()).legal_range, true)
-    await click(field("Full / Data"))
+    await click(radioLabel("Full / Data"))
     assert.equal((await generate()).legal_range, false)
     const graphKeys = () => container.querySelector("[aria-label^='Editable exposure graph']")
     const centers = () => [...graphKeys().querySelectorAll("[data-band-center]")]

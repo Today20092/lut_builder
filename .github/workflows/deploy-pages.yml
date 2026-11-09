@@ -77,22 +77,12 @@ jobs:
       - name: Check static browser workflows
         if: needs.select.outputs.browser == 'true' || needs.select.outputs.manual == 'true'
         env:
-          LUT_BUILDER_PAGES: "true"
+          SKIP_BUILD: "1"
+          BROWSERS: chromium firefox webkit
+          PLAYWRIGHT_MODULE: ${{ runner.temp }}/browser-check/node_modules/playwright/index.mjs
           CHECK_BROWSER: ${{ needs.select.outputs.browser }}
           CHECK_MANUAL: ${{ needs.select.outputs.manual }}
-        run: |
-          pnpm exec vite preview --host 127.0.0.1 --port 4173 --strictPort &
-          server_pid=$!
-          trap 'kill "$server_pid"' EXIT
-          for attempt in {1..30}; do
-            if curl --fail --silent http://127.0.0.1:4173/lut_builder/ > /dev/null; then break; fi
-            sleep 1
-          done
-          export PLAYWRIGHT_MODULE="$RUNNER_TEMP/browser-check/node_modules/playwright/index.mjs"
-          for browser in chromium firefox webkit; do
-            if [ "$CHECK_BROWSER" = true ]; then BROWSER="$browser" node tests/browser-only.mjs; fi
-            if [ "$CHECK_MANUAL" = true ]; then BROWSER="$browser" node tests/manual-browser.mjs; fi
-          done
+        run: node scripts/check-browser.mjs
       - uses: actions/upload-pages-artifact@v5
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         with:

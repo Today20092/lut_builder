@@ -12,6 +12,7 @@
     "test": "node --experimental-strip-types --test tests/*.test.mjs",
     "test:ui": "playwright test",
     "test:ui:checks": "playwright test --grep @checks",
+    "check:browser": "node scripts/check-browser.mjs",
     "ui:shots": "node scripts/ui-shots.mjs",
     "test:ui:report": "playwright show-report",
     "typecheck:ui": "tsc -p tsconfig.ui.json",

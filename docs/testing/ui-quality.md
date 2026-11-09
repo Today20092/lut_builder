@@ -24,6 +24,10 @@ every changed component. Check alignment, balanced spacing, wrapping, contrast,
 overflow, and whether the selected control is obvious. Full-page captures show
 fixed navigation mid-page; that is a capture artifact.
 
+## Browser acceptance
+
+`pnpm check:browser` builds in Pages mode to a temporary folder, serves it on a free port and runs `tests/browser-only.mjs` in Chromium. CI runs the same script in Chromium, Firefox and WebKit, so run it before pushing any markup, control or accessible-name change. Set `BROWSERS="chromium firefox"` for more engines.
+
 ## Deeper behaviour tests
 
 The Playwright suite in `frontend/tests/ui/` covers geometry, enlarged text, focus,
@@ -34,7 +38,7 @@ pnpm typecheck:ui
 pnpm test:ui:checks --project=390-light --project=1280-light --grep 'disclosures'
 ```
 
-It starts its own Vite server on port 4187, so that port must be free. Each test
+It starts its own Vite server on port 4187; set `UI_PORT` when another checkout holds that port. CI does not run it, so run it after changing markup the specs query by role or name: they went stale unnoticed once before. Each test
 gets a fresh browser context. The matrix lives in
 [playwright.config.ts](../../frontend/playwright.config.ts). Open
 `pnpm test:ui:report` after failures. When changing the UI, extend the relevant test

@@ -266,7 +266,7 @@ try {
   assert.equal(await button("Expand verified image").evaluate((node) => node === document.activeElement), true)
   await panel("Configure")
   await disclosure("Output settings")
-  await page.getByRole("radio", { name: "Video / Legal", exact: true }).check()
+  await page.getByRole("radio", { name: /^Video \/ Legal/ }).check()
   await panel("Media")
   await visibleText("previous result is no longer current")
   assert.equal(await button("Download checked cube").count(), 0)
