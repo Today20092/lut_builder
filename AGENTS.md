@@ -5,7 +5,7 @@ CLI and a local browser workspace. Python implementation and bundled browser ass
 live in `src/lut_builder/`; editable browser source lives in `frontend/`.
 
 Before exploring code or changing domain behavior, read
-[domain guidance](docs/agents/domain.md), including `CONTEXT.md` and relevant ADRs
+[domain guidance](docs/agents/domain.md), including `GLOSSARY.md` and relevant ADRs
 when present.
 
 ### Maintainability

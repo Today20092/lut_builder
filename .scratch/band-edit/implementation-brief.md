@@ -4,7 +4,7 @@
 
 Preserve all current editing behavior while concentrating band identity, selection, gesture grouping and one-step undo in the editor module. The user confirmed behavior preservation during the architecture interview. No further product decisions remain.
 
-Domain terms are defined in `/CONTEXT.md`.
+Domain terms are defined in `/GLOSSARY.md`.
 
 ## Implementation scope
 

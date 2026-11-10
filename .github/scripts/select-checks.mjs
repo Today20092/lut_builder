@@ -3,7 +3,7 @@ import { appendFileSync, readFileSync } from "node:fs"
 import { pathToFileURL } from "node:url"
 
 export const checks = ["python", "build", "frontend", "browser", "manual"]
-const repositoryGuides = new Set(["AGENTS.md", "CONTEXT.md", "Contributing.md", "DESIGN.md", "PRODUCT.md", "README.md", "THIRD_PARTY.md"])
+const repositoryGuides = new Set(["AGENTS.md", "GLOSSARY.md", "Contributing.md", "DESIGN.md", "PRODUCT.md", "README.md", "THIRD_PARTY.md"])
 
 export function selectChecks(eventName, files) {
   const selected = Object.fromEntries(checks.map((check) => [check, false]))
