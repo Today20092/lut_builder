@@ -1,12 +1,12 @@
 """Real decoder and HTTP checks for the selected-frame contract."""
 
-import json
 import http.client
-from pathlib import Path
+import json
 import shutil
 import subprocess
 import threading
 import time
+from pathlib import Path
 from urllib.error import HTTPError
 from urllib.parse import urlsplit
 from urllib.request import Request, urlopen

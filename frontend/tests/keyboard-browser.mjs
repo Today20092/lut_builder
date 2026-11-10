@@ -6,13 +6,32 @@ import { readFile } from "node:fs/promises"
 import { dirname, resolve } from "node:path"
 import { fileURLToPath, pathToFileURL } from "node:url"
 
-const { chromium } = await import(process.env.PLAYWRIGHT_MODULE ? pathToFileURL(process.env.PLAYWRIGHT_MODULE).href : "playwright")
+const { chromium } = await import(
+  process.env.PLAYWRIGHT_MODULE ? pathToFileURL(process.env.PLAYWRIGHT_MODULE).href : "playwright"
+)
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..")
-const browser = await chromium.launch({ headless: true, ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : {}) })
-const server = spawn("uv", ["run", "python", "-u", "-c", "import webbrowser; webbrowser.open = lambda url: False; from lut_builder.web import launch_workspace; launch_workspace()"], { cwd: root, stdio: ["pipe", "pipe", "pipe"] })
+const browser = await chromium.launch({
+  headless: true,
+  ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : {}),
+})
+const server = spawn(
+  "uv",
+  [
+    "run",
+    "python",
+    "-u",
+    "-c",
+    "import webbrowser; webbrowser.open = lambda url: False; from lut_builder.web import launch_workspace; launch_workspace()",
+  ],
+  { cwd: root, stdio: ["pipe", "pipe", "pipe"] },
+)
 let log = ""
-server.stdout.on("data", (data) => { log += data })
-server.stderr.on("data", (data) => { log += data })
+server.stdout.on("data", (data) => {
+  log += data
+})
+server.stderr.on("data", (data) => {
+  log += data
+})
 const errors = []
 const page = await browser.newPage({ viewport: { width: 1280, height: 1000 } })
 page.on("pageerror", (error) => errors.push(error.message))
@@ -49,7 +68,9 @@ try {
   await help.waitFor()
   for (let i = 0; i < 4; i++) {
     await page.keyboard.press("Tab")
-    assert.ok(await help.evaluate((node) => node.contains(document.activeElement) || document.activeElement === document.body))
+    assert.ok(
+      await help.evaluate((node) => node.contains(document.activeElement) || document.activeElement === document.body),
+    )
     await page.keyboard.press("Control+z")
     assert.equal(await centers.count(), count)
   }
@@ -68,14 +89,19 @@ try {
   assert.equal(await centers.count(), count)
   assert.equal(await help.isVisible(), false)
   await page.keyboard.press("Escape")
-  await tabTo(page.getByRole('button', { name: /^Expand exposure preview/ }))
+  await tabTo(page.getByRole("button", { name: /^Expand exposure preview/ }))
   await page.keyboard.press("f")
   const exposure = page.getByRole("dialog", { name: "Exposure band preview" })
   await exposure.waitFor()
   await page.keyboard.press("Escape")
   assert.equal(await exposure.isVisible(), false)
-  assert.equal(await page.getByRole('button', { name: /^Expand exposure preview/ }).evaluate((node) => node === document.activeElement), true)
-  await tabTo(page.getByRole('button', { name: /^Start with Reference emphasis/ }))
+  assert.equal(
+    await page
+      .getByRole("button", { name: /^Expand exposure preview/ })
+      .evaluate((node) => node === document.activeElement),
+    true,
+  )
+  await tabTo(page.getByRole("button", { name: /^Start with Reference emphasis/ }))
   await page.keyboard.press("Enter")
   await button("Cancel preview").waitFor()
   await page.keyboard.press("Escape")
@@ -104,18 +130,20 @@ try {
   await page.keyboard.press("Escape")
   await page.keyboard.press("Control+z")
   assert.equal(await centers.count(), 1)
-  await tabTo(page.getByRole('radio', { name: /^Stops/ }))
+  await tabTo(page.getByRole("radio", { name: /^Stops/ }))
   await page.keyboard.press("ArrowRight")
   await page.keyboard.press("ArrowRight")
   assert.equal(await page.locator('input[name="band-mode"][value="fill"]').isChecked(), true)
   await tabTo(centers.first())
-  while (await centers.count() > 2) await page.keyboard.press("Delete")
+  while ((await centers.count()) > 2) await page.keyboard.press("Delete")
   await page.keyboard.press("Delete")
   assert.equal(await centers.count(), 2, "Fill retains its two-color minimum")
   await page.keyboard.press("Control+z")
   assert.equal(await centers.count(), 3, "blocked deletion preserves undo")
   assert.deepEqual(errors, [])
-  console.log("PASS: real Chromium Tab navigation, graph delete/undo, modal isolation, Escape/focus restoration, palette cancellation, picker and narrow layout")
+  console.log(
+    "PASS: real Chromium Tab navigation, graph delete/undo, modal isolation, Escape/focus restoration, palette cancellation, picker and narrow layout",
+  )
 } finally {
   await browser.close()
   if (server.exitCode === null) {

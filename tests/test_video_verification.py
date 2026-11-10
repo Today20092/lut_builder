@@ -8,12 +8,11 @@ import threading
 
 import numpy as np
 import pytest
-
-from lut_builder.web import create_server
+from test_verification import INTERPRETATION, independent_cube
 from test_video import call
 from test_web import _request
-from test_verification import INTERPRETATION, independent_cube
 
+from lut_builder.web import create_server
 
 pytestmark = pytest.mark.skipif(
     not shutil.which("ffmpeg") or not shutil.which("ffprobe"),

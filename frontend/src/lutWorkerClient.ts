@@ -21,7 +21,15 @@ export function generateInWorker(
     try {
       worker = new Worker(new URL("./lutWorker.ts", import.meta.url), { type: "module" })
     } catch (cause) {
-      resume(Effect.fail(new LutWorkerError({ message: "This browser could not start Web Workers. Try a current browser with workers enabled, or use the local Python workspace. Your edits are preserved.", cause })))
+      resume(
+        Effect.fail(
+          new LutWorkerError({
+            message:
+              "This browser could not start Web Workers. Try a current browser with workers enabled, or use the local Python workspace. Your edits are preserved.",
+            cause,
+          }),
+        ),
+      )
       return
     }
 

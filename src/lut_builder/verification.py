@@ -1,15 +1,15 @@
 """Preserved camera RGB -> serialized cube -> separately declared SDR view."""
 
-from collections.abc import Callable, Mapping
-from dataclasses import dataclass
 import hashlib
 import io
 import json
-from pathlib import Path
 import struct
 import subprocess
 import tempfile
 import zlib
+from collections.abc import Callable, Mapping
+from dataclasses import dataclass
+from pathlib import Path
 
 import colour
 import numpy as np
@@ -17,7 +17,6 @@ import numpy as np
 from .data import PROFILE_CATALOG
 from .engine import serialize_lut
 from .setup import LutSetup
-
 
 MAX_PIXELS = 4_194_304
 MAX_SOURCE_BYTES = MAX_PIXELS * 12 + 1024

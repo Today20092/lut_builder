@@ -24,6 +24,10 @@ and extend for documented workflows and planned work.
 - Verify observable behavior and affected contracts. Explain meaningful design
   tradeoffs and any remaining maintenance debt in the handoff.
 
+### Single check command
+
+Run `scripts/check.sh` (format, lint, types for Python and frontend; about a minute) before every commit; `scripts/check.sh --full` adds pytest, frontend tests and the build. `git config core.hooksPath .githooks` (set once per clone) runs it as a pre-commit hook. Fix formatting with `uv run ruff format .` and `pnpm format` (Oxfmt) in `frontend/`. Frontend lint is Oxlint then ESLint; `frontend/src/components/ui` is shadcn-owned and excluded from Oxlint/Oxfmt. `pnpm typecheck:strict-index` is an opt-in trial of `noUncheckedIndexedAccess` that is not yet clean.
+
 ### Python workflow
 
 Use the complete Astral Python workflow for this repository:

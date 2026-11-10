@@ -1,13 +1,12 @@
-from dataclasses import dataclass, field
 import re
+from dataclasses import dataclass, field
 from typing import Any, Mapping
 
-import numpy as np
 import colour
+import numpy as np
 
 from .data import MIDDLE_GREY, PROFILE_CATALOG
 from .imported_lut import validate_imported_lut
-
 
 CUBE_SIZES = {17, 33, 65}
 HEX_COLOR = re.compile(r"#[0-9a-fA-F]{6}$")

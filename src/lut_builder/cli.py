@@ -11,23 +11,23 @@ from typing import Literal, Optional
 warnings.filterwarnings("ignore", module="colour")
 
 import typer
+from rich import print as rprint
 from rich.console import Console
 from rich.panel import Panel
 from rich.prompt import Confirm, Prompt
-from rich import print as rprint
 from rich.table import Table
 from rich.text import Text
 
 from .colors import TAILWIND_COLORS
 from .data import PROFILE_CATALOG, oklch_to_hex
 from .engine import generate_lut
-from .setup import LutSetup, exposure_preview
 from .presets import (
-    suggest_color_for_stop,
-    suggest_color_for_ire,
-    WIDTH_PRESETS,
     IRE_WIDTH_PRESETS,
+    WIDTH_PRESETS,
+    suggest_color_for_ire,
+    suggest_color_for_stop,
 )
+from .setup import LutSetup, exposure_preview
 
 app = typer.Typer(help="Interactive diagnostic scene-exposure LUT generator")
 console = Console()
@@ -573,10 +573,10 @@ def load_config(path: Path) -> LutSetup:
             data = json.load(f)
     except FileNotFoundError:
         console.print(f"[red]Config file not found: {path}[/red]")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
     except json.JSONDecodeError as e:
         console.print(f"[red]Invalid JSON in config file: {e}[/red]")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from e
     if data.get("version", 0) not in (1, 2, 3):
         console.print(
             "[yellow]Warning: config has no version field — it may be outdated.[/yellow]"
@@ -805,7 +805,7 @@ def build(
                 )
             except Exception as e:
                 rprint(f"[bold red]Error:[/bold red] {e}")
-                raise typer.Exit(1)
+                raise typer.Exit(1) from e
         return
 
     # ------------------------------------------------------------------
@@ -1003,7 +1003,7 @@ def build(
             )
         except Exception as e:
             rprint(f"[bold red]Error:[/bold red] {e}")
-            raise typer.Exit(1)
+            raise typer.Exit(1) from e
 
     # Offer to save config
     console.print()

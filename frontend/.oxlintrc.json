@@ -1,0 +1,17 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["typescript", "react", "import", "unicorn", "oxc"],
+  "rules": { "react/react-in-jsx-scope": "off" },
+  "categories": { "correctness": "error" },
+  "ignorePatterns": ["dist", ".astro", "manual/.astro", "playwright-report", "test-results", "src/components/ui"],
+  "overrides": [
+    {
+      "files": ["src/editor.ts", "src/lutEngine.ts", "src/lutColorData.ts", "src/sampleMath.ts", "src/verificationMath.ts", "src/hsvTriangle.ts", "src/cubeSampling.ts"],
+      "rules": {
+        "no-restricted-imports": ["error", { "patterns": [
+          { "group": ["react", "react-dom", "react/*", "effect", "effect/*"], "message": "Keep editor state and LUT/color math plain TypeScript; see docs/agents/typescript.md." }
+        ] }]
+      }
+    }
+  ]
+}

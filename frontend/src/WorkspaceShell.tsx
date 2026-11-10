@@ -1,7 +1,16 @@
 import { ExternalLink } from "./HelpLink"
 import { Children, isValidElement, useState, type ReactNode } from "react"
 import { Tabs, TabsPanel, TabsPrimitive, TabsTab } from "@/components/ui/tabs"
-import { BookOpen, Download, Image, Layers, MessageSquareWarning, Settings2, SlidersHorizontal, WandSparkles } from "lucide-react"
+import {
+  BookOpen,
+  Download,
+  Image,
+  Layers,
+  MessageSquareWarning,
+  Settings2,
+  SlidersHorizontal,
+  WandSparkles,
+} from "lucide-react"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import type { Setup } from "./editor"
@@ -9,69 +18,251 @@ import { useMobileWorkspace, useWorkspaceLocation, WorkspaceNavigation } from ".
 import { WorkspaceSheet } from "./WorkspaceSheet"
 
 const destinations = [
-  { value: "presets", label: "Presets", icon: WandSparkles, description: "Choose a starting exposure arrangement." },
-  { value: "bands", label: "Edit", icon: SlidersHorizontal, description: "Shape your exposure bands and colors." },
-  { value: "media", label: "Preview", icon: Image, description: "Preview a sample image or verify your own camera media." },
-  { value: "configuration", label: "Settings", icon: Settings2, description: "Camera, output and saved work." },
+  {
+    value: "presets",
+    label: "Presets",
+    icon: WandSparkles,
+    description: "Choose a starting exposure arrangement.",
+  },
+  {
+    value: "bands",
+    label: "Edit",
+    icon: SlidersHorizontal,
+    description: "Shape your exposure bands and colors.",
+  },
+  {
+    value: "media",
+    label: "Preview",
+    icon: Image,
+    description: "Preview a sample image or verify your own camera media.",
+  },
+  {
+    value: "configuration",
+    label: "Settings",
+    icon: Settings2,
+    description: "Camera, output and saved work.",
+  },
 ] as const
 
 export function WorkspacePanel({ value, children }: { value: string; children: ReactNode }) {
-  return <section data-workspace-section={value} className="workspace-panel">{children}</section>
+  return (
+    <section data-workspace-section={value} className="workspace-panel">
+      {children}
+    </section>
+  )
 }
 
-export function WorkspaceShell({ setup, stage, illustration, feedback, shortcuts, children, busy, onNew }: {
-  setup: Setup; stage: (editBands: () => void) => ReactNode; illustration: (editBands: () => void) => ReactNode; feedback: ReactNode; shortcuts: ReactNode; children: ReactNode; busy: boolean; onNew: () => void
+export function WorkspaceShell({
+  setup,
+  stage,
+  illustration,
+  feedback,
+  shortcuts,
+  children,
+  busy,
+  onNew,
+}: {
+  setup: Setup
+  stage: (editBands: () => void) => ReactNode
+  illustration: (editBands: () => void) => ReactNode
+  feedback: ReactNode
+  shortcuts: ReactNode
+  children: ReactNode
+  busy: boolean
+  onNew: () => void
 }) {
   const { section, open } = useWorkspaceLocation()
   const [exporting, setExporting] = useState(false)
   const mobile = useMobileWorkspace()
   const destination = section === "palette" ? "bands" : section
-  const screen = destinations.find(item => item.value === destination)!
+  const screen = destinations.find((item) => item.value === destination)!
   const ScreenIcon = screen.icon
   const panels = Children.toArray(children)
-  const content = (value: string) => panels.filter(child => isValidElement<{ value: string }>(child) && child.type === WorkspacePanel && child.props.value === value)
-  const extras = panels.filter(child => !isValidElement(child) || child.type !== WorkspacePanel)
+  const content = (value: string) =>
+    panels.filter(
+      (child) =>
+        isValidElement<{ value: string }>(child) && child.type === WorkspacePanel && child.props.value === value,
+    )
+  const extras = panels.filter((child) => !isValidElement(child) || child.type !== WorkspacePanel)
   const editBands = () => open("bands")
 
-  return <WorkspaceNavigation.Provider value={{ mobile }}><div className="workspace" data-section={section} data-imported={Boolean(setup.imported_lut)} onClick={event => {
-    if (event.target instanceof Element && event.target.closest('[data-workspace-action="review-palette"]')) {
-      const state = { ...window.history.state }
-      delete state.lutBuilderSheet
-      window.history.replaceState(state, "")
-      setExporting(false)
-      open("palette")
-    }
-  }}>
-    <a href="#workspace-adjustments" className="workspace-skip">Skip to adjustments</a>
-    <header className="workspace-header">
-      <div className="workspace-brand"><Layers aria-hidden="true" /><h1>LUT Builder</h1><span>Workbench</span></div>
-      <div className="workspace-header-actions">{shortcuts}<Button className="workspace-new-desktop" variant="ghost" onClick={onNew} disabled={busy}>New LUT</Button><Button type="button" onClick={() => setExporting(true)}><Download data-icon="inline-start" aria-hidden="true" />Export LUT</Button></div>
-    </header>
-    <div className="workspace-interpretation" role="group" aria-label="Active interpretation"><span>{setup.profile}</span><span aria-hidden="true">→</span><span>{setup.target}{setup.imported_lut ? ` / ${setup.imported_lut.output_transfer}` : ""}</span><span>{setup.cube_size}³ · {setup.legal_range ? "Legal" : "Full"} range</span><Button type="button" variant="link" size="sm" onClick={() => open("configuration")} disabled={busy}>Change<span className="sr-only"> configuration</span></Button></div>
-    <Tabs value={destination} onValueChange={value => open(value as typeof destination)} className="workspace-body" render={<main />}>
-      <nav className="workspace-navigation" aria-label="Workbench sections"><TabsPrimitive.List className="workspace-tabs" activateOnFocus={false} aria-label="Editing sections">{destinations.map(({ value, label, icon: Icon }) => <TabsTab key={value} value={value} disabled={busy} className="workspace-tab"><Icon aria-hidden="true" /><span>{label}</span></TabsTab>)}</TabsPrimitive.List></nav>
-      <div className="workspace-mobile-title">
-        <div className="workspace-screen-heading"><ScreenIcon aria-hidden="true" /><h2 id="workspace-screen-title" tabIndex={-1}>{screen.label}</h2></div><p>{screen.description}</p>
-        {destination === "bands" && <ToggleGroup className="workspace-edit-tools w-full" aria-label="Edit tools" value={[section]} onValueChange={values => { const next = values[0]; if (next === "bands" || next === "palette") open(next) }} disabled={busy}>{(["bands", "palette"] as const).map(value => <ToggleGroupItem key={value} value={value}>{value === "bands" ? "Bands" : "Palette"}</ToggleGroupItem>)}</ToggleGroup>}
-        {destination === "bands" && <p>Bands set which exposure ranges are marked. Palette sets the colors they use.</p>}
-      </div>
-      <section className="workspace-stage" aria-label="Exposure workspace">{stage(editBands)}</section>
-      <aside id="workspace-adjustments" className="workspace-adjustments" aria-label="Workspace adjustments"><div id="workspace-panel-content" className="workspace-panel-content">
-        {!mobile && feedback}
-        {destinations.map(({ value }) => <TabsPanel key={value} value={value} keepMounted tabIndex={0}>
-          <fieldset disabled={busy} inert={busy} className="@container workspace-fields">
-            {value === "media" && <div className="mx-5 mb-6">{illustration(editBands)}</div>}
-            {value === "bands" ? <><div hidden={section !== "bands"}>{content("bands")}</div><div hidden={section !== "palette"}>{content("palette")}</div></> : content(value)}
-            {value === "configuration" && <>
-              <section className="workspace-saved-setups workspace-settings-section" aria-label="Saved setups"><h3 className="text-base font-semibold">Saved setups</h3>{content("files")}</section>
-              <section className="workspace-settings-actions" aria-label="Workspace actions"><Button type="button" variant="outline" onClick={onNew}><WandSparkles aria-hidden="true" />New LUT</Button>{[{ label: "Help / Manual", href: `${import.meta.env.BASE_URL}docs/`, icon: BookOpen }, { label: "Report an issue", href: "https://github.com/Today20092/lut_builder/issues/new/choose", icon: MessageSquareWarning }].map(({ label, href, icon: Icon }) => <ExternalLink key={label} className={buttonVariants({ variant: "ghost" })} href={href}><Icon data-icon="inline-start" aria-hidden="true" />{label}</ExternalLink>)}</section>
-            </>}
+  return (
+    <WorkspaceNavigation.Provider value={{ mobile }}>
+      <div
+        className="workspace"
+        data-section={section}
+        data-imported={Boolean(setup.imported_lut)}
+        onClick={(event) => {
+          if (event.target instanceof Element && event.target.closest('[data-workspace-action="review-palette"]')) {
+            const state = { ...window.history.state }
+            delete state.lutBuilderSheet
+            window.history.replaceState(state, "")
+            setExporting(false)
+            open("palette")
+          }
+        }}
+      >
+        <a href="#workspace-adjustments" className="workspace-skip">
+          Skip to adjustments
+        </a>
+        <header className="workspace-header">
+          <div className="workspace-brand">
+            <Layers aria-hidden="true" />
+            <h1>LUT Builder</h1>
+            <span>Workbench</span>
+          </div>
+          <div className="workspace-header-actions">
+            {shortcuts}
+            <Button className="workspace-new-desktop" variant="ghost" onClick={onNew} disabled={busy}>
+              New LUT
+            </Button>
+            <Button type="button" onClick={() => setExporting(true)}>
+              <Download data-icon="inline-start" aria-hidden="true" />
+              Export LUT
+            </Button>
+          </div>
+        </header>
+        <div className="workspace-interpretation" role="group" aria-label="Active interpretation">
+          <span>{setup.profile}</span>
+          <span aria-hidden="true">→</span>
+          <span>
+            {setup.target}
+            {setup.imported_lut ? ` / ${setup.imported_lut.output_transfer}` : ""}
+          </span>
+          <span>
+            {setup.cube_size}³ · {setup.legal_range ? "Legal" : "Full"} range
+          </span>
+          <Button type="button" variant="link" size="sm" onClick={() => open("configuration")} disabled={busy}>
+            Change<span className="sr-only"> configuration</span>
+          </Button>
+        </div>
+        <Tabs
+          value={destination}
+          onValueChange={(value) => open(value as typeof destination)}
+          className="workspace-body"
+          render={<main />}
+        >
+          <nav className="workspace-navigation" aria-label="Workbench sections">
+            <TabsPrimitive.List className="workspace-tabs" activateOnFocus={false} aria-label="Editing sections">
+              {destinations.map(({ value, label, icon: Icon }) => (
+                <TabsTab key={value} value={value} disabled={busy} className="workspace-tab">
+                  <Icon aria-hidden="true" />
+                  <span>{label}</span>
+                </TabsTab>
+              ))}
+            </TabsPrimitive.List>
+          </nav>
+          <div className="workspace-mobile-title">
+            <div className="workspace-screen-heading">
+              <ScreenIcon aria-hidden="true" />
+              <h2 id="workspace-screen-title" tabIndex={-1}>
+                {screen.label}
+              </h2>
+            </div>
+            <p>{screen.description}</p>
+            {destination === "bands" && (
+              <ToggleGroup
+                className="workspace-edit-tools w-full"
+                aria-label="Edit tools"
+                value={[section]}
+                onValueChange={(values) => {
+                  const next = values[0]
+                  if (next === "bands" || next === "palette") open(next)
+                }}
+                disabled={busy}
+              >
+                {(["bands", "palette"] as const).map((value) => (
+                  <ToggleGroupItem key={value} value={value}>
+                    {value === "bands" ? "Bands" : "Palette"}
+                  </ToggleGroupItem>
+                ))}
+              </ToggleGroup>
+            )}
+            {destination === "bands" && (
+              <p>Bands set which exposure ranges are marked. Palette sets the colors they use.</p>
+            )}
+          </div>
+          <section className="workspace-stage" aria-label="Exposure workspace">
+            {stage(editBands)}
+          </section>
+          <aside id="workspace-adjustments" className="workspace-adjustments" aria-label="Workspace adjustments">
+            <div id="workspace-panel-content" className="workspace-panel-content">
+              {!mobile && feedback}
+              {destinations.map(({ value }) => (
+                <TabsPanel key={value} value={value} keepMounted tabIndex={0}>
+                  <fieldset disabled={busy} inert={busy} className="@container workspace-fields">
+                    {value === "media" && <div className="mx-5 mb-6">{illustration(editBands)}</div>}
+                    {value === "bands" ? (
+                      <>
+                        <div hidden={section !== "bands"}>{content("bands")}</div>
+                        <div hidden={section !== "palette"}>{content("palette")}</div>
+                      </>
+                    ) : (
+                      content(value)
+                    )}
+                    {value === "configuration" && (
+                      <>
+                        <section
+                          className="workspace-saved-setups workspace-settings-section"
+                          aria-label="Saved setups"
+                        >
+                          <h3 className="text-base font-semibold">Saved setups</h3>
+                          {content("files")}
+                        </section>
+                        <section className="workspace-settings-actions" aria-label="Workspace actions">
+                          <Button type="button" variant="outline" onClick={onNew}>
+                            <WandSparkles aria-hidden="true" />
+                            New LUT
+                          </Button>
+                          {[
+                            {
+                              label: "Help / Manual",
+                              href: `${import.meta.env.BASE_URL}docs/`,
+                              icon: BookOpen,
+                            },
+                            {
+                              label: "Report an issue",
+                              href: "https://github.com/Today20092/lut_builder/issues/new/choose",
+                              icon: MessageSquareWarning,
+                            },
+                          ].map(({ label, href, icon: Icon }) => (
+                            <ExternalLink key={label} className={buttonVariants({ variant: "ghost" })} href={href}>
+                              <Icon data-icon="inline-start" aria-hidden="true" />
+                              {label}
+                            </ExternalLink>
+                          ))}
+                        </section>
+                      </>
+                    )}
+                  </fieldset>
+                </TabsPanel>
+              ))}
+              {mobile && <div className="workspace-feedback-area">{feedback}</div>}
+            </div>
+          </aside>
+        </Tabs>
+        <nav className="workspace-mobile-navigation" aria-label="Mobile navigation">
+          {destinations.map(({ value, label, icon: Icon }) => (
+            <Button
+              key={value}
+              type="button"
+              variant="ghost"
+              disabled={busy}
+              aria-current={destination === value ? "page" : undefined}
+              onClick={() => open(value)}
+            >
+              <Icon aria-hidden="true" />
+              <span>{label}</span>
+            </Button>
+          ))}
+        </nav>
+        <WorkspaceSheet open={exporting} title="Export LUT" onClose={() => setExporting(false)}>
+          <fieldset disabled={busy} inert={busy} className="workspace-fields">
+            {content("export")}
           </fieldset>
-        </TabsPanel>)}
-        {mobile && <div className="workspace-feedback-area">{feedback}</div>}
-      </div></aside>
-    </Tabs>
-    <nav className="workspace-mobile-navigation" aria-label="Mobile navigation">{destinations.map(({ value, label, icon: Icon }) => <Button key={value} type="button" variant="ghost" disabled={busy} aria-current={destination === value ? "page" : undefined} onClick={() => open(value)}><Icon aria-hidden="true" /><span>{label}</span></Button>)}</nav>
-    <WorkspaceSheet open={exporting} title="Export LUT" onClose={() => setExporting(false)}><fieldset disabled={busy} inert={busy} className="workspace-fields">{content("export")}</fieldset>{extras}</WorkspaceSheet>
-  </div></WorkspaceNavigation.Provider>
+          {extras}
+        </WorkspaceSheet>
+      </div>
+    </WorkspaceNavigation.Provider>
+  )
 }

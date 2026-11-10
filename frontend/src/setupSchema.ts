@@ -24,13 +24,18 @@ export const SetupSchema = Schema.Struct({
   monochrome: Schema.Boolean,
   legal_range: Schema.Boolean,
   output: Schema.String,
-  imported_lut: Schema.optional(Schema.Struct({
-    version: Schema.Literal(1), name: Schema.String, cube: Schema.String,
-    source_profile: Schema.String,
-    output_gamut: Schema.Literals(["Rec.709", "Rec.2020"]),
-    output_transfer: Schema.Literals(["gamma2.2", "gamma2.4", "sRGB", "BT.709"]),
-    output_range: Schema.Literals(["full", "legal"]), sha256: Schema.String,
-  })),
+  imported_lut: Schema.optional(
+    Schema.Struct({
+      version: Schema.Literal(1),
+      name: Schema.String,
+      cube: Schema.String,
+      source_profile: Schema.String,
+      output_gamut: Schema.Literals(["Rec.709", "Rec.2020"]),
+      output_transfer: Schema.Literals(["gamma2.2", "gamma2.4", "sRGB", "BT.709"]),
+      output_range: Schema.Literals(["full", "legal"]),
+      sha256: Schema.String,
+    }),
+  ),
 })
 
 export class SetupValidationError extends Data.TaggedError("SetupValidationError")<{
@@ -41,16 +46,30 @@ export class SetupValidationError extends Data.TaggedError("SetupValidationError
 export function decodeSetup(input: unknown): Effect.Effect<Setup, SetupValidationError> {
   return Effect.try({
     try: () => {
-      const setup=validateBrowserSetup(Schema.decodeUnknownSync(SetupSchema)(input))
-      if(setup.imported_lut)parseImportedCube(setup.imported_lut.cube)
+      const setup = validateBrowserSetup(Schema.decodeUnknownSync(SetupSchema)(input))
+      if (setup.imported_lut) parseImportedCube(setup.imported_lut.cube)
       return setup
     },
-    catch: (cause) => new SetupValidationError({
-      message: cause instanceof Error ? cause.message : "Invalid LUT setup.",
-      cause,
-    }),
-  }).pipe(Effect.flatMap(setup => setup.imported_lut ? Effect.tryPromise({
-    try: async () => { await verifyImportedIdentity(setup.imported_lut!); return setup },
-    catch: cause => new SetupValidationError({message: cause instanceof Error ? cause.message : "Imported LUT identity check failed.",cause}),
-  }) : Effect.succeed(setup)))
+    catch: (cause) =>
+      new SetupValidationError({
+        message: cause instanceof Error ? cause.message : "Invalid LUT setup.",
+        cause,
+      }),
+  }).pipe(
+    Effect.flatMap((setup) =>
+      setup.imported_lut
+        ? Effect.tryPromise({
+            try: async () => {
+              await verifyImportedIdentity(setup.imported_lut!)
+              return setup
+            },
+            catch: (cause) =>
+              new SetupValidationError({
+                message: cause instanceof Error ? cause.message : "Imported LUT identity check failed.",
+                cause,
+              }),
+          })
+        : Effect.succeed(setup),
+    ),
+  )
 }

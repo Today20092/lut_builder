@@ -2,15 +2,31 @@
 import assert from "node:assert/strict"
 import { mkdir } from "node:fs/promises"
 import { pathToFileURL } from "node:url"
-import { enterWorkspace, navigateWorkspace } from './workspace-navigation.mjs'
+import { enterWorkspace, navigateWorkspace } from "./workspace-navigation.mjs"
 import { JSDOM } from "jsdom"
 import AxeBuilder from "@axe-core/playwright"
 
-const playwright = await import(process.env.PLAYWRIGHT_MODULE ? pathToFileURL(process.env.PLAYWRIGHT_MODULE).href : "playwright")
+const playwright = await import(
+  process.env.PLAYWRIGHT_MODULE ? pathToFileURL(process.env.PLAYWRIGHT_MODULE).href : "playwright"
+)
 const builder = process.env.LUT_BUILDER_URL || "http://127.0.0.1:4173/lut_builder/"
 const manual = new URL("docs/", builder).href
-const browser = await playwright[process.env.BROWSER || "chromium"].launch({ headless: true, ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : {}) })
-const pages = ["", "about/", "first-lut/", "controls/", "save-and-apply/", "verification/", "troubleshooting/", "keyboard/", "signal-limits/", "profiles/"]
+const browser = await playwright[process.env.BROWSER || "chromium"].launch({
+  headless: true,
+  ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : {}),
+})
+const pages = [
+  "",
+  "about/",
+  "first-lut/",
+  "controls/",
+  "save-and-apply/",
+  "verification/",
+  "troubleshooting/",
+  "keyboard/",
+  "signal-limits/",
+  "profiles/",
+]
 const documents = new Map()
 try {
   // Check real URLs and fragments, not just the presence of link text in Markdown.
@@ -23,7 +39,13 @@ try {
     documents.set(url, document)
   }
   const assets = new Set()
-  assert.equal([...documents.values()].reduce((count, document) => count + document.querySelectorAll("iframe.manual-diagram[title]").length, 0), 3)
+  assert.equal(
+    [...documents.values()].reduce(
+      (count, document) => count + document.querySelectorAll("iframe.manual-diagram[title]").length,
+      0,
+    ),
+    3,
+  )
   for (const [url, document] of documents) {
     for (const anchor of document.querySelectorAll("a[href]")) {
       const target = new URL(anchor.getAttribute("href"), url)
@@ -31,9 +53,12 @@ try {
       const fragment = decodeURIComponent(target.hash.slice(1))
       target.hash = ""
       assert.ok(documents.has(target.href), `Unknown manual page: ${target.href}`)
-      if (fragment) assert.ok(documents.get(target.href).getElementById(fragment), `Missing anchor: ${target.href}#${fragment}`)
+      if (fragment)
+        assert.ok(documents.get(target.href).getElementById(fragment), `Missing anchor: ${target.href}#${fragment}`)
     }
-    for (const element of document.querySelectorAll('img[src], script[src], link[rel=stylesheet], link[rel="shortcut icon"], iframe[src]')) {
+    for (const element of document.querySelectorAll(
+      'img[src], script[src], link[rel=stylesheet], link[rel="shortcut icon"], iframe[src]',
+    )) {
       assets.add(new URL(element.getAttribute("src") || element.getAttribute("href"), url).href)
     }
   }
@@ -43,19 +68,29 @@ try {
     await response.arrayBuffer()
   }
 
-  for (const viewport of [{ width: 1280, height: 900 }, playwright.devices['iPhone 13'].viewport, playwright.devices['iPhone 14 Pro Max'].viewport]) {
+  for (const viewport of [
+    { width: 1280, height: 900 },
+    playwright.devices["iPhone 13"].viewport,
+    playwright.devices["iPhone 14 Pro Max"].viewport,
+  ]) {
     const { width } = viewport
     const context = await browser.newContext({ viewport })
     const page = await context.newPage()
     const errors = []
-    page.on("pageerror", error => errors.push(error.message))
+    page.on("pageerror", (error) => errors.push(error.message))
     await page.goto(builder)
     await enterWorkspace(page)
     const footer = page.getByRole("contentinfo")
-    assert.equal(await footer.getByRole("link", { name: "About", exact: true }).getAttribute("href"), new URL("about/", manual).pathname)
-    assert.equal(await footer.getByRole("link", { name: /^Support this project/ }).getAttribute("href"), "https://ko-fi.com/ayoubab1")
+    assert.equal(
+      await footer.getByRole("link", { name: "About", exact: true }).getAttribute("href"),
+      new URL("about/", manual).pathname,
+    )
+    assert.equal(
+      await footer.getByRole("link", { name: /^Support this project/ }).getAttribute("href"),
+      "https://ko-fi.com/ayoubab1",
+    )
     assert.equal(await page.locator('link[rel="icon"]').getAttribute("href"), new URL("favicon.svg", builder).pathname)
-    await navigateWorkspace(page, 'Settings')
+    await navigateWorkspace(page, "Settings")
     const help = page.getByRole("link", { name: /Help \/ Manual/ })
     await help.waitFor()
     if (process.env.MANUAL_EVIDENCE && width === 1280) {
@@ -67,7 +102,7 @@ try {
     const popupPromise = page.waitForEvent("popup")
     await page.keyboard.press("Enter")
     const docs = await popupPromise
-    docs.on("pageerror", error => errors.push(error.message))
+    docs.on("pageerror", (error) => errors.push(error.message))
     await docs.waitForLoadState()
     assert.equal(docs.url(), manual)
     await docs.getByRole("heading", { name: "Understand your exposure colors", exact: true }).waitFor()
@@ -86,20 +121,38 @@ try {
     assert.ok((await result.getAttribute("href")).includes("/docs/"))
     await result.click()
     await docs.waitForLoadState()
-    await docs.locator('.pagefind-ui__search-input').waitFor({ state: 'attached' })
+    await docs.locator(".pagefind-ui__search-input").waitFor({ state: "attached" })
     for (const path of pages) {
       await docs.goto(manual + path)
       // Starlight initializes search at idle; do not navigate away during its module import.
-      await docs.locator('.pagefind-ui__search-input').waitFor({ state: 'attached' })
-      assert.equal(await docs.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true, `Overflow at ${width}: ${path}`)
+      await docs.locator(".pagefind-ui__search-input").waitFor({ state: "attached" })
+      assert.equal(
+        await docs.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1),
+        true,
+        `Overflow at ${width}: ${path}`,
+      )
       if (path === "about/") {
         await docs.getByRole("heading", { name: "About LUT Builder", exact: true }).waitFor()
-        assert.equal(await docs.getByRole("link", { name: "donating or making a purchase on Ko-fi", exact: true }).getAttribute("href"), "https://ko-fi.com/ayoubab1")
+        assert.equal(
+          await docs
+            .getByRole("link", { name: "donating or making a purchase on Ko-fi", exact: true })
+            .getAttribute("href"),
+          "https://ko-fi.com/ayoubab1",
+        )
         for (const colorScheme of ["light", "dark"]) {
           await docs.emulateMedia({ colorScheme })
           await docs.evaluate(() => document.fonts.ready)
-          assert.deepEqual((await new AxeBuilder({ page: docs }).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze()).violations, [], `About accessibility: ${width}-${colorScheme}`)
-          if (process.env.MANUAL_EVIDENCE) await docs.screenshot({ path: `${process.env.MANUAL_EVIDENCE}/about-${width}-${colorScheme}.png`, fullPage: true })
+          assert.deepEqual(
+            (await new AxeBuilder({ page: docs }).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze())
+              .violations,
+            [],
+            `About accessibility: ${width}-${colorScheme}`,
+          )
+          if (process.env.MANUAL_EVIDENCE)
+            await docs.screenshot({
+              path: `${process.env.MANUAL_EVIDENCE}/about-${width}-${colorScheme}.png`,
+              fullPage: true,
+            })
         }
         await docs.emulateMedia({ colorScheme: "light" })
       }
@@ -108,49 +161,76 @@ try {
         const svg = frame.getByRole("img")
         await svg.waitFor()
         assert.ok(await svg.getAttribute("aria-labelledby"), frame.url())
-        assert.equal(await frame.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true, `Diagram page overflow: ${frame.url()}`)
+        assert.equal(
+          await frame.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1),
+          true,
+          `Diagram page overflow: ${frame.url()}`,
+        )
         const scroller = frame.getByRole("region")
         await scroller.focus()
         if (width < 960) {
           await docs.keyboard.press("ArrowRight")
-          await docs.waitForFunction(() => [...document.querySelectorAll("iframe")].every(element => element.contentDocument.querySelector(".diagram-container").scrollLeft > 0))
+          await docs.waitForFunction(() =>
+            [...document.querySelectorAll("iframe")].every(
+              (element) => element.contentDocument.querySelector(".diagram-container").scrollLeft > 0,
+            ),
+          )
         }
       }
       if (path === "" && process.env.MANUAL_EVIDENCE) {
-        await docs.screenshot({ path: `${process.env.MANUAL_EVIDENCE}/manual-overview-${width}.png`, fullPage: true })
+        await docs.screenshot({
+          path: `${process.env.MANUAL_EVIDENCE}/manual-overview-${width}.png`,
+          fullPage: true,
+        })
         await docs.emulateMedia({ colorScheme: "dark" })
-        await docs.screenshot({ path: `${process.env.MANUAL_EVIDENCE}/manual-overview-dark-${width}.png`, fullPage: true })
+        await docs.screenshot({
+          path: `${process.env.MANUAL_EVIDENCE}/manual-overview-dark-${width}.png`,
+          fullPage: true,
+        })
         await docs.emulateMedia({ colorScheme: "light" })
       }
     }
     await docs.goto(manual + "first-lut/")
-    await docs.locator('.pagefind-ui__search-input').waitFor({ state: 'attached' })
+    await docs.locator(".pagefind-ui__search-input").waitFor({ state: "attached" })
     await docs.locator("main img").scrollIntoViewIfNeeded()
-    await docs.waitForFunction(() => [...document.querySelectorAll("main img")].every(img => img.complete && img.naturalWidth > 0))
-    assert.equal(await docs.locator("main img").evaluateAll(images => images.every(img => img.complete && img.naturalWidth > 0)), true)
+    await docs.waitForFunction(() =>
+      [...document.querySelectorAll("main img")].every((img) => img.complete && img.naturalWidth > 0),
+    )
+    assert.equal(
+      await docs
+        .locator("main img")
+        .evaluateAll((images) => images.every((img) => img.complete && img.naturalWidth > 0)),
+      true,
+    )
     await docs.emulateMedia({ colorScheme: "dark" })
     if (process.env.MANUAL_EVIDENCE) {
       await mkdir(process.env.MANUAL_EVIDENCE, { recursive: true })
-      await docs.screenshot({ path: `${process.env.MANUAL_EVIDENCE}/manual-${width}.png`, fullPage: true })
+      await docs.screenshot({
+        path: `${process.env.MANUAL_EVIDENCE}/manual-${width}.png`,
+        fullPage: true,
+      })
     }
     await docs.goto(manual + "signal-limits/#how-are-these-limits-calculated")
-    await docs.locator('.pagefind-ui__search-input').waitFor({ state: 'attached' })
+    await docs.locator(".pagefind-ui__search-input").waitFor({ state: "attached" })
     await docs.locator("#how-are-these-limits-calculated").waitFor()
     if (width < 960) await docs.getByRole("button", { name: "Menu", exact: true }).click()
     await docs.getByRole("link", { name: /Return to LUT Builder/ }).click()
     await docs.getByRole("heading", { name: "LUT Builder", exact: true }).waitFor()
-    const links = await page.locator('a[href*="docs/"]').evaluateAll(elements => elements.map(a => a.href))
+    const links = await page.locator('a[href*="docs/"]').evaluateAll((elements) => elements.map((a) => a.href))
     for (const link of links) {
       if (!link.startsWith(manual)) continue
       const url = new URL(link)
-      const fragment = decodeURIComponent(url.hash.slice(1)); url.hash = ""
+      const fragment = decodeURIComponent(url.hash.slice(1))
+      url.hash = ""
       assert.ok(documents.has(url.href), link)
       if (fragment) assert.ok(documents.get(url.href).getElementById(fragment), link)
     }
     assert.deepEqual(errors, [])
     await context.close()
   }
-  console.log(`Manual acceptance passed: ${pages.length} pages, internal links/anchors/assets, favicons, project links, About accessibility in both themes at 390/430/1280px, diagrams and keyboard scrolling, search, keyboard entry, mobile navigation, return links, and contextual help.`)
+  console.log(
+    `Manual acceptance passed: ${pages.length} pages, internal links/anchors/assets, favicons, project links, About accessibility in both themes at 390/430/1280px, diagrams and keyboard scrolling, search, keyboard entry, mobile navigation, return links, and contextual help.`,
+  )
 } finally {
   await browser.close()
 }

@@ -1,21 +1,21 @@
 import base64
 import hashlib
 import json
+import socket
 import struct
+import subprocess
 import threading
 import zlib
-import subprocess
-import socket
 from urllib.error import HTTPError
 from urllib.parse import urlsplit
 
 import numpy as np
 import pytest
-
-from lut_builder.web import create_server
-from lut_builder.verification import decode_still
-from test_web import _request
 from test_verification import INTERPRETATION
+from test_web import _request
+
+from lut_builder.verification import decode_still
+from lut_builder.web import create_server
 
 
 @pytest.fixture

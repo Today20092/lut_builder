@@ -1,16 +1,13 @@
+import hashlib
+
+import colour
 import numpy as np
 import pytest
-import hashlib
-import colour
 
 from lut_builder.engine import generate_lut
+from lut_builder.imported_lut import MAX_CUBE_BYTES, parse_cube
 from lut_builder.setup import LutSetup
-from lut_builder.verification import sdr_view
-from lut_builder.verification import verify_rgb
-
-from lut_builder.imported_lut import parse_cube
-from lut_builder.imported_lut import MAX_CUBE_BYTES
-
+from lut_builder.verification import sdr_view, verify_rgb
 
 IDENTITY = "LUT_3D_SIZE 2\n" + "\n".join(
     f"{r} {g} {b}" for b in (0, 1) for g in (0, 1) for r in (0, 1)
@@ -138,7 +135,8 @@ def test_source_classification_is_identical_for_different_creative_looks(
 
 def test_cli_saves_embedded_look_as_version3_without_breaking_legacy2(tmp_path):
     import json
-    from lut_builder.cli import save_config, load_config
+
+    from lut_builder.cli import load_config, save_config
 
     setup = LutSetup(
         "Panasonic V-Log", "Rec.709", ire_basis="camera", imported_lut=imported()

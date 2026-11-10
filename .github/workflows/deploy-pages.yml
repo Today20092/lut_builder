@@ -64,6 +64,8 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
         if: needs.select.outputs.frontend == 'true'
+      - run: pnpm format:check
+        if: needs.select.outputs.frontend == 'true'
       - run: pnpm test
         if: needs.select.outputs.frontend == 'true'
       - run: pnpm build

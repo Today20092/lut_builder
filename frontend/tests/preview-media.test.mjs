@@ -16,8 +16,12 @@ window.LUT_BUILDER_TOKEN = "test-token"
 after(() => dom.window.close())
 
 const bundle = await build({
-  entryPoints: ["src/previewMedia.ts"], bundle: true, format: "esm", platform: "node",
-  external: ["react"], write: false,
+  entryPoints: ["src/previewMedia.ts"],
+  bundle: true,
+  format: "esm",
+  platform: "node",
+  external: ["react"],
+  write: false,
 })
 stop()
 const directory = await mkdtemp(join(process.cwd(), "tests", ".media-"))
@@ -28,18 +32,41 @@ await rm(directory, { recursive: true })
 
 async function mountMedia() {
   let media
-  function Consumer() { media = usePreviewMedia("reference.jpg"); return null }
+  function Consumer() {
+    media = usePreviewMedia("reference.jpg")
+    return null
+  }
   const root = createRoot(document.createElement("div"))
   await act(() => root.render(React.createElement(Consumer)))
-  return { get media() { return media }, unmount: () => act(() => root.unmount()) }
+  return {
+    get media() {
+      return media
+    },
+    unmount: () => act(() => root.unmount()),
+  }
 }
 
 function frame(source_id, index = 0) {
   return {
-    source_id, display: `${source_id}-${index}.png`,
-    frame: { index, pts: String(index), time_base: "1/24", first_pts: "0", relative_time: `${index}/24`, seconds: index / 24, count: 4 },
-    facts: { stream: {}, frame: {} }, source: { precision_bits: 10, pixel_format: "yuv420p10le" },
-    provenance: { matrix: "bt709", range: "limited", chroma_location: "left", view: "Illustration only" },
+    source_id,
+    display: `${source_id}-${index}.png`,
+    frame: {
+      index,
+      pts: String(index),
+      time_base: "1/24",
+      first_pts: "0",
+      relative_time: `${index}/24`,
+      seconds: index / 24,
+      count: 4,
+    },
+    facts: { stream: {}, frame: {} },
+    source: { precision_bits: 10, pixel_format: "yuv420p10le" },
+    provenance: {
+      matrix: "bt709",
+      range: "limited",
+      chroma_location: "left",
+      view: "Illustration only",
+    },
   }
 }
 
@@ -49,25 +76,40 @@ test("pagehide releases a source allocated after its upload was cancelled", asyn
   let finishStart
   globalThis.fetch = async (url, options) => {
     requests.push({ url, body: options.body })
-    if (url === "/video/start") return new Promise((resolve) => {
-      finishStart = () => resolve({ ok: true, json: async () => ({ source_id: "late-source" }) })
-    })
+    if (url === "/video/start")
+      return new Promise((resolve) => {
+        finishStart = () => resolve({ ok: true, json: async () => ({ source_id: "late-source" }) })
+      })
     return { ok: true, json: async () => ({}) }
   }
   let media
-  function Consumer() { media = usePreviewMedia("reference.jpg"); return null }
+  function Consumer() {
+    media = usePreviewMedia("reference.jpg")
+    return null
+  }
   const host = document.createElement("div")
   const root = createRoot(host)
   try {
     await act(() => root.render(React.createElement(Consumer)))
     let upload
-    await act(() => { upload = media.chooseVideo(new File(["video"], "source.mp4")) })
+    await act(() => {
+      upload = media.chooseVideo(new File(["video"], "source.mp4"))
+    })
     await act(() => window.dispatchEvent(new window.Event("pagehide")))
-    await act(async () => { finishStart(); await upload })
+    await act(async () => {
+      finishStart()
+      await upload
+    })
     assert.equal(media.video, null)
     assert.equal(media.imageUrl, "reference.jpg")
-    assert.equal(requests.some(({ url }) => url.startsWith("/video/upload")), false)
-    assert.deepEqual(requests.filter(({ url }) => url === "/video/cancel").map(({ body }) => JSON.parse(body)), [{ source_id: "late-source" }])
+    assert.equal(
+      requests.some(({ url }) => url.startsWith("/video/upload")),
+      false,
+    )
+    assert.deepEqual(
+      requests.filter(({ url }) => url === "/video/cancel").map(({ body }) => JSON.parse(body)),
+      [{ source_id: "late-source" }],
+    )
   } finally {
     await act(() => root.unmount())
     globalThis.fetch = originalFetch
@@ -86,10 +128,15 @@ test("replacement cancels an upload and only the current source can supply frame
     if (url === "/video/start") return reply({ source_id: `source-${++allocations}` })
     if (url.includes("upload?source_id=source-1")) {
       oldSignal = options.signal
-      return new Promise((resolve) => { finishOldUpload = () => resolve(reply(frame("source-1"))) })
+      return new Promise((resolve) => {
+        finishOldUpload = () => resolve(reply(frame("source-1")))
+      })
     }
     if (url.includes("upload?source_id=source-2")) return reply(frame("source-2"))
-    if (url === "/video/cancel") { released.push(JSON.parse(options.body).source_id); return reply({}) }
+    if (url === "/video/cancel") {
+      released.push(JSON.parse(options.body).source_id)
+      return reply({})
+    }
     if (url === "/video/frame") {
       if (failFrame) return { ok: false, json: async () => ({ error: "Decode failed" }) }
       const { source_id, index } = JSON.parse(options.body)
@@ -100,9 +147,14 @@ test("replacement cancels an upload and only the current source can supply frame
   const view = await mountMedia()
   try {
     let oldUpload
-    await act(() => { oldUpload = view.media.chooseVideo(new File(["a"], "a.mp4")) })
+    await act(() => {
+      oldUpload = view.media.chooseVideo(new File(["a"], "a.mp4"))
+    })
     await act(() => view.media.chooseVideo(new File(["b"], "b.mp4")))
-    await act(async () => { finishOldUpload(); await oldUpload })
+    await act(async () => {
+      finishOldUpload()
+      await oldUpload
+    })
     assert.equal(oldSignal.aborted, true)
     assert.equal(view.media.video.source_id, "source-2")
     assert.equal(view.media.imageName, "b.mp4")
@@ -135,18 +187,29 @@ test("reference replacement aborts image decoding and a late callback cannot rep
   const previousImage = globalThis.Image
   const candidates = []
   globalThis.FileReader = class {
-    readAsDataURL(file) { this.result = `data:image/png,${file.name}`; this.onload() }
+    readAsDataURL(file) {
+      this.result = `data:image/png,${file.name}`
+      this.onload()
+    }
   }
   globalThis.Image = class {
-    set src(value) { this.url = value; candidates.push(this) }
+    set src(value) {
+      this.url = value
+      candidates.push(this)
+    }
   }
   const view = await mountMedia()
   try {
     let loading
-    await act(() => { loading = view.media.chooseImage(new File(["image"], "pending.png", { type: "image/png" })) })
+    await act(() => {
+      loading = view.media.chooseImage(new File(["image"], "pending.png", { type: "image/png" }))
+    })
     const staleLoad = candidates[0].onload
     await act(() => view.media.reference())
-    await act(async () => { staleLoad(); await loading })
+    await act(async () => {
+      staleLoad()
+      await loading
+    })
     assert.equal(view.media.imageUrl, "reference.jpg")
     assert.equal(view.media.imageName, "Reference photo")
     assert.equal(view.media.imageError, "")
@@ -169,7 +232,9 @@ test("unmount releases active video and rejects pending frame work", async () =>
     if (url.startsWith("/video/upload")) return reply(frame("owned"))
     if (url === "/video/frame") {
       frameSignal = options.signal
-      return new Promise((resolve) => { finishFrame = () => resolve(reply(frame("owned", 1))) })
+      return new Promise((resolve) => {
+        finishFrame = () => resolve(reply(frame("owned", 1)))
+      })
     }
     released.push(JSON.parse(options.body).source_id)
     return reply({})
@@ -178,9 +243,14 @@ test("unmount releases active video and rejects pending frame work", async () =>
   try {
     await act(() => view.media.chooseVideo(new File(["video"], "owned.mp4")))
     let selecting
-    await act(() => { selecting = view.media.selectVideoFrame({ index: 1 }) })
+    await act(() => {
+      selecting = view.media.selectVideoFrame({ index: 1 })
+    })
     await view.unmount()
-    await act(async () => { finishFrame(); await selecting })
+    await act(async () => {
+      finishFrame()
+      await selecting
+    })
     assert.equal(frameSignal.aborted, true)
     assert.deepEqual(released, ["owned"])
   } finally {

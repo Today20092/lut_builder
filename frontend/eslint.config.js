@@ -1,14 +1,14 @@
-import js from '@eslint/js'
-import globals from 'globals'
-import reactHooks from 'eslint-plugin-react-hooks'
-import reactRefresh from 'eslint-plugin-react-refresh'
-import tseslint from 'typescript-eslint'
-import { defineConfig, globalIgnores } from 'eslint/config'
+import js from "@eslint/js"
+import globals from "globals"
+import reactHooks from "eslint-plugin-react-hooks"
+import reactRefresh from "eslint-plugin-react-refresh"
+import tseslint from "typescript-eslint"
+import { defineConfig, globalIgnores } from "eslint/config"
 
 export default defineConfig([
-  globalIgnores(['dist', '.astro', 'manual/.astro', 'playwright-report', 'test-results']),
+  globalIgnores(["dist", ".astro", "manual/.astro", "playwright-report", "test-results"]),
   {
-    files: ['**/*.{ts,tsx}'],
+    files: ["**/*.{ts,tsx}"],
     extends: [
       js.configs.recommended,
       tseslint.configs.recommended,
@@ -20,21 +20,24 @@ export default defineConfig([
     },
   },
   {
-    files: ['src/components/ui/button.tsx'],
+    files: ["src/components/ui/button.tsx"],
     rules: {
-      'react-refresh/only-export-components': ['error', { allowExportNames: ['buttonVariants'] }],
+      "react-refresh/only-export-components": ["error", { allowExportNames: ["buttonVariants"] }],
     },
   },
   {
-    files: ['src/components/ui/toast.tsx'],
+    files: ["src/components/ui/toast.tsx"],
     rules: {
-      'react-refresh/only-export-components': ['error', { allowExportNames: ['createToastManager', 'toast', 'useToastManager'] }],
+      "react-refresh/only-export-components": [
+        "error",
+        { allowExportNames: ["createToastManager", "toast", "useToastManager"] },
+      ],
     },
   },
   {
-    files: ['src/components/ui/toggle.tsx'],
+    files: ["src/components/ui/toggle.tsx"],
     rules: {
-      'react-refresh/only-export-components': ['error', { allowExportNames: ['toggleVariants'] }],
+      "react-refresh/only-export-components": ["error", { allowExportNames: ["toggleVariants"] }],
     },
   },
 ])

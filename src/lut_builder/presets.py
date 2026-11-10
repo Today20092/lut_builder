@@ -12,9 +12,8 @@
 #
 # Both are used by cli.py as suggestions — the user can always override.
 
-from .data import oklch_to_hex
 from .colors import TAILWIND_COLORS
-
+from .data import oklch_to_hex
 
 # ---------------------------------------------------------------------------
 # Stop → color suggestion
