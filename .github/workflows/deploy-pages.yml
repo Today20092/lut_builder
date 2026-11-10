@@ -66,6 +66,8 @@ jobs:
         if: needs.select.outputs.frontend == 'true'
       - run: pnpm format:check
         if: needs.select.outputs.frontend == 'true'
+      - run: pnpm typecheck:strict-index
+        if: needs.select.outputs.frontend == 'true'
       - run: pnpm test
         if: needs.select.outputs.frontend == 'true'
       - run: pnpm build

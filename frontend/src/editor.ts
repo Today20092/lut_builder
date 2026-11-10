@@ -1,5 +1,9 @@
 import { cameraGray } from "./cameraReference.ts"
+import type { RGB } from "./cubeSampling.ts"
 import { setupIdentity, type ImportedLut } from "./importedLut.ts"
+
+type Oklab = [number, number, number]
+type ExposureScale = [number, number, number, number, number, number, number]
 
 export type Band = { stop: number; width: number; color: string }
 export type Mode = "stops" | "ire" | "fill"
@@ -148,7 +152,9 @@ export function exposureReferenceValue(
   return setup.band_mode === "stops" ? 0 : (1.099 * 0.18 ** 0.45 - 0.099) * 100
 }
 
-export function exposurePaletteScale(setup: Pick<Setup, "band_mode"> & Partial<Pick<Setup, "profile" | "ire_basis">>) {
+export function exposurePaletteScale(
+  setup: Pick<Setup, "band_mode"> & Partial<Pick<Setup, "profile" | "ire_basis">>,
+): ExposureScale {
   if (setup.band_mode === "ire" && setup.ire_basis === "camera") {
     const reference = exposureReferenceValue(setup)
     return [
@@ -159,7 +165,7 @@ export function exposurePaletteScale(setup: Pick<Setup, "band_mode"> & Partial<P
       reference + (100 - reference) / 4,
       reference + (100 - reference) / 2,
       reference + (100 - reference) * 0.8,
-    ].map((value, index) => (index === 3 ? value : Number(value.toFixed(1))))
+    ].map((value, index) => (index === 3 ? value : Number(value.toFixed(1)))) as ExposureScale
   }
   return setup.band_mode === "stops"
     ? [-3, -2, -1, 0, 1, 2, 3]
@@ -194,8 +200,11 @@ const STANDARD_FILL_COLOR_NAMES = ["blue-600", "sky-400", "lime-400", "yellow-40
 
 const toLinear = (value: number) => (value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4)
 
-function hexToOklab(hex: string) {
-  const [red, green, blue] = [1, 3, 5].map((start) => toLinear(Number.parseInt(hex.slice(start, start + 2), 16) / 255))
+const hexToRgb = (hex: string) =>
+  ([1, 3, 5] as const).map((start) => Number.parseInt(hex.slice(start, start + 2), 16) / 255) as RGB
+
+function hexToOklab(hex: string): Oklab {
+  const [red, green, blue] = hexToRgb(hex).map(toLinear) as RGB
   const l = Math.cbrt(0.4122214708 * red + 0.5363325363 * green + 0.0514459929 * blue)
   const m = Math.cbrt(0.2119034982 * red + 0.6806995451 * green + 0.1073969566 * blue)
   const s = Math.cbrt(0.0883024619 * red + 0.2817188376 * green + 0.6299787005 * blue)
@@ -206,7 +215,7 @@ function hexToOklab(hex: string) {
   ]
 }
 
-function oklabRgb([l, a, b]: number[]) {
+function oklabRgb([l, a, b]: Oklab): RGB {
   const ll = (l + 0.3963377774 * a + 0.2158037573 * b) ** 3
   const mm = (l - 0.1055613458 * a - 0.0638541728 * b) ** 3
   const ss = (l - 0.0894841775 * a - 1.291485548 * b) ** 3
@@ -217,9 +226,9 @@ function oklabRgb([l, a, b]: number[]) {
   ]
 }
 
-function oklabToHex(lab: number[]) {
-  const [l] = lab
-  let [, a, b] = lab
+function oklabToHex([l, a0, b0]: Oklab): string {
+  let a = a0
+  let b = b0
   for (let attempt = 0; attempt < 16; attempt += 1) {
     const rgb = oklabRgb([l, a, b])
     // Matrix round trips can put sRGB boundary colors just outside the gamut.
@@ -249,7 +258,7 @@ export function oklchToHex({ l, c, h }: OklchAnchor) {
   return oklabToHex(oklchToOklab({ l, c, h }))
 }
 
-function oklchToOklab({ l, c, h }: OklchAnchor) {
+function oklchToOklab({ l, c, h }: OklchAnchor): Oklab {
   const radians = ((((h % 360) + 360) % 360) * Math.PI) / 180
   return [Math.max(0, Math.min(1, l)), Math.max(0, c) * Math.cos(radians), Math.max(0, c) * Math.sin(radians)]
 }
@@ -269,7 +278,7 @@ export function maxSrgbChroma(anchor: OklchAnchor) {
 export function oklabSeparation(left: OklchAnchor, right: OklchAnchor) {
   const first = oklchToOklab(left)
   const second = oklchToOklab(right)
-  return Math.hypot(...first.map((value, index) => value - second[index]))
+  return Math.hypot(first[0] - second[0], first[1] - second[1], first[2] - second[2])
 }
 
 let widestSrgbRampCache: [OklchAnchor, OklchAnchor] | undefined
@@ -284,15 +293,17 @@ export function widestSrgbRamp(): [OklchAnchor, OklchAnchor] {
       if (c >= 0.1) candidates.push({ ...anchor, c })
     }
   }
-  let best: [OklchAnchor, OklchAnchor] = [candidates[0], candidates[1]]
+  const [firstCandidate, secondCandidate] = candidates
+  if (!firstCandidate || !secondCandidate) throw new Error("No sRGB hue/lightness samples have enough chroma.")
+  let best: [OklchAnchor, OklchAnchor] = [firstCandidate, secondCandidate]
   let bestSeparation = 0
   // ponytail: coarse grid keeps this instant; refine the grid if endpoint precision becomes visible.
-  for (let left = 0; left < candidates.length - 1; left += 1) {
-    for (let right = left + 1; right < candidates.length; right += 1) {
-      const sharedChroma = Math.min(candidates[left].c, candidates[right].c)
+  for (const [left, leftCandidate] of candidates.entries()) {
+    for (const rightCandidate of candidates.slice(left + 1)) {
+      const sharedChroma = Math.min(leftCandidate.c, rightCandidate.c)
       const pair: [OklchAnchor, OklchAnchor] = [
-        { ...candidates[left], c: sharedChroma },
-        { ...candidates[right], c: sharedChroma },
+        { ...leftCandidate, c: sharedChroma },
+        { ...rightCandidate, c: sharedChroma },
       ]
       const separation = oklabSeparation(...pair)
       if (separation > bestSeparation) {
@@ -330,18 +341,22 @@ export function sampleOklabRamp(
   blend: GradientBlend = "direct",
   huePath: HuePath = "shorter",
 ) {
-  if (anchors.length === 0) return "#000000"
-  if (anchors.length === 1) return oklchToHex(anchors[0])
+  const head = anchors[0]
+  const tail = anchors.at(-1)
+  if (!head || !tail) return "#000000"
+  if (anchors.length === 1) return oklchToHex(head)
   const positions = anchors.map((anchor, index) => anchor.position ?? index / (anchors.length - 1))
-  if (amount <= positions[0]) return oklchToHex(anchors[0])
-  if (amount >= positions.at(-1)!) return oklchToHex(anchors.at(-1)!)
+  if (amount <= required(positions[0])) return oklchToHex(head)
+  if (amount >= required(positions.at(-1))) return oklchToHex(tail)
   const left = positions.findIndex(
-    (position, index) => index < positions.length - 1 && amount < positions[index + 1] && amount >= position,
+    (position, index) => index < positions.length - 1 && amount < required(positions[index + 1]) && amount >= position,
   )
-  const fraction = (amount - positions[left]) / (positions[left + 1] - positions[left])
+  // left is -1 for NaN amounts or unsorted positions; the lookups below then fail loudly.
+  const first = required(anchors[left])
+  const second = required(anchors[left + 1])
+  const start = required(positions[left])
+  const fraction = (amount - start) / (required(positions[left + 1]) - start)
   if (blend === "colorful") {
-    const first = anchors[left]
-    const second = anchors[left + 1]
     // Neutral colors have no meaningful hue; inherit the colored endpoint's hue.
     const firstHue = first.c < 0.000004 ? second.h : first.h
     const secondHue = second.c < 0.000004 ? firstHue : second.h
@@ -360,9 +375,14 @@ export function sampleOklabRamp(
       h: firstHue + difference * fraction,
     })
   }
-  const first = oklchToOklab(anchors[left])
-  const second = oklchToOklab(anchors[left + 1])
-  return oklabToHex(first.map((value, index) => value + (second[index] - value) * fraction))
+  const [l1, a1, b1] = oklchToOklab(first)
+  const [l2, a2, b2] = oklchToOklab(second)
+  return oklabToHex([l1 + (l2 - l1) * fraction, a1 + (a2 - a1) * fraction, b1 + (b2 - b1) * fraction])
+}
+
+function required<T>(value: T | undefined): T {
+  if (value === undefined) throw new RangeError("Ramp sample is outside its anchors.")
+  return value
 }
 
 export function activeRampAnchors(
@@ -379,7 +399,7 @@ export function activeRampAnchors(
 export const isHexColor = (value: string) => /^#[0-9a-f]{6}$/i.test(value)
 
 export function hexToHsv(hex: string) {
-  const [red, green, blue] = [1, 3, 5].map((start) => Number.parseInt(hex.slice(start, start + 2), 16) / 255)
+  const [red, green, blue] = hexToRgb(hex)
   const maximum = Math.max(red, green, blue)
   const difference = maximum - Math.min(red, green, blue)
   const hue =
@@ -442,11 +462,8 @@ export function stepBandValue(
 }
 
 export function contrastTextColor(hex: string) {
-  const channels = [1, 3, 5].map((start) => {
-    const value = Number.parseInt(hex.slice(start, start + 2), 16) / 255
-    return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4
-  })
-  const luminance = 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2]
+  const [red, green, blue] = hexToRgb(hex).map(toLinear) as RGB
+  const luminance = 0.2126 * red + 0.7152 * green + 0.0722 * blue
   const whiteContrast = 1.05 / (luminance + 0.05)
   const darkContrast = (luminance + 0.05) / 0.059
   return whiteContrast >= darkContrast ? "#ffffff" : "#111827"
@@ -481,7 +498,7 @@ export function applyColorPreset(
         let amount = (band.stop - minimum) / range
         if (mapping === "exposure") {
           const reference = exposureReferenceValue(setup)
-          const low = index === 0 ? -Infinity : setup.bands[index - 1].stop
+          const low = setup.bands[index - 1]?.stop ?? -Infinity
           const high = index === setup.bands.length - 1 ? Infinity : band.stop
           // Fill stops are boundaries, so sample inside each zone, including the reference zone.
           const value = !setup.fill_mode
@@ -494,13 +511,7 @@ export function applyColorPreset(
                 ? band.stop
                 : (low + high) / 2
           const scale = exposurePaletteScale(setup)
-          const upper = scale.findIndex((threshold) => value <= threshold)
-          amount =
-            upper < 0
-              ? 1
-              : upper === 0
-                ? 0
-                : (upper - 1 + (value - scale[upper - 1]) / (scale[upper] - scale[upper - 1])) / 6
+          amount = exposureAmount(scale, value)
           if (
             setup.fill_mode &&
             !(low <= reference && reference < high) &&
@@ -512,10 +523,19 @@ export function applyColorPreset(
       }
       const colorIndex = limits.findIndex((limit) => band.stop <= limit)
       return copyBand(band, {
-        color: colors.get(FALSE_COLOR_NAMES[colorIndex < 0 ? 8 : colorIndex]) ?? band.color,
+        color: colors.get(FALSE_COLOR_NAMES[colorIndex < 0 ? 8 : colorIndex] ?? "") ?? band.color,
       })
     }),
   }
+}
+
+/** Position of a value along the exposure scale, 0 to 1 across its six segments. */
+function exposureAmount(scale: ExposureScale, value: number) {
+  const upper = scale.findIndex((threshold) => value <= threshold)
+  if (upper < 0) return 1
+  const lower = scale[upper - 1]
+  if (lower === undefined) return 0
+  return (upper - 1 + (value - lower) / (required(scale[upper]) - lower)) / 6
 }
 
 export function applyFillPreset(setup: Setup, palette: PaletteColor[], preset: FillPreset) {
@@ -553,8 +573,8 @@ export function applyBandPreset(setup: Setup, palette: PaletteColor[], preset: B
         ? [-4, -3, -2, -1, 0, 1, 2, 3, 4, 5]
         : [-3, -2, -1, 0, 1, 2, 3]
   if (setup.band_mode === "ire" && setup.ire_basis === "camera") {
-    centers = exposurePaletteScale(setup)
-    if (detailed) centers = [...centers.slice(0, 3), centers[3] - 4, centers[3], centers[3] + 4, ...centers.slice(4)]
+    const scale = exposurePaletteScale(setup)
+    centers = detailed ? [...scale.slice(0, 3), scale[3] - 4, scale[3], scale[3] + 4, ...scale.slice(4)] : scale
   }
   return applyColorPreset(
     {
@@ -581,6 +601,9 @@ export type ExposurePreset =
   | "highlight-placement"
   | "shadow-placement"
 
+const bandsOf = (width: number, stopsAndColors: [stop: number, color: string][]): Band[] =>
+  stopsAndColors.map(([stop, color]) => ({ stop, width, color }))
+
 export function applyExposurePreset(
   setup: Setup,
   palette: PaletteColor[],
@@ -603,11 +626,11 @@ export function applyExposurePreset(
       )
       break
     case "three-band":
-      next.bands = [-2, 0, 2].map((stop, index) => ({
-        stop,
-        width: 0.3,
-        color: ["#2563eb", "#22c55e", "#f97316"][index],
-      }))
+      next.bands = bandsOf(0.3, [
+        [-2, "#2563eb"],
+        [0, "#22c55e"],
+        [2, "#f97316"],
+      ])
       break
     case "contrast-checker":
     case "reference-emphasis":
@@ -631,18 +654,20 @@ export function applyExposurePreset(
       break
     }
     case "highlight-placement":
-      next.bands = [2, 3, 4, 5].map((stop, index) => ({
-        stop,
-        width: 0.5,
-        color: ["#facc15", "#f59e0b", "#f97316", "#dc2626"][index],
-      }))
+      next.bands = bandsOf(0.5, [
+        [2, "#facc15"],
+        [3, "#f59e0b"],
+        [4, "#f97316"],
+        [5, "#dc2626"],
+      ])
       break
     case "shadow-placement":
-      next.bands = [-5, -4, -3, -2].map((stop, index) => ({
-        stop,
-        width: 0.5,
-        color: ["#5b21b6", "#2563eb", "#38bdf8", "#2dd4bf"][index],
-      }))
+      next.bands = bandsOf(0.5, [
+        [-5, "#5b21b6"],
+        [-4, "#2563eb"],
+        [-3, "#38bdf8"],
+        [-2, "#2dd4bf"],
+      ])
       break
   }
   return arrangement
@@ -754,14 +779,18 @@ export function removeBand(setup: Setup, index: number): Setup {
 
 export function updateFillBoundary(setup: Setup, index: number, stop: number, increment: number): Setup {
   if (index < 0 || index >= setup.bands.length - 1) return setup
-  const minimum = index === 0 ? -Infinity : setup.bands[index - 1].stop + increment
-  const maximum = index === setup.bands.length - 2 ? Infinity : setup.bands[index + 1].stop - increment
+  const previous = setup.bands[index - 1]
+  const next = setup.bands[index + 1]
+  const minimum = previous ? previous.stop + increment : -Infinity
+  const maximum = next && index !== setup.bands.length - 2 ? next.stop - increment : Infinity
   const boundary = Math.max(minimum, Math.min(maximum, stop))
   const bands = setup.bands.map((band, current) => (current === index ? copyBand(band, { stop: boundary }) : band))
   const last = bands.length - 1
-  bands[last] = copyBand(bands[last], {
-    stop: Math.max(bands[last].stop, bands[last - 1].stop + increment),
-  })
+  const lastBand = bands[last]
+  const beforeLast = bands[last - 1]
+  // The index guard above leaves at least two bands.
+  if (lastBand && beforeLast)
+    bands[last] = copyBand(lastBand, { stop: Math.max(lastBand.stop, beforeLast.stop + increment) })
   return { ...setup, bands }
 }
 

@@ -26,7 +26,7 @@ and extend for documented workflows and planned work.
 
 ### Single check command
 
-Run `scripts/check.sh` (format, lint, types for Python and frontend; about a minute) before every commit; `scripts/check.sh --full` adds pytest, frontend tests and the build. `git config core.hooksPath .githooks` (set once per clone) runs it as a pre-commit hook. Fix formatting with `uv run ruff format .` and `pnpm format` (Oxfmt) in `frontend/`. Frontend lint is Oxlint then ESLint; `frontend/src/components/ui` is shadcn-owned and excluded from Oxlint/Oxfmt. `pnpm typecheck:strict-index` is an opt-in trial of `noUncheckedIndexedAccess` that is not yet clean.
+Run `scripts/check.sh` (format, lint, types for Python and frontend; about a minute) before every commit; `scripts/check.sh --full` adds pytest, frontend tests and the build. `git config core.hooksPath .githooks` (set once per clone) runs it as a pre-commit hook. Fix formatting with `uv run ruff format .` and `pnpm format` (Oxfmt) in `frontend/`. Frontend lint is Oxlint then ESLint; `frontend/src/components/ui` is shadcn-owned and excluded from Oxlint/Oxfmt. `pnpm typecheck:strict-index` enforces `noUncheckedIndexedAccess` for the LUT engine, editor state, cube sampling and imported-look modules (`tsconfig.strict-index.json`); add files to its `include` as they are fixed.
 
 ### Python workflow
 
