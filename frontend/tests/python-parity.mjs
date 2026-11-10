@@ -30,7 +30,13 @@ const setups = Object.keys(fixture.cases).map((profileTarget) => {
 })
 // Warnings on for every camera, so each profile's floor/ceiling must match data.py.
 for (const setup of setups.slice()) {
-  setups.push({ ...setup, low_signal_warning: true, low_signal_hex: "#0000ff", high_signal_warning: true, high_signal_hex: "#ff0000" })
+  setups.push({
+    ...setup,
+    low_signal_warning: true,
+    low_signal_hex: "#0000ff",
+    high_signal_warning: true,
+    high_signal_hex: "#ff0000",
+  })
 }
 for (const reference of Object.values(fixture.behavior)) {
   setups.push({ ...setups[0], ...reference.setup })
