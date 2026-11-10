@@ -1,0 +1,9 @@
+# Check configuration changes need owner review.
+/.github/workflows/ @Today20092
+/.githooks/ @Today20092
+/scripts/check.sh @Today20092
+/pyproject.toml @Today20092
+/frontend/eslint.config.js @Today20092
+/frontend/.oxlintrc.json @Today20092
+/frontend/.oxfmtrc.json @Today20092
+/frontend/tsconfig*.json @Today20092

@@ -1,14 +1,11 @@
 """Bounded, cancellable local frame extraction. No LUT processing lives here."""
 
 import base64
-from contextlib import contextmanager
-from fractions import Fraction
 import hashlib
 import json
 import os
-from pathlib import Path
-import secrets
 import re
+import secrets
 import shutil
 import struct
 import subprocess
@@ -16,6 +13,9 @@ import tempfile
 import threading
 import time
 import zlib
+from contextlib import contextmanager
+from fractions import Fraction
+from pathlib import Path
 
 import numpy as np
 

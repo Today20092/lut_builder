@@ -1,27 +1,26 @@
 """Loopback-only browser workspace for LUT Builder."""
 
 import base64
-from collections import deque
 import hashlib
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import mimetypes
-from pathlib import Path
 import re
 import secrets
 import socket
 import threading
 import time
-from urllib.parse import parse_qs, unquote, urlsplit
 import webbrowser
+from collections import deque
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
+from urllib.parse import parse_qs, unquote, urlsplit
 
 from .colors import TAILWIND_COLORS
 from .data import PROFILE_CATALOG, oklch_to_hex
 from .engine import serialize_lut
+from .imported_lut import MAX_SETUP_BYTES
 from .presets import WIDTH_PRESETS, suggest_color_for_stop
 from .setup import LutSetup, exposure_preview
-from .imported_lut import MAX_SETUP_BYTES
-from .video import MAX_UPLOAD, VideoStore
 from .verification import (
     MAX_SOURCE_BYTES,
     VerificationResult,
@@ -29,7 +28,7 @@ from .verification import (
     display_png,
     verify_rgb,
 )
-
+from .video import MAX_UPLOAD, VideoStore
 
 STATIC_ROOT = Path(__file__).with_name("static")
 UPLOAD_TIMEOUT_SECONDS = 30

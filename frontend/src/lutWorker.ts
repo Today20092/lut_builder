@@ -27,20 +27,33 @@ scope.onmessage = async ({ data }) => {
   const controller = new AbortController()
   jobs.set(data.id, controller)
   try {
-      const cube = await Effect.runPromise(Effect.tryPromise({
-        try: (signal) => generateCube(data.setup, {
-          signal,
-          onProgress: (progress) => scope.postMessage({ type: "progress", id: data.id, progress }),
-        }),
-        catch: (cause) => new WorkerGenerationError({
-          message: cause instanceof Error ? cause.message : "Generation failed.",
-          cause,
-        }),
-      }), { signal: controller.signal })
+    const cube = await Effect.runPromise(
+      Effect.tryPromise({
+        try: (signal) =>
+          generateCube(data.setup, {
+            signal,
+            onProgress: (progress) => scope.postMessage({ type: "progress", id: data.id, progress }),
+          }),
+        catch: (cause) =>
+          new WorkerGenerationError({
+            message: cause instanceof Error ? cause.message : "Generation failed.",
+            cause,
+          }),
+      }),
+      { signal: controller.signal },
+    )
     const bytes = new TextEncoder().encode(cube)
     scope.postMessage({ type: "complete", id: data.id, bytes: bytes.buffer }, [bytes.buffer])
   } catch (error) {
-      scope.postMessage({ type: "error", id: data.id, error: controller.signal.aborted ? "Generation cancelled." : error instanceof Error ? error.message : "Generation failed" })
+    scope.postMessage({
+      type: "error",
+      id: data.id,
+      error: controller.signal.aborted
+        ? "Generation cancelled."
+        : error instanceof Error
+          ? error.message
+          : "Generation failed",
+    })
   } finally {
     jobs.delete(data.id)
   }

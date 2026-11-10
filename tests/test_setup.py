@@ -1,6 +1,6 @@
-import pytest
-import numpy as np
 import colour
+import numpy as np
+import pytest
 
 from lut_builder.engine import generate_lut
 from lut_builder.setup import LutSetup, exposure_preview, map_exposure

@@ -8,12 +8,20 @@ import { tmpdir } from "node:os"
 import { dirname, join, resolve } from "node:path"
 import { fileURLToPath, pathToFileURL } from "node:url"
 
-const { chromium } = await import(process.env.PLAYWRIGHT_MODULE ? pathToFileURL(process.env.PLAYWRIGHT_MODULE).href : "playwright")
+const { chromium } = await import(
+  process.env.PLAYWRIGHT_MODULE ? pathToFileURL(process.env.PLAYWRIGHT_MODULE).href : "playwright"
+)
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..")
 const output = process.env.WORKBENCH_EVIDENCE || join(tmpdir(), "workbench-acceptance")
 await mkdir(output, { recursive: true })
-const browser = await chromium.launch({ headless: true, ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : {}) })
-const context = await browser.newContext({ viewport: { width: 1265, height: 1000 }, acceptDownloads: true })
+const browser = await chromium.launch({
+  headless: true,
+  ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : {}),
+})
+const context = await browser.newContext({
+  viewport: { width: 1265, height: 1000 },
+  acceptDownloads: true,
+})
 const page = await context.newPage()
 page.setDefaultTimeout(15000)
 const errors = []
@@ -21,19 +29,43 @@ page.on("pageerror", (error) => errors.push(error.message))
 let server
 async function start() {
   // Exercise production launch, suppressing only the external browser opener.
-  server = spawn("uv", ["run", "python", "-u", "-c", "import webbrowser; webbrowser.open = lambda url: False; from lut_builder.web import launch_workspace; launch_workspace()"], { cwd: root, stdio: ["pipe", "pipe", "pipe"] })
+  server = spawn(
+    "uv",
+    [
+      "run",
+      "python",
+      "-u",
+      "-c",
+      "import webbrowser; webbrowser.open = lambda url: False; from lut_builder.web import launch_workspace; launch_workspace()",
+    ],
+    { cwd: root, stdio: ["pipe", "pipe", "pipe"] },
+  )
   let log = ""
-  server.stdout.on("data", (data) => { log += data })
-  server.stderr.on("data", (data) => { log += data })
+  server.stdout.on("data", (data) => {
+    log += data
+  })
+  server.stderr.on("data", (data) => {
+    log += data
+  })
   await Promise.race([
     new Promise((resolve, reject) => {
       const poll = setInterval(() => {
-        if (log.includes("running locally")) { clearInterval(poll); resolve() }
-        else if (server.exitCode !== null) { clearInterval(poll); reject(new Error(log)) }
+        if (log.includes("running locally")) {
+          clearInterval(poll)
+          resolve()
+        } else if (server.exitCode !== null) {
+          clearInterval(poll)
+          reject(new Error(log))
+        }
       }, 50)
-      setTimeout(() => { clearInterval(poll); reject(new Error(`Server startup timeout: ${log}`)) }, 15000).unref()
+      setTimeout(() => {
+        clearInterval(poll)
+        reject(new Error(`Server startup timeout: ${log}`))
+      }, 15000).unref()
     }),
-    once(server, "error").then(([error]) => { throw error }),
+    once(server, "error").then(([error]) => {
+      throw error
+    }),
   ])
 }
 async function stop() {
@@ -48,7 +80,10 @@ const button = (name) => {
 }
 async function download(name, filename) {
   const previousPanel = await page.getByRole("tab", { selected: true }).innerText()
-  if (name === "Export JSON") { await panel("Setups"); name = "Export setup file" }
+  if (name === "Export JSON") {
+    await panel("Setups")
+    name = "Export setup file"
+  }
   if (name === "Download LUT") await panel("Export")
   const pending = page.waitForEvent("download")
   await button(name).click()
@@ -59,7 +94,9 @@ async function download(name, filename) {
   if (name === "Export setup file" || name === "Download LUT") await panel(previousPanel)
   return text
 }
-async function panel(name) { await page.getByRole("tab", { name, exact: true }).click() }
+async function panel(name) {
+  await page.getByRole("tab", { name, exact: true }).click()
+}
 async function visibleText(text) {
   await page.getByText(text, { exact: false }).first().waitFor({ state: "visible" })
 }
@@ -69,13 +106,18 @@ async function disclosure(text) {
 }
 async function layout(name, width, text = 16) {
   await page.setViewportSize({ width, height: 1000 })
-  await page.evaluate((size) => { document.documentElement.style.fontSize = `${size}px` }, text)
+  await page.evaluate((size) => {
+    document.documentElement.style.fontSize = `${size}px`
+  }, text)
   await page.evaluate(() => window.scrollTo(0, 0))
   await page.evaluate(async () => {
     await document.fonts.ready
-    await Promise.all(document.getAnimations().map(animation => animation.finished.catch(() => {})))
+    await Promise.all(document.getAnimations().map((animation) => animation.finished.catch(() => {})))
   })
-  const metrics = await page.evaluate(() => ({ width: innerWidth, scroll: document.documentElement.scrollWidth }))
+  const metrics = await page.evaluate(() => ({
+    width: innerWidth,
+    scroll: document.documentElement.scrollWidth,
+  }))
   assert.ok(metrics.scroll <= width + 1, `${name}: document overflow ${JSON.stringify(metrics)}`)
   await page.screenshot({ path: join(output, `${name}.png`), fullPage: true })
   return metrics
@@ -92,19 +134,24 @@ async function keyTo(locator) {
     })
     assert.equal(hidden, false, "Invisible keyboard tab stop")
   }
-  throw new Error(`Keyboard cannot reach ${await locator.getAttribute("aria-label") || await locator.textContent()}`)
+  throw new Error(
+    `Keyboard cannot reach ${(await locator.getAttribute("aria-label")) || (await locator.textContent())}`,
+  )
 }
-async function keyButton(name) { await keyTo(button(name)); await page.keyboard.press("Enter") }
+async function keyButton(name) {
+  await keyTo(button(name))
+  await page.keyboard.press("Enter")
+}
 async function keyPanel(name) {
   const names = await page.getByRole("tab").allTextContents()
   const index = names.indexOf(name)
   assert.ok(index >= 0, name)
   await keyTo(page.getByRole("tab", { selected: true }))
   await page.keyboard.press("Home")
-  await page.waitForFunction(label => document.activeElement?.textContent === label, names[0])
+  await page.waitForFunction((label) => document.activeElement?.textContent === label, names[0])
   for (let step = 0; step < index; step++) {
     await page.keyboard.press("ArrowRight")
-    await page.waitForFunction(label => document.activeElement?.textContent === label, names[step + 1])
+    await page.waitForFunction((label) => document.activeElement?.textContent === label, names[step + 1])
   }
   await page.keyboard.press("Enter")
   await page.getByRole("tab", { name, exact: true, selected: true }).waitFor()
@@ -116,7 +163,9 @@ async function keyText(locator, value) {
   await page.keyboard.press("Tab")
 }
 async function keySelect(locator, value) {
-  const index = await locator.locator("option").evaluateAll((options, wanted) => options.findIndex((option) => option.value === wanted), value)
+  const index = await locator
+    .locator("option")
+    .evaluateAll((options, wanted) => options.findIndex((option) => option.value === wanted), value)
   assert.ok(index >= 0, value)
   await keyTo(locator)
   await page.keyboard.press("Home")
@@ -136,10 +185,17 @@ try {
   }))
   assert.equal(geometry.panels, 1, "one editing panel is visible alongside the preview")
   assert.ok(geometry.table < 1100, JSON.stringify(geometry))
-  assert.ok((await page.locator("input.sr-only[type=file]").evaluateAll((inputs) => inputs.map((input) => input.tabIndex))).every((index) => index === -1))
+  assert.ok(
+    (
+      await page.locator("input.sr-only[type=file]").evaluateAll((inputs) => inputs.map((input) => input.tabIndex))
+    ).every((index) => index === -1),
+  )
   await panel("Configure")
   await disclosure("Output settings")
-  await page.getByRole("group", { name: "Cube size", exact: true }).getByRole("button", { name: "17³", exact: true }).click()
+  await page
+    .getByRole("group", { name: "Cube size", exact: true })
+    .getByRole("button", { name: "17³", exact: true })
+    .click()
   await panel("Bands")
   await button("Add band").click()
   await button("Undo last band edit").click()
@@ -151,7 +207,9 @@ try {
   assert.equal(await page.getByLabel("Band 1 position (stops)", { exact: true }).count(), 0)
   await button("Undo last band edit").click()
 
-  await panel("Presets"); await page.getByRole("button", { name: "Use Standard Stops", exact: true }).click(); await panel("Bands")
+  await panel("Presets")
+  await page.getByRole("button", { name: "Use Standard Stops", exact: true }).click()
+  await panel("Bands")
   assert.equal(await page.locator("tbody tr").count(), 7)
   await button("Undo last band edit").click()
   const before = JSON.parse(await download("Export JSON", "before.json"))
@@ -174,8 +232,14 @@ try {
   await visibleText("Palette saved in this browser.")
   await button("Use palette").click()
   const applied = JSON.parse(await download("Export JSON", "applied.json"))
-  assert.deepEqual(applied.bands.map(({ stop, width }) => [stop, width]), before.bands.map(({ stop, width }) => [stop, width]))
-  assert.notDeepEqual(applied.bands.map(({ color }) => color), before.bands.map(({ color }) => color))
+  assert.deepEqual(
+    applied.bands.map(({ stop, width }) => [stop, width]),
+    before.bands.map(({ stop, width }) => [stop, width]),
+  )
+  assert.notDeepEqual(
+    applied.bands.map(({ color }) => color),
+    before.bands.map(({ color }) => color),
+  )
   await panel("Bands")
   await button("Undo last band edit").click()
   const undone = JSON.parse(await download("Export JSON", "undone.json"))
@@ -213,7 +277,9 @@ try {
   await page.getByRole("dialog").waitFor({ state: "visible" })
   await page.keyboard.press("Escape")
   assert.equal(await button("Expand preview").evaluate((node) => node === document.activeElement), true)
-  await page.getByLabel("Choose demonstration still image").setInputFiles(join(root, "frontend/src/assets/lut-preview-reference.jpg"))
+  await page
+    .getByLabel("Choose demonstration still image")
+    .setInputFiles(join(root, "frontend/src/assets/lut-preview-reference.jpg"))
   await page.getByRole("radio", { name: "Original", exact: true }).check()
   await page.getByRole("radio", { name: "Split view", exact: true }).check()
   await page.getByRole("radio", { name: "Band colors", exact: true }).check()
@@ -226,7 +292,12 @@ try {
   const focused = await button("Remove band 1").evaluate((node) => {
     const bounds = node.getBoundingClientRect()
     const style = getComputedStyle(node)
-    return { active: node === document.activeElement, left: bounds.left, right: bounds.right, outline: style.outlineStyle }
+    return {
+      active: node === document.activeElement,
+      left: bounds.left,
+      right: bounds.right,
+      outline: style.outlineStyle,
+    }
   })
   assert.ok(focused.active && focused.left >= 0 && focused.right <= 390, JSON.stringify(focused))
   assert.equal(focused.outline, "solid")
@@ -238,7 +309,10 @@ try {
   await panel("Configure")
   await page.getByRole("checkbox", { name: "High recorded-signal warning", exact: true }).focus()
   await page.keyboard.press("Space")
-  assert.equal(await page.getByRole("checkbox", { name: "High recorded-signal warning", exact: true }).isChecked(), true)
+  assert.equal(
+    await page.getByRole("checkbox", { name: "High recorded-signal warning", exact: true }).isChecked(),
+    true,
+  )
   await page.keyboard.press("Space")
   console.log("PASS demonstration, dialog focus, desktop/narrow/200% text/dark layout")
 
@@ -277,10 +351,37 @@ try {
   await visibleText("Source interpretation does not match")
   assert.equal(await button("Verify still").isDisabled(), true)
   await page.getByRole("combobox", { name: /^Source transfer function/ }).selectOption("S-Log3")
-  console.log("PASS real PFM, declared interpretation, pixel inspection, checked cube identity, legal-range invalidation")
+  console.log(
+    "PASS real PFM, declared interpretation, pixel inspection, checked cube identity, legal-range invalidation",
+  )
 
   const clip = join(output, "known.mp4")
-  const made = spawnSync("ffmpeg", ["-v", "error", "-y", "-f", "lavfi", "-i", "testsrc2=size=32x24:rate=10:duration=0.7", "-vf", "select=eq(n\\,0)+eq(n\\,1)+eq(n\\,3)+eq(n\\,6),setpts=PTS+5/TB", "-fps_mode", "passthrough", "-c:v", "libx264", "-bf", "2", "-color_range", "tv", "-colorspace", "bt709", clip], { encoding: "utf8" })
+  const made = spawnSync(
+    "ffmpeg",
+    [
+      "-v",
+      "error",
+      "-y",
+      "-f",
+      "lavfi",
+      "-i",
+      "testsrc2=size=32x24:rate=10:duration=0.7",
+      "-vf",
+      "select=eq(n\\,0)+eq(n\\,1)+eq(n\\,3)+eq(n\\,6),setpts=PTS+5/TB",
+      "-fps_mode",
+      "passthrough",
+      "-c:v",
+      "libx264",
+      "-bf",
+      "2",
+      "-color_range",
+      "tv",
+      "-colorspace",
+      "bt709",
+      clip,
+    ],
+    { encoding: "utf8" },
+  )
   assert.equal(made.status, 0, made.stderr)
   await page.getByRole("radio", { name: "Video", exact: true }).check()
   await page.getByLabel("Choose local camera video", { exact: true }).setInputFiles(clip)
@@ -292,8 +393,19 @@ try {
   await visibleText("Selected 0.100000 s")
   await button("Next frame").click()
   await visibleText("Selected 0.300000 s")
-  for (const [label, value] of [["YCbCr matrix", "bt709"], ["Signal range", "limited"], ["Chroma location", "left"], ["Component bit depth", "8"], ["Source transfer function", "S-Log3"], ["Source gamut", "S-Gamut3.Cine"]]) {
-    if (["YCbCr matrix", "Signal range", "Chroma location", "Component bit depth"].includes(label)) await page.getByRole("group", { name: label, exact: true }).getByRole("button", { name: value, exact: true }).click()
+  for (const [label, value] of [
+    ["YCbCr matrix", "bt709"],
+    ["Signal range", "limited"],
+    ["Chroma location", "left"],
+    ["Component bit depth", "8"],
+    ["Source transfer function", "S-Log3"],
+    ["Source gamut", "S-Gamut3.Cine"],
+  ]) {
+    if (["YCbCr matrix", "Signal range", "Chroma location", "Component bit depth"].includes(label))
+      await page
+        .getByRole("group", { name: label, exact: true })
+        .getByRole("button", { name: value, exact: true })
+        .click()
     else await page.getByRole("combobox", { name: new RegExp(`^${label}`) }).selectOption(value)
   }
   await page.getByRole("checkbox", { name: "I confirm the recording", exact: false }).check()
@@ -309,7 +421,9 @@ try {
   await page.getByRole("alert").first().waitFor()
   await button("Release video").click()
   assert.equal(await button("Verify selected frame").count(), 0)
-  console.log("PASS real VFR video exact/adjacent frames, confirmed decoding, cube verification, beyond-end error, release")
+  console.log(
+    "PASS real VFR video exact/adjacent frames, confirmed decoding, cube verification, beyond-end error, release",
+  )
 
   // End-to-end keyboard pass: no click, fill, selectOption or focus calls.
   // FileChooser.setFiles supplies the fixture after Enter opens the native chooser.
@@ -319,7 +433,10 @@ try {
   await keyPanel("Configure")
   await keyTo(page.locator("summary").filter({ hasText: "Output settings" }))
   await page.keyboard.press("Enter")
-  await keyTo(page.getByRole("group", { name: "Cube size", exact: true }).getByRole("button", { name: "17³", exact: true })); await page.keyboard.press("Space")
+  await keyTo(
+    page.getByRole("group", { name: "Cube size", exact: true }).getByRole("button", { name: "17³", exact: true }),
+  )
+  await page.keyboard.press("Space")
   await keyPanel("Bands")
   await keyButton("Add band")
   await keyButton("Undo last band edit")
@@ -386,10 +503,14 @@ try {
   await keyButton("Expand verified image")
   await page.keyboard.press("Escape")
   assert.equal(await button("Expand verified image").evaluate((node) => node === document.activeElement), true)
-  console.log("PASS keyboard-only configuration, band/color/palette editing, save, import/export/generation, preview and camera still verification")
+  console.log(
+    "PASS keyboard-only configuration, band/color/palette editing, save, import/export/generation, preview and camera still verification",
+  )
 
   const lookRows = []
-  for (let b = 0; b < 2; b++) for (let g = 0; g < 2; g++) for (let r = 0; r < 2; r++) lookRows.push(`${0.1 + 0.4 * r} ${0.05 + 0.5 * g} ${0.02 + 0.6 * b}`)
+  for (let b = 0; b < 2; b++)
+    for (let g = 0; g < 2; g++)
+      for (let r = 0; r < 2; r++) lookRows.push(`${0.1 + 0.4 * r} ${0.05 + 0.5 * g} ${0.02 + 0.6 * b}`)
   const lookCube = `LUT_3D_SIZE 2\n${lookRows.join("\n")}\n`
   const lookPath = join(output, "connected-look.cube")
   await writeFile(lookPath, lookCube)
@@ -397,9 +518,18 @@ try {
   await page.getByLabel("Import .cube LUT", { exact: true }).setInputFiles(lookPath)
   await page.getByRole("button", { name: "Confirm and apply look", exact: true }).waitFor()
   await page.getByRole("combobox", { name: /^LUT camera input/ }).selectOption("Sony S-Log3")
-  await page.getByRole("group", { name: "LUT output primaries", exact: true }).getByRole("button", { name: "Rec.709", exact: true }).click()
-  await page.getByRole("group", { name: "LUT output transfer", exact: true }).getByRole("button", { name: "Gamma 2.2", exact: true }).click()
-  await page.getByRole("group", { name: "LUT output range", exact: true }).getByRole("button", { name: "Full (0–1023)", exact: true }).click()
+  await page
+    .getByRole("group", { name: "LUT output primaries", exact: true })
+    .getByRole("button", { name: "Rec.709", exact: true })
+    .click()
+  await page
+    .getByRole("group", { name: "LUT output transfer", exact: true })
+    .getByRole("button", { name: "Gamma 2.2", exact: true })
+    .click()
+  await page
+    .getByRole("group", { name: "LUT output range", exact: true })
+    .getByRole("button", { name: "Full (0–1023)", exact: true })
+    .click()
   await button("Confirm and apply look").click()
   await visibleText("Imported look applied.")
   await panel("Media")
@@ -416,14 +546,19 @@ try {
   assert.equal(createHash("sha256").update(composedCube).digest("hex"), composedProvenance.cube_sha256)
   const comparison = page.getByRole("group", { name: "Compare viewing modes", exact: true })
   await comparison.getByRole("button", { name: "Look", exact: true }).click()
-  const lookImage = page.getByRole("img", { name: "Imported look applied to the original camera samples", exact: true })
+  const lookImage = page.getByRole("img", {
+    name: "Imported look applied to the original camera samples",
+    exact: true,
+  })
   await lookImage.waitFor()
-  assert.equal(await lookImage.evaluate(image => image.complete && image.naturalWidth === 2), true)
+  assert.equal(await lookImage.evaluate((image) => image.complete && image.naturalWidth === 2), true)
   assert.equal(await page.getByText(/^Cube output RGB:/).innerText(), diagnosticPixel)
   assert.equal(await download("Download checked cube", "composed-look-view-checked.cube"), composedCube)
   await comparison.getByRole("button", { name: "Look + diagnostics", exact: true }).click()
   await page.getByRole("img", { name: "Verified LUT result in the declared SDR view", exact: true }).waitFor()
-  console.log("PASS imported look on original PFM, declared transfer, real Look comparison, invariant inspected pixels and exact checked artifact")
+  console.log(
+    "PASS imported look on original PFM, declared transfer, real Look comparison, invariant inspected pixels and exact checked artifact",
+  )
   assert.deepEqual(errors, [])
   console.log(`PASS no page errors; screenshots and downloads: ${output}`)
 } catch (error) {

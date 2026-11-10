@@ -244,7 +244,7 @@ flowchart TD
 
 The profile catalog validates camera and target facts explicitly. Interactive prompts and JSON files are adapters into the same `LutSetup`, and preview and generation share one exposure-mapping implementation.
 
-Colour transitions inside a finite 3D LUT depend on cube resolution and the host's interpolation. Tests exercise neutral ramps at sizes 17, 33, and 65, including band edges and the current half-grid warning tolerance.
+Colour transitions inside a finite 3D LUT depend on cube resolution and the host's interpolation. Tests exercise neutral ramps at sizes 17, 33, and 65, including band edges and the current one-grid-step warning tolerance.
 
 For the standards audit and source references, see [False-color LUT correctness](research/false-color-lut-correctness.md).
 

@@ -12,5 +12,5 @@ createRoot(document.getElementById("root")!).render(
       <App />
       <Toaster timeout={3500} limit={1} />
     </TooltipProvider>
-  </StrictMode>
+  </StrictMode>,
 )

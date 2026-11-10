@@ -1,0 +1,7 @@
+{
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  "semi": false,
+  "singleQuote": false,
+  "printWidth": 120,
+  "ignorePatterns": ["dist", ".astro", "manual", "playwright-report", "test-results", "src/components/ui", "src/assets", "tests/ui/**/*-snapshots", "pnpm-lock.yaml", "package-lock.json", "public"]
+}

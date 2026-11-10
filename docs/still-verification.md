@@ -38,7 +38,7 @@ remains unchanged.
 
 Source channels outside `[0, 1]` remain intact in the source samples. They are clamped at the cube's declared `[0, 1]` input boundary, counted and reported. The pixel inspector shows the original source value as well as the numerical cube result. It never samples the resized display image.
 
-Export mathematics are unchanged: per-channel log decoding, source-gamut luminance, target transform, bands/monochrome/fill, half-grid encoded-signal warnings with high priority, legal/full output and float32 sampling all remain in the existing engine. Authored Rec.709 overlay hex triplets remain stored directly. Rec.2020 overlays retain the existing sRGB-to-target conversion, including its small matrix-rounding differences. Stored code-value equality is not a promise of identical displayed hex colors.
+Export mathematics are unchanged: per-channel log decoding, source-gamut luminance, target transform, bands/monochrome/fill, one-grid-step encoded-signal warnings with high priority, legal/full output and float32 sampling all remain in the existing engine. Authored Rec.709 overlay hex triplets remain stored directly. Rec.2020 overlays retain the existing sRGB-to-target conversion, including its small matrix-rounding differences. Stored code-value equality is not a promise of identical displayed hex colors.
 
 The explicit SDR viewing policy supports Rec.709 and SDR Rec.2020 in either output range:
 

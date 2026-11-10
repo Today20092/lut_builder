@@ -20,7 +20,16 @@ export type SourceInterpretations = Record<string, { transfer: string; gamut: st
 
 export function SdrViewDescription({ setup }: { setup: Setup }) {
   const look = setup.imported_lut
-  return <span>SDR view: {look ? `${look.output_gamut}, ${look.output_transfer}, ${look.output_range} output range` : "ideal-black BT.1886"}, target primaries converted to sRGB, display gamut clipped. Legal output is expanded once for display. Stored overlay colors and LUT output remain unchanged.</span>
+  return (
+    <span>
+      SDR view:{" "}
+      {look
+        ? `${look.output_gamut}, ${look.output_transfer}, ${look.output_range} output range`
+        : "ideal-black BT.1886"}
+      , target primaries converted to sRGB, display gamut clipped. Legal output is expanded once for display. Stored
+      overlay colors and LUT output remain unchanged.
+    </span>
+  )
 }
 const ErrorResponseSchema = Schema.Struct({ error: Schema.optional(Schema.String) })
 const field = "w-full min-w-0"
@@ -34,8 +43,12 @@ function request(path: string, payload: object, signal?: AbortSignal): Promise<R
   const operation = Effect.tryPromise({
     try: async (requestSignal) => {
       const response = await fetch(path, {
-        method: "POST", signal: requestSignal,
-        headers: { "Content-Type": "application/json", "X-LUT-Builder-Token": window.LUT_BUILDER_TOKEN },
+        method: "POST",
+        signal: requestSignal,
+        headers: {
+          "Content-Type": "application/json",
+          "X-LUT-Builder-Token": window.LUT_BUILDER_TOKEN,
+        },
         body: JSON.stringify(payload),
       })
       if (!response.ok) {
@@ -44,10 +57,11 @@ function request(path: string, payload: object, signal?: AbortSignal): Promise<R
       }
       return response
     },
-    catch: (cause) => new VerificationRequestError({
-      message: cause instanceof Error ? cause.message : "Verification request failed. Try again.",
-      cause,
-    }),
+    catch: (cause) =>
+      new VerificationRequestError({
+        message: cause instanceof Error ? cause.message : "Verification request failed. Try again.",
+        cause,
+      }),
   })
   return Effect.runPromise(operation, { signal })
 }
@@ -74,7 +88,14 @@ function readStill(file: File): Effect.Effect<string, StillReadError> {
     }
     reader.onerror = () => {
       cleanup()
-      resume(Effect.fail(new StillReadError({ message: "Could not read this still. Select the file again.", cause: reader.error })))
+      resume(
+        Effect.fail(
+          new StillReadError({
+            message: "Could not read this still. Select the file again.",
+            cause: reader.error,
+          }),
+        ),
+      )
     }
     reader.onabort = () => {
       cleanup()
@@ -99,7 +120,13 @@ export function CheckedImage({ result }: { result: VerifiedResult }) {
   const expand = useRef<HTMLButtonElement>(null)
   const sampleRequest = useRef(0)
   const sampleController = useRef<AbortController | null>(null)
-  useEffect(() => () => { sampleRequest.current++; sampleController.current?.abort() }, [])
+  useEffect(
+    () => () => {
+      sampleRequest.current++
+      sampleController.current?.abort()
+    },
+    [],
+  )
 
   async function inspect() {
     const sequence = ++sampleRequest.current
@@ -108,7 +135,9 @@ export function CheckedImage({ result }: { result: VerifiedResult }) {
     sampleController.current = controller
     setError("")
     try {
-      const next = await Effect.runPromise(result.inspect(Number(x), Number(y)), { signal: controller.signal })
+      const next = await Effect.runPromise(result.inspect(Number(x), Number(y)), {
+        signal: controller.signal,
+      })
       if (sequence === sampleRequest.current) setPixel(next)
     } catch (failure) {
       if (!controller.signal.aborted) setError(String(failure))
@@ -124,58 +153,190 @@ export function CheckedImage({ result }: { result: VerifiedResult }) {
       anchor.download = "checked.cube"
       anchor.click()
       setTimeout(() => URL.revokeObjectURL(url), 1000)
-    } catch (failure) { setError(String(failure)) }
+    } catch (failure) {
+      setError(String(failure))
+    }
   }
 
-  const content = <div className="grid min-w-0 gap-3">
-    <img src={!diagnostics && result.look_image ? result.look_image : result.image} alt={diagnostics ? "Verified LUT result in the declared SDR view" : "Imported look applied to the original camera samples"} className="max-h-[65dvh] w-full object-contain bg-black" onError={() => setError("The browser could not display the verified image. Retry verification or inspect the numerical pixel values.")} />
-    <p className="text-sm">Unblended LUT result · 100% strength · Full frame {result.width} × {result.height}</p>
-    {result.look_image ? <fieldset className="flex flex-wrap gap-2">
-      <legend className="mb-1 text-sm font-medium">Compare viewing modes</legend>
-      <Button variant="outline" aria-pressed={!diagnostics} onClick={() => setDiagnostics(false)}>Look</Button>
-      <Button variant="outline" aria-pressed={diagnostics} onClick={() => setDiagnostics(true)}>Look + diagnostics</Button>
-      <p className="w-full text-xs text-muted-foreground">Viewing only. Download and numerical inspection always include diagnostics.</p>
-    </fieldset> : <fieldset className="flex flex-wrap gap-2" disabled>
-      <legend className="mb-1 text-sm font-medium">Source comparison unavailable</legend>
-      <Button variant="outline" disabled>Original</Button><Button variant="outline" disabled>Split view</Button>
-    </fieldset>}
-    <p className="text-xs text-muted-foreground">{result.provenance.comparison_unavailable}</p>
-    <fieldset className="grid gap-2">
-      <legend className="mb-1 text-sm font-medium">Inspect original-resolution pixel</legend>
-      <div className="flex flex-wrap items-end gap-2">
-        <label className="grid w-24 gap-1 text-sm">X, from 0<Input className={field} type="number" min="0" max={result.width - 1} step="1" value={x} onChange={(e) => { setX(e.target.value); setPixel(null); sampleRequest.current++ }} /></label>
-        <label className="grid w-24 gap-1 text-sm">Y, from 0<Input className={field} type="number" min="0" max={result.height - 1} step="1" value={y} onChange={(e) => { setY(e.target.value); setPixel(null); sampleRequest.current++ }} /></label>
-        <Button variant="outline" onClick={() => void inspect()} disabled={x === "" || y === "" || !Number.isInteger(Number(x)) || !Number.isInteger(Number(y)) || Number(x) < 0 || Number(y) < 0 || Number(x) >= result.width || Number(y) >= result.height}><Scan data-icon="inline-start" aria-hidden="true" />Inspect pixel</Button>
-      </div>
-      {pixel && <output className="grid gap-1 break-all font-mono text-xs" aria-live="polite">
-        <span>Pixel {pixel.x}, {pixel.y}, top-left origin</span>
-        <span>Source RGB: {pixel.source_rgb.map((v) => v.toPrecision(10)).join(", ")}</span>
-        <span>Cube output RGB: {pixel.output_rgb.map((v) => v.toPrecision(10)).join(", ")}</span>
-        <span>Display sRGB: {pixel.display_rgb.map((v) => v.toPrecision(10)).join(", ")}</span>
-      </output>}
-    </fieldset>
-    <Button variant="outline" onClick={() => void download()}><Download data-icon="inline-start" aria-hidden="true" />Download checked cube</Button>
-    <InlineDisclosure className="min-w-0 text-xs" triggerClassName="text-sm font-medium" title="Verification provenance">
-      <pre className="mt-2 max-h-80 overflow-auto whitespace-pre-wrap break-all">{JSON.stringify(result.provenance, null, 2)}</pre>
-    </InlineDisclosure>
-    {error && <Alert variant="error"><AlertDescription>{error}</AlertDescription></Alert>}
-  </div>
-  return <div tabIndex={0} role="group" aria-label="Verified image preview" onKeyDown={(event) => {
-    if (event.defaultPrevented || event.nativeEvent.isComposing || isTypingTarget(event.target) || event.altKey || event.ctrlKey || event.metaKey) return
-    if (event.key.toLowerCase() === "f") {
-      event.stopPropagation()
-      if (!expanded) { event.preventDefault(); expand.current?.click() }
-    }
-  }}>
-    <Button ref={expand} variant="outline" aria-keyshortcuts="f" onClick={() => setExpanded(true)}><Expand data-icon="inline-start" aria-hidden="true" />Expand verified image</Button>
-    {!expanded && content}
-    <PreviewDialog open={expanded} onClose={() => setExpanded(false)} title="Expanded verified image" closeLabel="Close verified image" returnFocus={expand}>
-      {expanded && content}
-    </PreviewDialog>
-  </div>
+  const content = (
+    <div className="grid min-w-0 gap-3">
+      <img
+        src={!diagnostics && result.look_image ? result.look_image : result.image}
+        alt={
+          diagnostics
+            ? "Verified LUT result in the declared SDR view"
+            : "Imported look applied to the original camera samples"
+        }
+        className="max-h-[65dvh] w-full object-contain bg-black"
+        onError={() =>
+          setError(
+            "The browser could not display the verified image. Retry verification or inspect the numerical pixel values.",
+          )
+        }
+      />
+      <p className="text-sm">
+        Unblended LUT result · 100% strength · Full frame {result.width} × {result.height}
+      </p>
+      {result.look_image ? (
+        <fieldset className="flex flex-wrap gap-2">
+          <legend className="mb-1 text-sm font-medium">Compare viewing modes</legend>
+          <Button variant="outline" aria-pressed={!diagnostics} onClick={() => setDiagnostics(false)}>
+            Look
+          </Button>
+          <Button variant="outline" aria-pressed={diagnostics} onClick={() => setDiagnostics(true)}>
+            Look + diagnostics
+          </Button>
+          <p className="w-full text-xs text-muted-foreground">
+            Viewing only. Download and numerical inspection always include diagnostics.
+          </p>
+        </fieldset>
+      ) : (
+        <fieldset className="flex flex-wrap gap-2" disabled>
+          <legend className="mb-1 text-sm font-medium">Source comparison unavailable</legend>
+          <Button variant="outline" disabled>
+            Original
+          </Button>
+          <Button variant="outline" disabled>
+            Split view
+          </Button>
+        </fieldset>
+      )}
+      <p className="text-xs text-muted-foreground">{result.provenance.comparison_unavailable}</p>
+      <fieldset className="grid gap-2">
+        <legend className="mb-1 text-sm font-medium">Inspect original-resolution pixel</legend>
+        <div className="flex flex-wrap items-end gap-2">
+          <label className="grid w-24 gap-1 text-sm">
+            X, from 0
+            <Input
+              className={field}
+              type="number"
+              min="0"
+              max={result.width - 1}
+              step="1"
+              value={x}
+              onChange={(e) => {
+                setX(e.target.value)
+                setPixel(null)
+                sampleRequest.current++
+              }}
+            />
+          </label>
+          <label className="grid w-24 gap-1 text-sm">
+            Y, from 0
+            <Input
+              className={field}
+              type="number"
+              min="0"
+              max={result.height - 1}
+              step="1"
+              value={y}
+              onChange={(e) => {
+                setY(e.target.value)
+                setPixel(null)
+                sampleRequest.current++
+              }}
+            />
+          </label>
+          <Button
+            variant="outline"
+            onClick={() => void inspect()}
+            disabled={
+              x === "" ||
+              y === "" ||
+              !Number.isInteger(Number(x)) ||
+              !Number.isInteger(Number(y)) ||
+              Number(x) < 0 ||
+              Number(y) < 0 ||
+              Number(x) >= result.width ||
+              Number(y) >= result.height
+            }
+          >
+            <Scan data-icon="inline-start" aria-hidden="true" />
+            Inspect pixel
+          </Button>
+        </div>
+        {pixel && (
+          <output className="grid gap-1 break-all font-mono text-xs" aria-live="polite">
+            <span>
+              Pixel {pixel.x}, {pixel.y}, top-left origin
+            </span>
+            <span>Source RGB: {pixel.source_rgb.map((v) => v.toPrecision(10)).join(", ")}</span>
+            <span>Cube output RGB: {pixel.output_rgb.map((v) => v.toPrecision(10)).join(", ")}</span>
+            <span>Display sRGB: {pixel.display_rgb.map((v) => v.toPrecision(10)).join(", ")}</span>
+          </output>
+        )}
+      </fieldset>
+      <Button variant="outline" onClick={() => void download()}>
+        <Download data-icon="inline-start" aria-hidden="true" />
+        Download checked cube
+      </Button>
+      <InlineDisclosure
+        className="min-w-0 text-xs"
+        triggerClassName="text-sm font-medium"
+        title="Verification provenance"
+      >
+        <pre className="mt-2 max-h-80 overflow-auto whitespace-pre-wrap break-all">
+          {JSON.stringify(result.provenance, null, 2)}
+        </pre>
+      </InlineDisclosure>
+      {error && (
+        <Alert variant="error">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+    </div>
+  )
+  return (
+    <div
+      tabIndex={0}
+      role="group"
+      aria-label="Verified image preview"
+      onKeyDown={(event) => {
+        if (
+          event.defaultPrevented ||
+          event.nativeEvent.isComposing ||
+          isTypingTarget(event.target) ||
+          event.altKey ||
+          event.ctrlKey ||
+          event.metaKey
+        )
+          return
+        if (event.key.toLowerCase() === "f") {
+          event.stopPropagation()
+          if (!expanded) {
+            event.preventDefault()
+            expand.current?.click()
+          }
+        }
+      }}
+    >
+      <Button ref={expand} variant="outline" aria-keyshortcuts="f" onClick={() => setExpanded(true)}>
+        <Expand data-icon="inline-start" aria-hidden="true" />
+        Expand verified image
+      </Button>
+      {!expanded && content}
+      <PreviewDialog
+        open={expanded}
+        onClose={() => setExpanded(false)}
+        title="Expanded verified image"
+        closeLabel="Close verified image"
+        returnFocus={expand}
+      >
+        {expanded && content}
+      </PreviewDialog>
+    </div>
+  )
 }
 
-export function CameraVerification({ setup, interpretations, video }: { setup: Setup; interpretations: SourceInterpretations; video?: VideoFrame }) {
+export function CameraVerification({
+  setup,
+  interpretations,
+  video,
+}: {
+  setup: Setup
+  interpretations: SourceInterpretations
+  video?: VideoFrame
+}) {
   const [source, setSource] = useState<{ name: string; data: string; id: number } | null>(null)
   const [transfer, setTransfer] = useState("")
   const [gamut, setGamut] = useState("")
@@ -193,7 +354,19 @@ export function CameraVerification({ setup, interpretations, video }: { setup: S
   const pending = useRef<{ id: string; controller: AbortController } | null>(null)
   const fileSequence = useRef(0)
   const readController = useRef<AbortController | null>(null)
-  const key = JSON.stringify([setupIdentity(setup), source?.id, video?.frame, transfer, gamut, range, confirmed, matrix, signalRange, chroma, bitDepth])
+  const key = JSON.stringify([
+    setupIdentity(setup),
+    source?.id,
+    video?.frame,
+    transfer,
+    gamut,
+    range,
+    confirmed,
+    matrix,
+    signalRange,
+    chroma,
+    bitDepth,
+  ])
   const expected = interpretations[setup.profile]
   const mismatch = Boolean(transfer && gamut && (transfer !== expected?.transfer || gamut !== expected?.gamut))
   const supported = ["Rec.709", "Rec.2020"].includes(setup.target)
@@ -202,18 +375,30 @@ export function CameraVerification({ setup, interpretations, video }: { setup: S
   // Once invalidated, reverting controls must not resurrect the old image.
   if (result && result.key !== key) {
     setResult(null)
-    setStatus({ key, text: "Source, interpretation or settings changed. Verify again; the previous result is no longer current." })
+    setStatus({
+      key,
+      text: "Source, interpretation or settings changed. Verify again; the previous result is no longer current.",
+    })
   }
 
-  useEffect(() => () => {
-    const job = pending.current
-    if (job) {
-      pending.current = null
-      job.controller.abort()
-      void request("/verify-cancel", { request_id: job.id }).catch(() => {})
-    }
-  }, [key])
-  useEffect(() => () => { fileSequence.current++; readController.current?.abort() }, [])
+  useEffect(
+    () => () => {
+      const job = pending.current
+      if (job) {
+        pending.current = null
+        job.controller.abort()
+        void request("/verify-cancel", { request_id: job.id }).catch(() => {})
+      }
+    },
+    [key],
+  )
+  useEffect(
+    () => () => {
+      fileSequence.current++
+      readController.current?.abort()
+    },
+    [],
+  )
   useEffect(() => {
     const completed = current
     return () => {
@@ -229,22 +414,26 @@ export function CameraVerification({ setup, interpretations, video }: { setup: S
     setFileError("")
     setReading(false)
     if (!/\.(png|pfm)$/i.test(file.name) || file.size > 48 * 1024 * 1024 + 1024) {
-      setFileError("Choose an untagged 16-bit RGB PNG or float32 RGB PFM up to 48 MiB and 4,194,304 pixels. JPEG, RAW and video are unsupported here.")
+      setFileError(
+        "Choose an untagged 16-bit RGB PNG or float32 RGB PFM up to 48 MiB and 4,194,304 pixels. JPEG, RAW and video are unsupported here.",
+      )
       return
     }
     setReading(true)
     const controller = new AbortController()
     readController.current = controller
-    void Effect.runPromise(readStill(file), { signal: controller.signal }).then((data) => {
-      if (id !== fileSequence.current) return
-      setReading(false)
-      setSource({ name: file.name, data: data.split(",", 2)[1], id })
-    }).catch((error: unknown) => {
-      if (id === fileSequence.current && !controller.signal.aborted) {
+    void Effect.runPromise(readStill(file), { signal: controller.signal })
+      .then((data) => {
+        if (id !== fileSequence.current) return
         setReading(false)
-        setFileError(error instanceof Error ? error.message : "Could not read this still. Select the file again.")
-      }
-    })
+        setSource({ name: file.name, data: data.split(",", 2)[1], id })
+      })
+      .catch((error: unknown) => {
+        if (id === fileSequence.current && !controller.signal.aborted) {
+          setReading(false)
+          setFileError(error instanceof Error ? error.message : "Could not read this still. Select the file again.")
+        }
+      })
   }
 
   function cancel() {
@@ -267,62 +456,258 @@ export function CameraVerification({ setup, interpretations, video }: { setup: S
     setResult(null)
     setStatus({ key, text: "Decoding source and applying the exported cube…" })
     try {
-      const response = await request(video ? "/verify-video" : "/verify", {
-        request_id: id, ...(video ? { source_id: video.source_id, frame: video.frame, name: video.name } : { source: { name: source!.name, data: source!.data } }), setup: {...(setup.imported_lut ? {version:3} : {}),...setup},
-        interpretation: { transfer, gamut, range: video ? "camera-code-values" : range, confirmed, decoding: "RGB; no color transform or range scaling", ...(video ? { matrix, signal_range: signalRange, chroma_location: chroma, bit_depth: Number(bitDepth) } : {}) },
-      }, controller.signal)
+      const response = await request(
+        video ? "/verify-video" : "/verify",
+        {
+          request_id: id,
+          ...(video
+            ? { source_id: video.source_id, frame: video.frame, name: video.name }
+            : { source: { name: source!.name, data: source!.data } }),
+          setup: { ...(setup.imported_lut ? { version: 3 } : {}), ...setup },
+          interpretation: {
+            transfer,
+            gamut,
+            range: video ? "camera-code-values" : range,
+            confirmed,
+            decoding: "RGB; no color transform or range scaling",
+            ...(video
+              ? {
+                  matrix,
+                  signal_range: signalRange,
+                  chroma_location: chroma,
+                  bit_depth: Number(bitDepth),
+                }
+              : {}),
+          },
+        },
+        controller.signal,
+      )
       const next = Schema.decodeUnknownSync(CheckedStillSchema)(await response.json())
       if (pending.current?.id !== id || controller.signal.aborted) return
       if (next.request_id !== id) throw new Error("Verification response does not match this request. Verify again.")
       setResult({ key, value: localVerifiedResult(next, request) })
-      setStatus({ key, text: "Verified against the serialized cube. This checks the declared pipeline, not sensor exposure or another application's display." })
+      setStatus({
+        key,
+        text: "Verified against the serialized cube. This checks the declared pipeline, not sensor exposure or another application's display.",
+      })
     } catch (failure) {
-      if (pending.current?.id === id && !controller.signal.aborted) setStatus({ key, text: `Verification failed: ${String(failure)}` })
+      if (pending.current?.id === id && !controller.signal.aborted)
+        setStatus({ key, text: `Verification failed: ${String(failure)}` })
     } finally {
-      if (pending.current?.id === id) { pending.current = null; setBusyKey(null) }
+      if (pending.current?.id === id) {
+        pending.current = null
+        setBusyKey(null)
+      }
     }
   }
 
-  return <Card className="min-w-0 overflow-hidden" aria-label="Camera-matched verification">
-    <CardHeader><CardTitle>Camera-matched {video ? "video frame" : "still"} check</CardTitle><CardDescription>Apply the actual exported cube to preserved camera RGB.</CardDescription></CardHeader>
-    <CardContent className="grid min-w-0 gap-3">
-      {current?.provenance.warnings.map((warning) => <p key={warning} className="text-sm text-amber-700 dark:text-amber-300">{warning}</p>)}
-      {current && <CheckedImage key={result!.key} result={current} />}
-      {!video && <>
-      <label className="grid min-w-0 gap-2 text-sm font-medium">Choose camera still<Input type="file" accept=".png,.pfm" className="min-w-0" onChange={(e) => { const file = e.target.files?.[0]; if (file) choose(file); e.target.value = "" }} /></label>
-      <p className="text-xs text-muted-foreground">Untagged, non-interlaced 16-bit RGB PNG, or float32 RGB PFM. No alpha. Up to 4,194,304 pixels and 48 MiB. PNG requires local FFmpeg. Files stay in this local workspace session.</p>
-      <p className="text-xs" role="status">{reading ? "Reading still…" : source?.name ?? "No camera still selected."}</p>
-      {fileError && <Alert variant="error"><AlertDescription>{fileError}</AlertDescription></Alert>}
-      </>}
-      {video && <>
-        <p className="text-sm">Frame at {video.frame.seconds.toFixed(6)} s · exact {video.frame.relative_time} s · PTS {video.frame.pts}, time base {video.frame.time_base}.</p>
-        <p className="text-xs">Metadata suggestions are unconfirmed. Frame tags take precedence over stream tags. Missing facts stay unknown; camera and codec names never establish a log profile.</p>
-        {([
-          ["YCbCr matrix", matrix, setMatrix, ["bt709", "bt470bg", "smpte170m", "bt2020nc"], "color_space"],
-          ["Signal range", signalRange, setSignalRange, ["limited", "full"], "color_range"],
-          ["Chroma location", chroma, setChroma, ["left", "center", "topleft"], "chroma_location"],
-          ["Component bit depth", bitDepth, setBitDepth, [String(video.source.precision_bits)], "bit_depth"],
-        ] as const).map(([label, value, setter, options, fact]) => {
-          const reported = fact === "bit_depth" ? video.source.precision_bits : video.facts.frame[fact] ?? video.facts.stream[fact]
-          const suggestion = fact === "color_range" ? ({ tv: "limited", pc: "full" } as Record<string, string>)[String(reported)] : String(reported ?? "unknown")
-          return <div key={label} className="grid gap-1">
-            <ChoiceField label={label} value={value} onChange={next => { setter(next); setConfirmed(false) }} options={[{ value: "", label: "Unconfirmed" }, ...options.map(value => ({ value, label: value }))]} />
-            <p className="text-xs text-muted-foreground">Suggestion from metadata: {options.some((option) => option === String(suggestion)) ? suggestion : "unknown"}</p>
-          </div>
-        })}
-        <p className="text-xs">Native YCbCr is expanded using the confirmed transport range and matrix exactly once into float RGB. Transfer decoding belongs to the cube. Excursions remain intact until its declared input boundary.</p>
-      </>}
-      <p className="text-xs text-muted-foreground">The file cannot prove its camera profile. Confirm these facts from the recording/export workflow. Unknowns prevent verification.</p>
-      <label className="grid gap-1 text-sm">Source transfer function<NativeSelect className={field} value={transfer} onChange={(e) => { setTransfer(e.target.value); setConfirmed(false) }}><option value="">Unknown</option>{[...new Set(Object.values(interpretations).map((v) => v.transfer))].map((v) => <option key={v}>{v}</option>)}</NativeSelect></label>
-      <label className="grid gap-1 text-sm">Source gamut<NativeSelect className={field} value={gamut} onChange={(e) => { setGamut(e.target.value); setConfirmed(false) }}><option value="">Unknown</option>{[...new Set(Object.values(interpretations).map((v) => v.gamut))].map((v) => <option key={v}>{v}</option>)}</NativeSelect></label>
-      {!video && <><label className="flex items-start gap-2 text-sm"><Checkbox aria-label="Normalized camera code values" checked={range === "camera-code-values"} onCheckedChange={(event: boolean) => { setRange(event ? "camera-code-values" : ""); setConfirmed(false) }} />Normalized camera code values</label>
-      <p className="text-xs text-muted-foreground">PNG codes are divided by 65535. PFM values are unchanged. No YCbCr matrix or input range expansion is applied. Resolve any transport conversion before export. Excursions are clamped only at the cube's [0, 1] boundary and reported.</p></>}
-      <label className="flex items-start gap-2 text-sm"><Checkbox checked={confirmed} onCheckedChange={(e: boolean) => setConfirmed(e)} />{video ? "I confirm the recording transfer/gamut, matrix, transport range, chroma location and component depth. This is camera-encoded media with no viewing transform." : "I confirm unchanged camera-encoded RGB, this transfer/gamut and range, with no viewing transform or additional range scaling."}</label>
-      {mismatch && <Alert variant="error"><AlertDescription>Source interpretation does not match {setup.profile}. Correct the source interpretation or LUT camera profile.</AlertDescription></Alert>}
-      {!supported && <Alert variant="error"><AlertDescription>Unsupported SDR view. Choose Rec.709 or SDR Rec.2020. HDR/log viewing is unavailable.</AlertDescription></Alert>}
-      <p className="text-xs text-muted-foreground"><SdrViewDescription setup={setup} /></p>
-      <div className="flex flex-wrap gap-2"><Button disabled={busy || reading || !(source || video) || !transfer || !gamut || (video ? !matrix || !signalRange || !chroma || !bitDepth : !range) || !confirmed || mismatch || !supported} onClick={() => void verify()}>Verify {video ? "selected frame" : "still"}</Button>{busy && <Button variant="outline" onClick={cancel}><X data-icon="inline-start" aria-hidden="true" />Cancel verification</Button>}</div>
-      <p className="text-sm" role="status" aria-live="polite">{status.key === key ? status.text : status.key || busyKey ? "Source, interpretation or settings changed. Verify again; the previous result is no longer current." : "Confirm the source interpretation to verify."}</p>
-    </CardContent>
-  </Card>
+  return (
+    <Card className="min-w-0 overflow-hidden" aria-label="Camera-matched verification">
+      <CardHeader>
+        <CardTitle>Camera-matched {video ? "video frame" : "still"} check</CardTitle>
+        <CardDescription>Apply the actual exported cube to preserved camera RGB.</CardDescription>
+      </CardHeader>
+      <CardContent className="grid min-w-0 gap-3">
+        {current?.provenance.warnings.map((warning) => (
+          <p key={warning} className="text-sm text-amber-700 dark:text-amber-300">
+            {warning}
+          </p>
+        ))}
+        {current && <CheckedImage key={result!.key} result={current} />}
+        {!video && (
+          <>
+            <label className="grid min-w-0 gap-2 text-sm font-medium">
+              Choose camera still
+              <Input
+                type="file"
+                accept=".png,.pfm"
+                className="min-w-0"
+                onChange={(e) => {
+                  const file = e.target.files?.[0]
+                  if (file) choose(file)
+                  e.target.value = ""
+                }}
+              />
+            </label>
+            <p className="text-xs text-muted-foreground">
+              Untagged, non-interlaced 16-bit RGB PNG, or float32 RGB PFM. No alpha. Up to 4,194,304 pixels and 48 MiB.
+              PNG requires local FFmpeg. Files stay in this local workspace session.
+            </p>
+            <p className="text-xs" role="status">
+              {reading ? "Reading still…" : (source?.name ?? "No camera still selected.")}
+            </p>
+            {fileError && (
+              <Alert variant="error">
+                <AlertDescription>{fileError}</AlertDescription>
+              </Alert>
+            )}
+          </>
+        )}
+        {video && (
+          <>
+            <p className="text-sm">
+              Frame at {video.frame.seconds.toFixed(6)} s · exact {video.frame.relative_time} s · PTS {video.frame.pts},
+              time base {video.frame.time_base}.
+            </p>
+            <p className="text-xs">
+              Metadata suggestions are unconfirmed. Frame tags take precedence over stream tags. Missing facts stay
+              unknown; camera and codec names never establish a log profile.
+            </p>
+            {(
+              [
+                ["YCbCr matrix", matrix, setMatrix, ["bt709", "bt470bg", "smpte170m", "bt2020nc"], "color_space"],
+                ["Signal range", signalRange, setSignalRange, ["limited", "full"], "color_range"],
+                ["Chroma location", chroma, setChroma, ["left", "center", "topleft"], "chroma_location"],
+                ["Component bit depth", bitDepth, setBitDepth, [String(video.source.precision_bits)], "bit_depth"],
+              ] as const
+            ).map(([label, value, setter, options, fact]) => {
+              const reported =
+                fact === "bit_depth"
+                  ? video.source.precision_bits
+                  : (video.facts.frame[fact] ?? video.facts.stream[fact])
+              const suggestion =
+                fact === "color_range"
+                  ? ({ tv: "limited", pc: "full" } as Record<string, string>)[String(reported)]
+                  : String(reported ?? "unknown")
+              return (
+                <div key={label} className="grid gap-1">
+                  <ChoiceField
+                    label={label}
+                    value={value}
+                    onChange={(next) => {
+                      setter(next)
+                      setConfirmed(false)
+                    }}
+                    options={[
+                      { value: "", label: "Unconfirmed" },
+                      ...options.map((value) => ({ value, label: value })),
+                    ]}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Suggestion from metadata:{" "}
+                    {options.some((option) => option === String(suggestion)) ? suggestion : "unknown"}
+                  </p>
+                </div>
+              )
+            })}
+            <p className="text-xs">
+              Native YCbCr is expanded using the confirmed transport range and matrix exactly once into float RGB.
+              Transfer decoding belongs to the cube. Excursions remain intact until its declared input boundary.
+            </p>
+          </>
+        )}
+        <p className="text-xs text-muted-foreground">
+          The file cannot prove its camera profile. Confirm these facts from the recording/export workflow. Unknowns
+          prevent verification.
+        </p>
+        <label className="grid gap-1 text-sm">
+          Source transfer function
+          <NativeSelect
+            className={field}
+            value={transfer}
+            onChange={(e) => {
+              setTransfer(e.target.value)
+              setConfirmed(false)
+            }}
+          >
+            <option value="">Unknown</option>
+            {[...new Set(Object.values(interpretations).map((v) => v.transfer))].map((v) => (
+              <option key={v}>{v}</option>
+            ))}
+          </NativeSelect>
+        </label>
+        <label className="grid gap-1 text-sm">
+          Source gamut
+          <NativeSelect
+            className={field}
+            value={gamut}
+            onChange={(e) => {
+              setGamut(e.target.value)
+              setConfirmed(false)
+            }}
+          >
+            <option value="">Unknown</option>
+            {[...new Set(Object.values(interpretations).map((v) => v.gamut))].map((v) => (
+              <option key={v}>{v}</option>
+            ))}
+          </NativeSelect>
+        </label>
+        {!video && (
+          <>
+            <label className="flex items-start gap-2 text-sm">
+              <Checkbox
+                aria-label="Normalized camera code values"
+                checked={range === "camera-code-values"}
+                onCheckedChange={(event: boolean) => {
+                  setRange(event ? "camera-code-values" : "")
+                  setConfirmed(false)
+                }}
+              />
+              Normalized camera code values
+            </label>
+            <p className="text-xs text-muted-foreground">
+              PNG codes are divided by 65535. PFM values are unchanged. No YCbCr matrix or input range expansion is
+              applied. Resolve any transport conversion before export. Excursions are clamped only at the cube's [0, 1]
+              boundary and reported.
+            </p>
+          </>
+        )}
+        <label className="flex items-start gap-2 text-sm">
+          <Checkbox checked={confirmed} onCheckedChange={(e: boolean) => setConfirmed(e)} />
+          {video
+            ? "I confirm the recording transfer/gamut, matrix, transport range, chroma location and component depth. This is camera-encoded media with no viewing transform."
+            : "I confirm unchanged camera-encoded RGB, this transfer/gamut and range, with no viewing transform or additional range scaling."}
+        </label>
+        {mismatch && (
+          <Alert variant="error">
+            <AlertDescription>
+              Source interpretation does not match {setup.profile}. Correct the source interpretation or LUT camera
+              profile.
+            </AlertDescription>
+          </Alert>
+        )}
+        {!supported && (
+          <Alert variant="error">
+            <AlertDescription>
+              Unsupported SDR view. Choose Rec.709 or SDR Rec.2020. HDR/log viewing is unavailable.
+            </AlertDescription>
+          </Alert>
+        )}
+        <p className="text-xs text-muted-foreground">
+          <SdrViewDescription setup={setup} />
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            disabled={
+              busy ||
+              reading ||
+              !(source || video) ||
+              !transfer ||
+              !gamut ||
+              (video ? !matrix || !signalRange || !chroma || !bitDepth : !range) ||
+              !confirmed ||
+              mismatch ||
+              !supported
+            }
+            onClick={() => void verify()}
+          >
+            Verify {video ? "selected frame" : "still"}
+          </Button>
+          {busy && (
+            <Button variant="outline" onClick={cancel}>
+              <X data-icon="inline-start" aria-hidden="true" />
+              Cancel verification
+            </Button>
+          )}
+        </div>
+        <p className="text-sm" role="status" aria-live="polite">
+          {status.key === key
+            ? status.text
+            : status.key || busyKey
+              ? "Source, interpretation or settings changed. Verify again; the previous result is no longer current."
+              : "Confirm the source interpretation to verify."}
+        </p>
+      </CardContent>
+    </Card>
+  )
 }

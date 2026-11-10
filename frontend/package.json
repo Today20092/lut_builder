@@ -8,7 +8,9 @@
     "build": "tsc -b && vite build && pnpm build:manual",
     "build:manual": "astro build --root manual",
     "dev:manual": "astro dev --root manual",
-    "lint": "eslint .",
+    "lint": "oxlint . && eslint .",
+    "format": "oxfmt src tests scripts *.ts *.js",
+    "format:check": "oxfmt --check src tests scripts *.ts *.js",
     "test": "node --experimental-strip-types --test tests/*.test.mjs",
     "test:ui": "playwright test",
     "test:ui:checks": "playwright test --grep @checks",
@@ -17,6 +19,7 @@
     "test:ui:report": "playwright show-report",
     "typecheck:ui": "tsc -p tsconfig.ui.json",
     "typecheck": "tsc --noEmit",
+    "typecheck:strict-index": "tsc -p tsconfig.strict-index.json",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -52,6 +55,8 @@
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^17",
     "jsdom": "^29.1.1",
+    "oxfmt": "^0.78.0",
+    "oxlint": "^1.93.0",
     "shadcn": "^4.22.1",
     "sharp": "0.34.5",
     "typescript": "~6",

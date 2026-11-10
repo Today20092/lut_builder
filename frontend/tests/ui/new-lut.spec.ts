@@ -1,64 +1,102 @@
-import { test, expect } from '@playwright/test'
-import AxeBuilder from '@axe-core/playwright'
+import { test, expect } from "@playwright/test"
+import AxeBuilder from "@axe-core/playwright"
 
-test('first visit creates a LUT and return visits resume it @checks', async ({ page }) => {
-  await page.goto('./')
-  await expect(page.getByRole('heading', { name: 'Start with your camera' })).toBeVisible()
-  await expect(page.getByRole('navigation', { name: 'New LUT progress' })).toBeVisible()
-  await page.keyboard.press('?')
-  await expect(page.getByRole('dialog')).toHaveCount(0)
-  await page.screenshot({ path: `test-results/start-${test.info().project.name}.png`, fullPage: true })
-  expect((await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa']).analyze()).violations).toEqual([])
-  await page.getByRole('combobox', { name: 'Camera / log profile', exact: true }).selectOption('Panasonic V-Log')
-  await page.getByRole('button', { name: 'Choose exposure preset', exact: true }).click()
-  for (const group of ['IRE', 'Fill', 'Stops']) await expect(page.getByRole('region', { name: `${group} presets`, exact: true }).getByRole('radio')).toHaveCount(2)
-  await page.getByRole('radio', { name: 'Three-band Exposure', exact: false }).check()
-  await expect(page.getByRole('heading', { name: 'Choose your exposure guide' })).toBeVisible()
+test("first visit creates a LUT and return visits resume it @checks", async ({ page }) => {
+  await page.goto("./")
+  await expect(page.getByRole("heading", { name: "Start with your camera" })).toBeVisible()
+  await expect(page.getByRole("navigation", { name: "New LUT progress" })).toBeVisible()
+  await page.keyboard.press("?")
+  await expect(page.getByRole("dialog")).toHaveCount(0)
+  await page.screenshot({
+    path: `test-results/start-${test.info().project.name}.png`,
+    fullPage: true,
+  })
+  expect(
+    (await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze()).violations,
+  ).toEqual([])
+  await page.getByRole("combobox", { name: "Camera / log profile", exact: true }).selectOption("Panasonic V-Log")
+  await page.getByRole("button", { name: "Choose exposure preset", exact: true }).click()
+  for (const group of ["IRE", "Fill", "Stops"])
+    await expect(page.getByRole("region", { name: `${group} presets`, exact: true }).getByRole("radio")).toHaveCount(2)
+  await page.getByRole("radio", { name: "Three-band Exposure", exact: false }).check()
+  await expect(page.getByRole("heading", { name: "Choose your exposure guide" })).toBeVisible()
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
-  await page.screenshot({ path: `test-results/presets-${test.info().project.name}.png`, fullPage: true })
-  expect((await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa']).analyze()).violations).toEqual([])
-  await page.getByRole('button', { name: 'Start editing', exact: true }).click()
-  await expect(page.locator('.workspace-interpretation')).toContainText('Panasonic V-Log')
-  await expect(page.getByRole('button', { name: 'Select band 3', exact: true })).toBeVisible()
-  await expect.poll(() => page.evaluate(() => localStorage.getItem('lut-builder.workspace-session.v1'))).toContain('Panasonic V-Log')
+  await page.screenshot({
+    path: `test-results/presets-${test.info().project.name}.png`,
+    fullPage: true,
+  })
+  expect(
+    (await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze()).violations,
+  ).toEqual([])
+  await page.getByRole("button", { name: "Start editing", exact: true }).click()
+  await expect(page.locator(".workspace-interpretation")).toContainText("Panasonic V-Log")
+  await expect(page.getByRole("button", { name: "Select band 3", exact: true })).toBeVisible()
+  await expect
+    .poll(() => page.evaluate(() => localStorage.getItem("lut-builder.workspace-session.v1")))
+    .toContain("Panasonic V-Log")
   await page.reload()
-  await expect(page.locator('.workspace')).toBeVisible()
-  await expect(page.getByRole('heading', { name: 'Start with your camera' })).toHaveCount(0)
-  await page.getByRole('button', { name: 'Export LUT', exact: true }).click()
-  await page.getByRole('radio', { name: /^Lumix S5IIX/ }).check()
-  await expect(page.getByRole('button', { name: 'Download LUT', exact: true })).toBeEnabled()
-  const downloading = page.waitForEvent('download')
-  await page.getByRole('button', { name: 'Download LUT', exact: true }).click()
+  await expect(page.locator(".workspace")).toBeVisible()
+  await expect(page.getByRole("heading", { name: "Start with your camera" })).toHaveCount(0)
+  await page.getByRole("button", { name: "Export LUT", exact: true }).click()
+  await page.getByRole("radio", { name: /^Lumix S5IIX/ }).check()
+  await expect(page.getByRole("button", { name: "Download LUT", exact: true })).toBeEnabled()
+  const downloading = page.waitForEvent("download")
+  await page.getByRole("button", { name: "Download LUT", exact: true }).click()
   expect((await downloading).suggestedFilename()).toMatch(/^[a-f0-9]{8}\.cube$/)
-  await expect(page.getByText('LUT downloaded. Calculations stayed on this device.', { exact: true })).toBeVisible()
-  await expect(page.getByText('After download', { exact: true })).toHaveCount(0)
-  await expect(page.getByRole('radio', { name: /^External monitor|^Editing software/ })).toHaveCount(0)
+  await expect(page.getByText("LUT downloaded. Calculations stayed on this device.", { exact: true })).toBeVisible()
+  await expect(page.getByText("After download", { exact: true })).toHaveCount(0)
+  await expect(page.getByRole("radio", { name: /^External monitor|^Editing software/ })).toHaveCount(0)
   // The full workspace suite separately checks graph handles and their numeric equivalents.
-  expect((await new AxeBuilder({ page }).include('.export-handoff').withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa']).analyze()).violations).toEqual([])
+  expect(
+    (
+      await new AxeBuilder({ page })
+        .include(".export-handoff")
+        .withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"])
+        .analyze()
+    ).violations,
+  ).toEqual([])
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
-  await page.screenshot({ path: `test-results/s5iix-${test.info().project.name}.png`, fullPage: true })
+  await page.screenshot({
+    path: `test-results/s5iix-${test.info().project.name}.png`,
+    fullPage: true,
+  })
 })
 
-test('starting over can be cancelled and incompatible camera exports are blocked @checks @behavior', async ({ page }) => {
-  await page.goto('./')
-  await page.getByRole('button', { name: 'Skip setup', exact: true }).click()
-  await page.getByRole('button', { name: 'Export LUT', exact: true }).click()
-  await page.getByRole('radio', { name: /^Lumix S5IIX/ }).check()
-  await expect(page.getByRole('button', { name: 'Download LUT', exact: true })).toBeDisabled()
-  await page.screenshot({ path: `test-results/compatibility-${test.info().project.name}.png`, fullPage: true })
-  await page.getByRole('button', { name: 'Use V-Log, 33³ and full range', exact: true }).click()
-  await expect(page.getByRole('button', { name: 'Download LUT', exact: true })).toBeEnabled()
-  await page.getByRole('button', { name: 'Close Export LUT', exact: true }).click()
-  if (page.viewportSize()!.width < 960) await page.getByRole('navigation', { name: 'Mobile navigation' }).getByRole('button', { name: 'Settings', exact: true }).click()
-  else await page.getByRole('tab', { name: 'Settings', exact: true }).click()
-  await page.getByRole('region', { name: 'Workspace actions' }).getByRole('button', { name: 'New LUT', exact: true }).click()
-  await page.getByRole('button', { name: 'Cancel', exact: true }).click()
-  await page.getByRole('button', { name: 'Export LUT', exact: true }).click()
-  await expect(page.getByRole('radio', { name: /^Lumix S5IIX/ })).toBeChecked()
-  await page.getByRole('button', { name: 'Close Export LUT', exact: true }).click()
-  await expect(page.locator('.workspace')).toHaveAttribute('data-section', 'configuration')
-  await page.getByRole('region', { name: 'Workspace actions' }).getByRole('button', { name: 'New LUT', exact: true }).click()
-  await page.getByRole('button', { name: 'Choose exposure preset', exact: true }).click()
-  await page.getByRole('button', { name: 'Start editing', exact: true }).click()
-  await expect(page.locator('.workspace')).toHaveAttribute('data-section', 'bands')
+test("starting over can be cancelled and incompatible camera exports are blocked @checks @behavior", async ({
+  page,
+}) => {
+  await page.goto("./")
+  await page.getByRole("button", { name: "Skip setup", exact: true }).click()
+  await page.getByRole("button", { name: "Export LUT", exact: true }).click()
+  await page.getByRole("radio", { name: /^Lumix S5IIX/ }).check()
+  await expect(page.getByRole("button", { name: "Download LUT", exact: true })).toBeDisabled()
+  await page.screenshot({
+    path: `test-results/compatibility-${test.info().project.name}.png`,
+    fullPage: true,
+  })
+  await page.getByRole("button", { name: "Use V-Log, 33³ and full range", exact: true }).click()
+  await expect(page.getByRole("button", { name: "Download LUT", exact: true })).toBeEnabled()
+  await page.getByRole("button", { name: "Close Export LUT", exact: true }).click()
+  if (page.viewportSize()!.width < 960)
+    await page
+      .getByRole("navigation", { name: "Mobile navigation" })
+      .getByRole("button", { name: "Settings", exact: true })
+      .click()
+  else await page.getByRole("tab", { name: "Settings", exact: true }).click()
+  await page
+    .getByRole("region", { name: "Workspace actions" })
+    .getByRole("button", { name: "New LUT", exact: true })
+    .click()
+  await page.getByRole("button", { name: "Cancel", exact: true }).click()
+  await page.getByRole("button", { name: "Export LUT", exact: true }).click()
+  await expect(page.getByRole("radio", { name: /^Lumix S5IIX/ })).toBeChecked()
+  await page.getByRole("button", { name: "Close Export LUT", exact: true }).click()
+  await expect(page.locator(".workspace")).toHaveAttribute("data-section", "configuration")
+  await page
+    .getByRole("region", { name: "Workspace actions" })
+    .getByRole("button", { name: "New LUT", exact: true })
+    .click()
+  await page.getByRole("button", { name: "Choose exposure preset", exact: true }).click()
+  await page.getByRole("button", { name: "Start editing", exact: true }).click()
+  await expect(page.locator(".workspace")).toHaveAttribute("data-section", "bands")
 })

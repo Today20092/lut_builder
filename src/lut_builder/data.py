@@ -1,10 +1,11 @@
 # src/lut_builder/data.py
 
-import colour
-import numpy as np
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from typing import cast
+
+import colour
+import numpy as np
 
 # ---------------------------------------------------------------------------
 # Universal Constants
@@ -34,55 +35,73 @@ _SOURCE_DATA = {
     "Sony S-Log3": {
         "gamut": "S-Gamut3.Cine",
         "log": "S-Log3",
-        "encoded_signal_ceiling": 0.94,
+        # Sony: S-Log3 peaks at 94% video level = code 64 + 0.94 * 876 = 887 of 1023.
+        "encoded_signal_ceiling": 0.867,
         "encoded_signal_floor": 0.0929,
         "sources": [
             "https://pro.sony/s3/cms-static-content/uploadfile/06/1237494271406.pdf",
+            "https://www.sony-asia.com/electronics/support/articles/00145909",
         ],
     },
     "Panasonic V-Log": {
         "gamut": "V-Gamut",
         "log": "V-Log",
-        "encoded_signal_ceiling": 0.8906,
+        # Panasonic: VariCam 35 clips at code 911; S5II/S5IIX measure the same 911.
+        "encoded_signal_ceiling": 0.8905,
         "encoded_signal_floor": 0.1251,
         "sources": [
             "https://pro-av.panasonic.net/en/cinema_camera_varicam_eva/support/pdf/VARICAM_V-Log_V-Gamut.pdf",
+            "https://gamut.io/product/baseluts-for-panasonic-s5ii-s5iix-and-s9/",
         ],
     },
     "Canon Log 3": {
         "gamut": "Cinema Gamut",
         "log": "Canon Log 3",
-        "encoded_signal_ceiling": 0.90,
-        "encoded_signal_floor": 0.04,
+        # TODO: verify — Canon publishes no clip code; C70/C300 III users report
+        # 85-90 IRE, so 85 IRE (code 809) is used. Floor is zero-light code 128.
+        "encoded_signal_ceiling": 0.79,
+        "encoded_signal_floor": 0.1251,
         "sources": [
-            "https://downloads.canon.com/nw/camera/products/cinema-eos/c300-mark-ii/white-papers/canon-c300-mk-ii-image-performance-wp.pdf"
+            "https://downloads.canon.com/nw/camera/products/cinema-eos/c300-mark-ii/white-papers/canon-c300-mk-ii-image-performance-wp.pdf",
+            "https://www.dvxuser.com/threads/c70-when-is-this-bad-boy-going-to-start-shipping.374091/page-3",
         ],
     },
     "ARRI LogC3": {
         "gamut": "ARRI Wide Gamut 3",
         "log": "ARRI LogC3",
-        "encoded_signal_ceiling": 0.91,
-        "encoded_signal_floor": 0.03,
+        # ARRI EI 800 (the decoder's EI): false-color red starts at code 951,
+        # 1/3 stop below sensor clip (code 976); zero exposure is code 95.
+        "encoded_signal_ceiling": 0.9296,
+        "encoded_signal_floor": 0.0928,
         "sources": [
             "https://www.arri.com/resource/blob/31918/66f56e6abb6e5b6553929edf9aa7483e/2012-01-arrilog-c-logarithmic-cine-camera-image-encoding-data.pdf",
+            "https://www.arri.com/resource/blob/31918/66f56e6abb6e5b6553929edf9aa7483e/2017-03-alexa-logc-curve-in-vfx-data.pdf",
+            "https://www.arri.com/resource/blob/390448/2d469ae1e98110562fe347cea50a284b/arri-logc-false-color-specification-data.pdf",
         ],
     },
     "RED Log3G10": {
         "gamut": "REDWideGamutRGB",
         "log": "Log3G10",
-        "encoded_signal_ceiling": 1.0,
-        "encoded_signal_floor": 0.0,
+        # TODO: verify — RED publishes no Log3G10 clip code; KOMODO at ISO 800
+        # measures code 817. Floor is Log3G10 linear zero (0.091551).
+        "encoded_signal_ceiling": 0.7986,
+        "encoded_signal_floor": 0.0916,
         "sources": [
             "https://www.red.com/download/ipp2-technical-paper",
+            "https://docs.red.com/955-0187/PDF/915-0187%20Rev-C%20%20%20RED%20OPS,%20White%20Paper%20on%20REDWideGamutRGB%20and%20Log3G10.pdf",
+            "https://gamut.io/product/baseluts-for-red-komodo/",
         ],
     },
     "Blackmagic Film Gen 5": {
         "gamut": "Blackmagic Wide Gamut",
         "log": "Blackmagic Film Generation 5",
-        "encoded_signal_ceiling": 1.0,
+        # TODO: verify — Blackmagic publishes no clip code; Pocket 4K/6K at ISO 400
+        # measure code 814, i.e. (814 - 64) / 876 in this video-level domain.
+        "encoded_signal_ceiling": 0.8561,
         "encoded_signal_floor": 0.09246575342465753,
         "sources": [
             "https://drive.google.com/file/d/1FF5WO2nvI9GEWb4_EntrBoV9ZIuFToZd/view",
+            "https://gamut.io/product/baseluts-for-blackmagic-pocket-cinema-camera-6k-and-pocket-cinema-camera-4k/",
         ],
     },
 }

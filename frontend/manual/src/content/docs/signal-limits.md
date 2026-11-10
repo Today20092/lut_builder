@@ -24,21 +24,21 @@ The constants and their evidence differ by camera. See [Camera thresholds and so
 
 ## Cube size and tolerance
 
-A cube samples a regular RGB grid rather than every possible input. The maintained exporter widens each warning test by half one grid interval:
+A cube samples a regular RGB grid rather than every possible input. The maintained exporter widens each warning test by one grid interval, so every node of the cell holding a value at or past a threshold is flagged. Interpolation inside that cell then returns the solid warning color:
 
 ```text
-tolerance = 0.5 / (cube_size - 1)
+tolerance = 1 / (cube_size - 1)
 low  = minimum(R, G, B) <= F + tolerance
 high = maximum(R, G, B) >= C - tolerance
 ```
 
 | Cube size | Tolerance in normalized input |
 | ---: | ---: |
-| 17 | 0.03125 |
-| 33 | 0.015625 |
-| 65 | 0.0078125 |
+| 17 | 0.0625 |
+| 33 | 0.03125 |
+| 65 | 0.015625 |
 
-These are tests at **lattice nodes**. Between nodes, the camera, monitor, or editor interpolates the cube. That can blend warning colors and soften the apparent edge. A 65³ cube reduces the sampling interval; it does not establish a more accurate sensor limit. A zero-width band may miss the lattice altogether.
+These are tests at **lattice nodes**. Between nodes, the camera, monitor, or editor interpolates the cube. Any input at or beyond `C` (or at or below `F`) shows the solid warning color; the color fades in over at most one grid interval before the threshold. A 65³ cube reduces the sampling interval; it does not establish a more accurate sensor limit. A zero-width band may miss the lattice altogether.
 
 ## Which color wins?
 

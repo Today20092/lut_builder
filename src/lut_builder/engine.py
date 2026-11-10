@@ -1,18 +1,20 @@
 # src/lut_builder/engine.py
 
-import colour
-import numpy as np
+import tempfile
+from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
-from dataclasses import replace
-import tempfile
+
+import colour
+import numpy as np
+
 from .data import (
     MIDDLE_GREY,
     PROFILE_CATALOG,
     hex_to_rgb,
 )
+from .imported_lut import overlay_in_output, parse_cube
 from .setup import LutSetup, map_exposure
-from .imported_lut import parse_cube, overlay_in_output
 
 
 def serialize_lut(setup: LutSetup, *, diagnostics: bool = True) -> bytes:
@@ -171,14 +173,14 @@ def generate_lut(setup: LutSetup) -> Path:
     # These configurable code-value thresholds flag the encoded LUT input.
     # They cannot prove physical sensor clipping from processed RGB.
     #
-    # Because a 33-pt LUT has evenly-spaced nodes that rarely land exactly
-    # on the thresholds, we apply a small tolerance (half a grid step)
-    # so the warnings render solidly on-screen.
+    # A host interpolates between lattice nodes, so a value at the threshold
+    # renders solidly only if every node of its cell is flagged. Widening each
+    # test by one grid step guarantees that; the warning fades in up to one
+    # step before the threshold.
     # ------------------------------------------------------------------
     signal_ceiling = profile.encoded_signal_ceiling
     signal_floor = profile.encoded_signal_floor
-    grid_step = 1.0 / (cube_size - 1)
-    warning_tolerance = grid_step / 2.0
+    warning_tolerance = 1.0 / (cube_size - 1)
 
     low_mask = None
     if low_signal_warning:

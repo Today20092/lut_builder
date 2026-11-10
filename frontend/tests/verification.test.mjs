@@ -9,17 +9,32 @@ import { JSDOM } from "jsdom"
 const dom = new JSDOM("<!doctype html><html><body></body></html>", { url: "http://localhost/" })
 globalThis.requestAnimationFrame ??= (callback) => setTimeout(callback, 0)
 globalThis.cancelAnimationFrame ??= clearTimeout
-for (const key of ["window", "document", "Element", "HTMLElement", "Node", "FileReader"]) globalThis[key] = key === "window" ? dom.window : dom.window[key]
+for (const key of ["window", "document", "Element", "HTMLElement", "Node", "FileReader"])
+  globalThis[key] = key === "window" ? dom.window : dom.window[key]
 globalThis.IS_REACT_ACT_ENVIRONMENT = true
 Object.defineProperty(globalThis, "navigator", { value: dom.window.navigator })
 window.LUT_BUILDER_TOKEN = "test-token"
-window.HTMLDialogElement.prototype.showModal = function () { this.open = true }
-window.HTMLDialogElement.prototype.close = function () { this.open = false; this.dispatchEvent(new window.Event("close")) }
+window.HTMLDialogElement.prototype.showModal = function () {
+  this.open = true
+}
+window.HTMLDialogElement.prototype.close = function () {
+  this.open = false
+  this.dispatchEvent(new window.Event("close"))
+}
 after(() => dom.window.close())
 
 const bundle = await build({
-  bundle: true, external: ["@base-ui/react/*", "lucide-react", "react", "react/jsx-runtime", "react-dom", "react-dom/client"], format: "esm", jsx: "automatic", platform: "node",
-  stdin: { contents: `export { CameraVerification } from "./src/CameraVerification.tsx"; export { default as React, act } from "react"; export { createRoot } from "react-dom/client";`, resolveDir: process.cwd(), sourcefile: "verification-test.ts" }, write: false,
+  bundle: true,
+  external: ["@base-ui/react/*", "lucide-react", "react", "react/jsx-runtime", "react-dom", "react-dom/client"],
+  format: "esm",
+  jsx: "automatic",
+  platform: "node",
+  stdin: {
+    contents: `export { CameraVerification } from "./src/CameraVerification.tsx"; export { default as React, act } from "react"; export { createRoot } from "react-dom/client";`,
+    resolveDir: process.cwd(),
+    sourcefile: "verification-test.ts",
+  },
+  write: false,
 })
 stop()
 const directory = await mkdtemp(join(process.cwd(), "tests", ".verify-"))
@@ -34,25 +49,58 @@ test("still workflow requires facts, rejects stale responses, cancels, and inspe
   globalThis.fetch = (path, options) => {
     const payload = JSON.parse(options.body)
     assert.equal(options.headers["X-LUT-Builder-Token"], "test-token")
-    if (path === "/verify-cancel") { calls.push({ path, payload }); return Promise.resolve({ ok: true }) }
+    if (path === "/verify-cancel") {
+      calls.push({ path, payload })
+      return Promise.resolve({ ok: true })
+    }
     return new Promise((resolve) => calls.push({ path, payload, resolve }))
   }
   const container = document.createElement("div")
   document.body.append(container)
   const root = createRoot(container)
-  const interpretations = { Sony: { transfer: "S-Log3", gamut: "S-Gamut3.Cine" }, Other: { transfer: "V-Log", gamut: "V-Gamut" } }
+  const interpretations = {
+    Sony: { transfer: "S-Log3", gamut: "S-Gamut3.Cine" },
+    Other: { transfer: "V-Log", gamut: "V-Gamut" },
+  }
   let setup = { profile: "Sony", target: "Rec.709", cube_size: 17, bands: [] }
   const render = () => act(() => root.render(React.createElement(CameraVerification, { setup, interpretations })))
   const button = (text) => [...document.querySelectorAll("button")].find((e) => e.textContent === text)
   const click = (text) => act(() => button(text).click())
-  const select = async (index, value) => { const input = container.querySelectorAll("select")[index]; await act(() => { input.value = value; input.dispatchEvent(new window.Event("change", { bubbles: true })) }) }
+  const select = async (index, value) => {
+    const input = container.querySelectorAll("select")[index]
+    await act(() => {
+      input.value = value
+      input.dispatchEvent(new window.Event("change", { bubbles: true }))
+    })
+  }
   const upload = async (name) => {
     const input = container.querySelector("input[type=file]")
-    Object.defineProperty(input, "files", { configurable: true, value: [new window.File(["source bytes"], name)] })
-    await act(async () => { input.dispatchEvent(new window.Event("change", { bubbles: true })); await new Promise((r) => setTimeout(r, 30)) })
+    Object.defineProperty(input, "files", {
+      configurable: true,
+      value: [new window.File(["source bytes"], name)],
+    })
+    await act(async () => {
+      input.dispatchEvent(new window.Event("change", { bubbles: true }))
+      await new Promise((r) => setTimeout(r, 30))
+    })
   }
   const finish = async (call) => {
-    await act(() => call.resolve({ ok: true, json: async () => ({ request_id: call.payload.request_id, image: "data:image/png;base64,test", width: 2, height: 1, provenance: { warnings: [], comparison_unavailable: "No source reference transform.", source: { name: "camera.png" } } }) }))
+    await act(() =>
+      call.resolve({
+        ok: true,
+        json: async () => ({
+          request_id: call.payload.request_id,
+          image: "data:image/png;base64,test",
+          width: 2,
+          height: 1,
+          provenance: {
+            warnings: [],
+            comparison_unavailable: "No source reference transform.",
+            source: { name: "camera.png" },
+          },
+        }),
+      }),
+    )
   }
   try {
     await render()
@@ -86,7 +134,18 @@ test("still workflow requires facts, rejects stale responses, cancels, and inspe
     assert.equal(container.querySelector("input[type=range]"), null)
     await click("Inspect pixel")
     const sample = calls.at(-1)
-    await act(() => sample.resolve({ ok: true, json: async () => ({ x: 0, y: 0, source_rgb: [-0.125, 0.375001, 1.125], output_rgb: [0.5, 0.25, 0.125], display_rgb: [0.4, 0.2, 0.1] }) }))
+    await act(() =>
+      sample.resolve({
+        ok: true,
+        json: async () => ({
+          x: 0,
+          y: 0,
+          source_rgb: [-0.125, 0.375001, 1.125],
+          output_rgb: [0.5, 0.25, 0.125],
+          display_rgb: [0.4, 0.2, 0.1],
+        }),
+      }),
+    )
     assert.match(container.querySelector("output").textContent, /-0.1250000000/)
     const expand = button("Expand verified image")
     await click("Expand verified image")
@@ -95,7 +154,9 @@ test("still workflow requires facts, rejects stale responses, cancels, and inspe
     assert.equal(document.activeElement, expand)
     await select(0, "V-Log")
     assert.equal(container.querySelector("img"), null)
-    assert.ok(calls.some((call) => call.path === "/verify-cancel" && call.payload.request_id === sample.payload.request_id))
+    assert.ok(
+      calls.some((call) => call.path === "/verify-cancel" && call.payload.request_id === sample.payload.request_id),
+    )
     await select(0, "S-Log3")
     await act(() => container.querySelector("[role=checkbox]:not([aria-label])").click())
     await click("Verify still")
@@ -106,7 +167,12 @@ test("still workflow requires facts, rejects stale responses, cancels, and inspe
     assert.match(container.textContent, /Verification cancelled/)
     await click("Verify still")
     const malformed = calls.at(-1)
-    await act(() => malformed.resolve({ ok: true, json: async () => ({ image: "data:image/png;base64,invalid" }) }))
+    await act(() =>
+      malformed.resolve({
+        ok: true,
+        json: async () => ({ image: "data:image/png;base64,invalid" }),
+      }),
+    )
     assert.equal(container.querySelector("img"), null)
     assert.match(container.textContent, /request_id/)
     await click("Verify still")

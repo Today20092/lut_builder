@@ -35,32 +35,63 @@ import {
 } from "../src/editor.ts"
 
 const palette = [
-  "violet-800", "blue-600", "sky-400", "teal-400", "green-500",
-  "lime-400", "yellow-400", "orange-500", "red-600",
+  "violet-800",
+  "blue-600",
+  "sky-400",
+  "teal-400",
+  "green-500",
+  "lime-400",
+  "yellow-400",
+  "orange-500",
+  "red-600",
 ].map((name, index) => ({
   name,
   hex: ["#5b21b6", "#2563eb", "#38bdf8", "#2dd4bf", "#22c55e", "#a3e635", "#facc15", "#f97316", "#dc2626"][index],
 }))
 
 test("all exposure presets preserve a confirmed imported look and remain valid", async () => {
-  const cube = 'LUT_3D_SIZE 2\n' + Array(8).fill('0.125 0.25 0.5').join('\n')
-  const imported_lut = { version: 1, name: 'constant.cube', cube, sha256: await cubeSha256(cube), source_profile: setup.profile, output_gamut: setup.target, output_transfer: 'gamma2.2', output_range: 'full' }
-  const confirmed = { ...setup, monochrome: false, ire_basis: 'camera', imported_lut }
-  for (const preset of ['contrast-checker', 'three-band', 'camera-ire', 'reference-emphasis', 'portrait-contrast', 'wide-contrast', 'highlight-placement', 'shadow-placement']) {
+  const cube = "LUT_3D_SIZE 2\n" + Array(8).fill("0.125 0.25 0.5").join("\n")
+  const imported_lut = {
+    version: 1,
+    name: "constant.cube",
+    cube,
+    sha256: await cubeSha256(cube),
+    source_profile: setup.profile,
+    output_gamut: setup.target,
+    output_transfer: "gamma2.2",
+    output_range: "full",
+  }
+  const confirmed = { ...setup, monochrome: false, ire_basis: "camera", imported_lut }
+  for (const preset of [
+    "contrast-checker",
+    "three-band",
+    "camera-ire",
+    "reference-emphasis",
+    "portrait-contrast",
+    "wide-contrast",
+    "highlight-placement",
+    "shadow-placement",
+  ]) {
     const next = applyExposurePreset(confirmed, palette, preset)
     assert.equal(next.monochrome, false, preset)
-    assert.equal(next.ire_basis, 'camera', preset)
+    assert.equal(next.ire_basis, "camera", preset)
     assert.equal(next.imported_lut, imported_lut)
     await Effect.runPromise(decodeSetup(next))
   }
   let state = createEditorState(setup)
-  state = reduceEditor(state, { type: 'edit', edit: current => applyExposurePreset(current, palette, 'contrast-checker') })
+  state = reduceEditor(state, {
+    type: "edit",
+    edit: (current) => applyExposurePreset(current, palette, "contrast-checker"),
+  })
   assert.ok(state.undo)
-  state = reduceEditor(state, { type: 'patch', changes: { imported_lut, monochrome: false, ire_basis: 'camera' } })
-  assert.equal(state.undo, null, 'confirming a different interpretation invalidates older band snapshots')
-  state = reduceEditor(state, { type: 'undo' })
+  state = reduceEditor(state, {
+    type: "patch",
+    changes: { imported_lut, monochrome: false, ire_basis: "camera" },
+  })
+  assert.equal(state.undo, null, "confirming a different interpretation invalidates older band snapshots")
+  state = reduceEditor(state, { type: "undo" })
   assert.equal(state.setup.monochrome, false)
-  assert.equal(state.setup.ire_basis, 'camera')
+  assert.equal(state.setup.ire_basis, "camera")
 })
 
 const setup = {
@@ -86,17 +117,23 @@ test("a band drag keeps selection through reordering and undoes as one edit", ()
   let state = createEditorState(setup)
   state = reduceEditor(state, { type: "begin" })
   state = reduceEditor(state, {
-    type: "edit", edit: (current) => updateBand(current, 0, { stop: 2 }),
+    type: "edit",
+    edit: (current) => updateBand(current, 0, { stop: 2 }),
   })
   assert.equal(state.selection, 1)
   assert.equal(state.setup.bands[state.selection].color, "#ef4444")
   state = reduceEditor(state, {
-    type: "edit", edit: (current) => updateBand(current, 1, { stop: 3 }),
+    type: "edit",
+    edit: (current) => updateBand(current, 1, { stop: 3 }),
   })
   state = reduceEditor(state, { type: "end" })
-  state = reduceEditor(state, { type: "patch", changes: { output: "later.cube", monochrome: false } })
   state = reduceEditor(state, {
-    type: "edit", edit: (current) => updateBand(current, 1, { stop: 3 }),
+    type: "patch",
+    changes: { output: "later.cube", monochrome: false },
+  })
+  state = reduceEditor(state, {
+    type: "edit",
+    edit: (current) => updateBand(current, 1, { stop: 3 }),
   })
   state = reduceEditor(state, { type: "undo" })
   assert.deepEqual(state.setup.bands, setup.bands)
@@ -153,7 +190,14 @@ test("color presets recolor every band by exposure or ordered ramp", () => {
   assert.equal(gradient.at(-1), "#dc2626")
 
   const fullRamp = applyColorPreset(
-    { ...setup, bands: Array.from({ length: 15 }, (_, index) => ({ stop: index - 7, width: 0.3, color: "#ffffff" })) },
+    {
+      ...setup,
+      bands: Array.from({ length: 15 }, (_, index) => ({
+        stop: index - 7,
+        width: 0.3,
+        color: "#ffffff",
+      })),
+    },
     palette,
     "gradient",
   ).bands.map(({ color }) => color)
@@ -164,27 +208,48 @@ test("fill presets replace geometry and colors for stops and IRE", () => {
   const standard = applyFillPreset(setup, palette, "standard")
   assert.equal(standard.fill_mode, true)
   assert.equal(standard.monochrome, false)
-  assert.deepEqual(standard.bands.slice(0, -1).map(({ stop }) => stop), [-1.25, -0.5, 0.5, 1.25])
+  assert.deepEqual(
+    standard.bands.slice(0, -1).map(({ stop }) => stop),
+    [-1.25, -0.5, 0.5, 1.25],
+  )
   assert.equal(standard.bands.length, 5)
 
   const detailed = applyFillPreset({ ...setup, band_mode: "ire" }, palette, "detailed")
-  assert.deepEqual(detailed.bands.slice(0, -1).map(({ stop }) => stop), [10, 25, 35, 38, 46, 55, 65, 80])
+  assert.deepEqual(
+    detailed.bands.slice(0, -1).map(({ stop }) => stop),
+    [10, 25, 35, 38, 46, 55, 65, 80],
+  )
   assert.equal(detailed.bands.length, 9)
 })
 
 test("positioned gradient stops agree with applied colors and extend endpoint colors", () => {
-  const anchors = ["#2563eb", "#ff0000", "#22c55e"].map((color, index) => ({ ...hexToOklch(color), position: [0.1, 0.25, 0.9][index] }))
+  const anchors = ["#2563eb", "#ff0000", "#22c55e"].map((color, index) => ({
+    ...hexToOklch(color),
+    position: [0.1, 0.25, 0.9][index],
+  }))
   assert.equal(sampleOklabRamp(anchors, 0), "#2563eb")
   assert.equal(sampleOklabRamp(anchors, 0.25), "#ff0000")
   assert.equal(sampleOklabRamp(anchors, 1), "#22c55e")
-  const current = { ...setup, bands: [0, 1, 2, 4].map((stop) => ({ stop, width: 0.3, color: "#ffffff" })) }
+  const current = {
+    ...setup,
+    bands: [0, 1, 2, 4].map((stop) => ({ stop, width: 0.3, color: "#ffffff" })),
+  }
   const applied = applyColorPreset(current, [], "gradient", anchors, "custom", false)
-  assert.deepEqual(applied.bands.map(({ color }) => color), [0, 0.25, 0.5, 1].map((position) => sampleOklabRamp(anchors, position)))
-  assert.deepEqual(applied.bands.map(({ stop, width }) => ({ stop, width })), current.bands.map(({ stop, width }) => ({ stop, width })))
+  assert.deepEqual(
+    applied.bands.map(({ color }) => color),
+    [0, 0.25, 0.5, 1].map((position) => sampleOklabRamp(anchors, position)),
+  )
+  assert.deepEqual(
+    applied.bands.map(({ stop, width }) => ({ stop, width })),
+    current.bands.map(({ stop, width }) => ({ stop, width })),
+  )
 })
 
 test("Colorful keeps chroma through complementary colors while Direct can pass through gray", () => {
-  const anchors = [{ l: 0.7, c: 0.1, h: 20 }, { l: 0.7, c: 0.1, h: 200 }]
+  const anchors = [
+    { l: 0.7, c: 0.1, h: 20 },
+    { l: 0.7, c: 0.1, h: 200 },
+  ]
   const direct = hexToOklch(sampleOklabRamp(anchors, 0.5, "direct"))
   const colorful = hexToOklch(sampleOklabRamp(anchors, 0.5, "colorful"))
   assert.ok(direct.c < 0.002)
@@ -195,31 +260,74 @@ test("Colorful keeps chroma through complementary colors while Direct can pass t
 
 test("exposure palettes keep the reference green with asymmetric ranges, IRE, and Fill", () => {
   const anchors = ["#5b21b6", "#2563eb", "#38bdf8", "#22c55e", "#facc15", "#f97316", "#dc2626"].map(hexToOklch)
-  const apply = (current) => applyColorPreset(current, [], "gradient", anchors, "custom", false, "colorful", "shorter", "exposure")
-  const current = { ...setup, bands: [-5, -2, 0, 1, 2].map((stop) => ({ stop, width: 0.1, color: "#ffffff" })) }
+  const apply = (current) =>
+    applyColorPreset(current, [], "gradient", anchors, "custom", false, "colorful", "shorter", "exposure")
+  const current = {
+    ...setup,
+    bands: [-5, -2, 0, 1, 2].map((stop) => ({ stop, width: 0.1, color: "#ffffff" })),
+  }
   assert.equal(apply(current).bands[2].color, "#22c55e")
-  const extended = { ...current, bands: [{ stop: -20, width: 0.1, color: "#ffffff" }, ...current.bands, { stop: 10, width: 0.1, color: "#ffffff" }] }
-  assert.deepEqual(apply(extended).bands.slice(1, -1).map((band) => band.color), apply(current).bands.map((band) => band.color))
-  assert.deepEqual(apply(extended).bands.map(({ stop, width }) => ({ stop, width })), extended.bands.map(({ stop, width }) => ({ stop, width })))
+  const extended = {
+    ...current,
+    bands: [{ stop: -20, width: 0.1, color: "#ffffff" }, ...current.bands, { stop: 10, width: 0.1, color: "#ffffff" }],
+  }
+  assert.deepEqual(
+    apply(extended)
+      .bands.slice(1, -1)
+      .map((band) => band.color),
+    apply(current).bands.map((band) => band.color),
+  )
+  assert.deepEqual(
+    apply(extended).bands.map(({ stop, width }) => ({ stop, width })),
+    extended.bands.map(({ stop, width }) => ({ stop, width })),
+  )
   const coveringReference = { ...setup, bands: [{ stop: 0.1, width: 0.3, color: "#ffffff" }] }
   assert.equal(apply(coveringReference).bands[0].color, "#22c55e")
-  for (const target of ["Rec.709", "Rec.2020"]) for (const legal_range of [false, true]) {
-    const reference = exposureReferenceValue({ band_mode: "ire" })
-    assert.ok(Math.abs(reference - 40.900758) < 0.001)
-    const ire = { ...setup, target, legal_range, band_mode: "ire", bands: [10, reference, 80].map((stop) => ({ stop, width: 1, color: "#ffffff" })) }
-    assert.equal(apply(ire).bands[1].color, "#22c55e")
-    assert.equal(apply(ire).bands[2].color, "#dc2626")
-    const fill = { ...ire, fill_mode: true, bands: [10, 50, 60].map((stop) => ({ stop, width: 0, color: "#ffffff" })) }
-    assert.deepEqual(apply(fill).bands.map((band) => band.color), ["#5b21b6", "#22c55e", "#dc2626"])
-    fill.bands[2].stop = 95
-    assert.equal(apply(fill).bands[2].color, "#dc2626")
+  for (const target of ["Rec.709", "Rec.2020"])
+    for (const legal_range of [false, true]) {
+      const reference = exposureReferenceValue({ band_mode: "ire" })
+      assert.ok(Math.abs(reference - 40.900758) < 0.001)
+      const ire = {
+        ...setup,
+        target,
+        legal_range,
+        band_mode: "ire",
+        bands: [10, reference, 80].map((stop) => ({ stop, width: 1, color: "#ffffff" })),
+      }
+      assert.equal(apply(ire).bands[1].color, "#22c55e")
+      assert.equal(apply(ire).bands[2].color, "#dc2626")
+      const fill = {
+        ...ire,
+        fill_mode: true,
+        bands: [10, 50, 60].map((stop) => ({ stop, width: 0, color: "#ffffff" })),
+      }
+      assert.deepEqual(
+        apply(fill).bands.map((band) => band.color),
+        ["#5b21b6", "#22c55e", "#dc2626"],
+      )
+      fill.bands[2].stop = 95
+      assert.equal(apply(fill).bands[2].color, "#dc2626")
+    }
+  const fill = {
+    ...setup,
+    fill_mode: true,
+    bands: [-1, 0.5, 4].map((stop) => ({ stop, width: 0, color: "#ffffff" })),
   }
-  const fill = { ...setup, fill_mode: true, bands: [-1, 0.5, 4].map((stop) => ({ stop, width: 0, color: "#ffffff" })) }
-  assert.deepEqual(apply(fill).bands.map((band) => band.color), ["#5b21b6", "#22c55e", "#dc2626"])
+  assert.deepEqual(
+    apply(fill).bands.map((band) => band.color),
+    ["#5b21b6", "#22c55e", "#dc2626"],
+  )
 })
 
 test("camera-log IRE anchors follow each camera and undo preserves legacy interpretation", () => {
-  const expected = { "Sony S-Log3": 41.1, "Panasonic V-Log": 42.3, "Canon Log 3": 34.3, "ARRI LogC3": 39.1, "RED Log3G10": 33.3, "Blackmagic Film Gen 5": 38.4 }
+  const expected = {
+    "Sony S-Log3": 41.1,
+    "Panasonic V-Log": 42.3,
+    "Canon Log 3": 34.3,
+    "ARRI LogC3": 39.1,
+    "RED Log3G10": 33.3,
+    "Blackmagic Film Gen 5": 38.4,
+  }
   for (const [profile, reference] of Object.entries(expected)) {
     const camera = changeMode({ ...setup, profile }, "ire", palette)
     assert.equal(Number(exposureReferenceValue(camera).toFixed(1)), reference)
@@ -228,33 +336,56 @@ test("camera-log IRE anchors follow each camera and undo preserves legacy interp
   }
   const legacy = { ...setup, band_mode: "ire" }
   assert.equal(Number(exposureReferenceValue(legacy).toFixed(1)), 40.9)
-  const changed = reduceEditor(createEditorState(legacy), { type: "edit", edit: (current) => changeMode(current, "ire", palette) })
+  const changed = reduceEditor(createEditorState(legacy), {
+    type: "edit",
+    edit: (current) => changeMode(current, "ire", palette),
+  })
   const restored = reduceEditor(changed, { type: "undo" }).setup
   assert.equal(restored.ire_basis, undefined)
   assert.deepEqual(restored.bands, legacy.bands)
 })
 
 test("Colorful hue paths wrap around zero and neutral endpoints inherit the colored hue", () => {
-  const anchors = [{ l: 0.7, c: 0.1, h: 350 }, { l: 0.7, c: 0.1, h: 10 }]
+  const anchors = [
+    { l: 0.7, c: 0.1, h: 350 },
+    { l: 0.7, c: 0.1, h: 10 },
+  ]
   assert.equal(sampleOklabRamp(anchors, 0.5, "colorful", "shorter"), oklchToHex({ l: 0.7, c: 0.1, h: 0 }))
   assert.equal(sampleOklabRamp(anchors, 0.5, "colorful", "longer"), oklchToHex({ l: 0.7, c: 0.1, h: 180 }))
   assert.equal(sampleOklabRamp(anchors, 0.5, "direct", "shorter"), sampleOklabRamp(anchors, 0.5, "direct", "longer"))
-  const neutral = [{ l: 0.7, c: 0, h: 300 }, { l: 0.7, c: 0.1, h: 90 }]
-  for (const path of ["shorter", "longer"]) assert.equal(sampleOklabRamp(neutral, 0.5, "colorful", path), oklchToHex({ l: 0.7, c: 0.05, h: 90 }))
-  const current = { ...setup, bands: [0, 1, 2].map((stop) => ({ stop, width: 0.3, color: "#ffffff" })) }
-  for (const blend of ["direct", "colorful"]) for (const path of ["shorter", "longer"]) {
-    assert.equal(applyColorPreset(current, [], "gradient", anchors, "custom", false, blend, path).bands[1].color, sampleOklabRamp(anchors, 0.5, blend, path))
+  const neutral = [
+    { l: 0.7, c: 0, h: 300 },
+    { l: 0.7, c: 0.1, h: 90 },
+  ]
+  for (const path of ["shorter", "longer"])
+    assert.equal(sampleOklabRamp(neutral, 0.5, "colorful", path), oklchToHex({ l: 0.7, c: 0.05, h: 90 }))
+  const current = {
+    ...setup,
+    bands: [0, 1, 2].map((stop) => ({ stop, width: 0.3, color: "#ffffff" })),
   }
+  for (const blend of ["direct", "colorful"])
+    for (const path of ["shorter", "longer"]) {
+      assert.equal(
+        applyColorPreset(current, [], "gradient", anchors, "custom", false, blend, path).bands[1].color,
+        sampleOklabRamp(anchors, 0.5, blend, path),
+      )
+    }
 })
 
 test("band presets provide useful stops and IRE defaults", () => {
   const stops = applyBandPreset(setup, palette, "standard")
-  assert.deepEqual(stops.bands.map(({ stop }) => stop), [-3, -2, -1, 0, 1, 2, 3])
+  assert.deepEqual(
+    stops.bands.map(({ stop }) => stop),
+    [-3, -2, -1, 0, 1, 2, 3],
+  )
   assert.ok(stops.bands.every(({ width }) => width === 0.3))
 
   const ire = changeMode(setup, "ire", palette)
   assert.equal(ire.ire_basis, "camera")
-  assert.deepEqual(ire.bands.map(({ stop }) => stop), exposurePaletteScale(ire))
+  assert.deepEqual(
+    ire.bands.map(({ stop }) => stop),
+    exposurePaletteScale(ire),
+  )
   assert.ok(ire.bands.every(({ width }) => width === 3))
 })
 
@@ -282,7 +413,10 @@ test("editing a band orders it by position without mutating prior state", () => 
   const edited = updateBand(setup, 1, { stop: -2, color: "#123456" })
 
   assert.equal(setup.bands[0].stop, -1)
-  assert.deepEqual(edited.bands.map((band) => band.stop), [-2, -1])
+  assert.deepEqual(
+    edited.bands.map((band) => band.stop),
+    [-2, -1],
+  )
   assert.equal(edited.bands[0].color, "#123456")
   assert.equal(bandId(edited.bands[0]), selectedId)
 })
@@ -306,8 +440,14 @@ test("fill boundaries cannot cross or reorder their colors", () => {
   }
 
   const edited = updateFillBoundary(fill, 0, 4, 0.25)
-  assert.deepEqual(edited.bands.map((band) => band.color), ["#111111", "#222222", "#333333"])
-  assert.deepEqual(edited.bands.map((band) => band.stop), [-1.25, -1, 2])
+  assert.deepEqual(
+    edited.bands.map((band) => band.color),
+    ["#111111", "#222222", "#333333"],
+  )
+  assert.deepEqual(
+    edited.bands.map((band) => band.stop),
+    [-1.25, -1, 2],
+  )
   assert.equal(updateFillBoundary(fill, 2, 10, 0.25), fill)
 })
 
@@ -334,8 +474,14 @@ test("fill boundaries cannot cross or reorder their colors", () => {
   }
 
   const edited = updateFillBoundary(fill, 0, 4, 0.25)
-  assert.deepEqual(edited.bands.map((band) => band.color), ["#111111", "#222222", "#333333"])
-  assert.deepEqual(edited.bands.map((band) => band.stop), [-1.25, -1, 2])
+  assert.deepEqual(
+    edited.bands.map((band) => band.color),
+    ["#111111", "#222222", "#333333"],
+  )
+  assert.deepEqual(
+    edited.bands.map((band) => band.stop),
+    [-1.25, -1, 2],
+  )
   assert.equal(updateFillBoundary(fill, 2, 10, 0.25), fill)
 })
 
@@ -350,10 +496,10 @@ test("bands at equal positions retain their creation order", () => {
   const crossed = updateBand(created, 0, { stop: 2 })
   const tied = updateBand(crossed, 1, { stop: 1 })
 
-  assert.deepEqual(tied.bands.map((band) => band.color), [
-    "#ef4444",
-    "#22c55e",
-  ])
+  assert.deepEqual(
+    tied.bands.map((band) => band.color),
+    ["#ef4444", "#22c55e"],
+  )
 })
 
 test("new bands use open positions and unused palette colors", () => {
@@ -371,11 +517,16 @@ test("new bands use open positions and unused palette colors", () => {
     bands.push(band)
   }
 
-  assert.deepEqual(bands.map(({ stop }) => stop), [0, 1, -1, 2])
+  assert.deepEqual(
+    bands.map(({ stop }) => stop),
+    [0, 1, -1, 2],
+  )
   assert.equal(new Set(bands.map(({ color }) => color)).size, 4)
-  assert.ok(bands.every((band, index) => bands.slice(index + 1).every(
-    (other) => Math.abs(band.stop - other.stop) >= band.width + other.width,
-  )))
+  assert.ok(
+    bands.every((band, index) =>
+      bands.slice(index + 1).every((other) => Math.abs(band.stop - other.stop) >= band.width + other.width),
+    ),
+  )
 })
 
 test("new IRE bands stay bounded and refuse an impossible placement", () => {
@@ -438,7 +589,14 @@ test("loading a setup clears edit gestures and changes the palette workflow iden
 })
 
 test("monitoring presets define ready-to-use stop zones and preserve recording settings and undo", () => {
-  const original = { ...setup, band_mode: "ire", target: "Rec.2020", cube_size: 33, legal_range: true, low_signal_warning: true }
+  const original = {
+    ...setup,
+    band_mode: "ire",
+    target: "Rec.2020",
+    cube_size: 33,
+    legal_range: true,
+    low_signal_warning: true,
+  }
   const cases = [
     ["portrait-contrast", [-1.75, -1.25, -0.75, -0.25, 0.25, 0.75, 1.25, 1.75, 2.25], 0, true],
     ["wide-contrast", [-3.5, -2.5, -1.5, -0.5, 0.5, 1.5, 2.5, 3.5, 4.5], 0, true],
@@ -450,19 +608,42 @@ test("monitoring presets define ready-to-use stop zones and preserve recording s
     assert.equal(next.band_mode, "stops")
     assert.equal(next.fill_mode, fill)
     assert.equal(next.monochrome, !fill)
-    assert.deepEqual(next.bands.map(band => band.stop), stops)
-    assert.ok(next.bands.every(band => band.width === width && /^#[0-9a-f]{6}$/i.test(band.color)))
+    assert.deepEqual(
+      next.bands.map((band) => band.stop),
+      stops,
+    )
+    assert.ok(next.bands.every((band) => band.width === width && /^#[0-9a-f]{6}$/i.test(band.color)))
     if (fill) assert.equal(next.bands[4].color, "#a6a6a6")
-    for (const key of ["profile", "target", "cube_size", "legal_range", "output", "low_signal_warning", "high_signal_warning", "low_signal_hex", "high_signal_hex"]) assert.equal(next[key], original[key])
-    const edited = reduceEditor(createEditorState(original), { type: "edit", edit: current => applyExposurePreset(current, palette, preset) })
+    for (const key of [
+      "profile",
+      "target",
+      "cube_size",
+      "legal_range",
+      "output",
+      "low_signal_warning",
+      "high_signal_warning",
+      "low_signal_hex",
+      "high_signal_hex",
+    ])
+      assert.equal(next[key], original[key])
+    const edited = reduceEditor(createEditorState(original), {
+      type: "edit",
+      edit: (current) => applyExposurePreset(current, palette, preset),
+    })
     assert.deepEqual(reduceEditor(edited, { type: "undo" }).setup, original)
   }
 })
 
 test("Dark to Bright shares Contrast Checker colors and remains lightness-ordered between anchors", () => {
-  assert.deepEqual(applyExposurePreset(setup, palette, "contrast-checker").bands.map(band => band.color), darkToBrightColors)
+  assert.deepEqual(
+    applyExposurePreset(setup, palette, "contrast-checker").bands.map((band) => band.color),
+    darkToBrightColors,
+  )
   const anchors = darkToBrightColors.map(hexToOklch)
-  const lightness = Array.from({ length: 65 }, (_, index) => hexToOklch(sampleOklabRamp(anchors, index / 64, "direct")).l)
+  const lightness = Array.from(
+    { length: 65 },
+    (_, index) => hexToOklch(sampleOklabRamp(anchors, index / 64, "direct")).l,
+  )
   assert.ok(lightness.every((value, index) => index === 0 || value > lightness[index - 1]))
 })
 
@@ -471,44 +652,105 @@ test("reference emphasis is a complete fill preset with green centered on zero s
   assert.equal(next.fill_mode, true)
   assert.equal(next.monochrome, false)
   assert.equal(next.band_mode, "stops")
-  assert.deepEqual(next.bands.map(band => band.stop), [-2.5, -1.5, -0.5, 0.5, 1.5, 2.5, 3.5])
-  assert.deepEqual(next.bands.map(band => band.color), ["#334e68", "#3b6c8e", "#4c8b93", "#22c55e", "#a3a044", "#a66b35", "#a33a3a"])
-  assert.ok(next.bands.every(band => band.width === 0))
-  for (const key of ["profile", "target", "cube_size", "legal_range", "output", "low_signal_warning", "high_signal_warning"]) assert.equal(next[key], setup[key])
-  const state = reduceEditor(createEditorState(setup), { type: "edit", edit: current => applyExposurePreset(current, palette, "reference-emphasis") })
+  assert.deepEqual(
+    next.bands.map((band) => band.stop),
+    [-2.5, -1.5, -0.5, 0.5, 1.5, 2.5, 3.5],
+  )
+  assert.deepEqual(
+    next.bands.map((band) => band.color),
+    ["#334e68", "#3b6c8e", "#4c8b93", "#22c55e", "#a3a044", "#a66b35", "#a33a3a"],
+  )
+  assert.ok(next.bands.every((band) => band.width === 0))
+  for (const key of [
+    "profile",
+    "target",
+    "cube_size",
+    "legal_range",
+    "output",
+    "low_signal_warning",
+    "high_signal_warning",
+  ])
+    assert.equal(next[key], setup[key])
+  const state = reduceEditor(createEditorState(setup), {
+    type: "edit",
+    edit: (current) => applyExposurePreset(current, palette, "reference-emphasis"),
+  })
   assert.deepEqual(reduceEditor(state, { type: "undo" }).setup, setup)
 })
 
 test("complete exposure presets replace geometry and colors while preserving recording and output settings", () => {
   for (const profile of ["Sony S-Log3", "Panasonic V-Log", "ARRI LogC3"]) {
-    const original = { ...setup, profile, target: "Rec.2020", cube_size: 33, legal_range: true, low_signal_warning: true, ire_basis: "target" }
+    const original = {
+      ...setup,
+      profile,
+      target: "Rec.2020",
+      cube_size: 33,
+      legal_range: true,
+      low_signal_warning: true,
+      ire_basis: "target",
+    }
     for (const preset of ["three-band", "contrast-checker", "camera-ire"]) {
       const next = applyExposurePreset(original, palette, preset)
       for (const arrangement of ["standard", "detailed"]) {
         const arranged = applyExposurePreset(original, palette, preset, arrangement)
-        assert.equal(arranged.bands.length, arrangement === "standard" ? preset === "contrast-checker" ? 5 : 7 : preset === "three-band" ? 10 : 9)
+        assert.equal(
+          arranged.bands.length,
+          arrangement === "standard" ? (preset === "contrast-checker" ? 5 : 7) : preset === "three-band" ? 10 : 9,
+        )
         assert.equal(arranged.profile, original.profile)
         assert.equal(arranged.output, original.output)
         assert.equal(arranged.fill_mode, preset === "contrast-checker")
-        assert.ok(arranged.bands.every(band => /^#[0-9a-f]{6}$/i.test(band.color)))
+        assert.ok(arranged.bands.every((band) => /^#[0-9a-f]{6}$/i.test(band.color)))
       }
-      for (const key of ["profile", "target", "cube_size", "legal_range", "output", "low_signal_warning", "high_signal_warning", "low_signal_hex", "high_signal_hex"]) assert.equal(next[key], original[key], `${preset}: ${key}`)
-      const state = reduceEditor(createEditorState(original), { type: "edit", edit: current => applyExposurePreset(current, palette, preset) })
+      for (const key of [
+        "profile",
+        "target",
+        "cube_size",
+        "legal_range",
+        "output",
+        "low_signal_warning",
+        "high_signal_warning",
+        "low_signal_hex",
+        "high_signal_hex",
+      ])
+        assert.equal(next[key], original[key], `${preset}: ${key}`)
+      const state = reduceEditor(createEditorState(original), {
+        type: "edit",
+        edit: (current) => applyExposurePreset(current, palette, preset),
+      })
       assert.deepEqual(reduceEditor(state, { type: "undo" }).setup, original)
       if (preset === "contrast-checker") {
         assert.equal(next.fill_mode, true)
         assert.equal(next.band_mode, "stops")
-        assert.deepEqual(next.bands.map(band => band.stop), [-1.5, -0.5, 0.5, 1.5, 2.5])
-        const lightness = next.bands.map(band => hexToOklch(band.color).l)
-        lightness.forEach((value, index) => assert.ok(Math.abs(value - (0.3 + index * 0.16)) < 0.003, `Contrast Checker zone ${index + 1} lightness: ${value}`))
+        assert.deepEqual(
+          next.bands.map((band) => band.stop),
+          [-1.5, -0.5, 0.5, 1.5, 2.5],
+        )
+        const lightness = next.bands.map((band) => hexToOklch(band.color).l)
+        lightness.forEach((value, index) =>
+          assert.ok(
+            Math.abs(value - (0.3 + index * 0.16)) < 0.003,
+            `Contrast Checker zone ${index + 1} lightness: ${value}`,
+          ),
+        )
       } else if (preset === "three-band") {
         assert.equal(next.fill_mode, false)
         assert.equal(next.monochrome, true)
-        assert.deepEqual(next.bands.map(band => [band.stop, band.width]), [[-2, 0.3], [0, 0.3], [2, 0.3]])
+        assert.deepEqual(
+          next.bands.map((band) => [band.stop, band.width]),
+          [
+            [-2, 0.3],
+            [0, 0.3],
+            [2, 0.3],
+          ],
+        )
       } else {
         assert.equal(next.band_mode, "ire")
         assert.equal(next.ire_basis, "camera")
-        assert.deepEqual(next.bands.map(band => band.stop), exposurePaletteScale(next))
+        assert.deepEqual(
+          next.bands.map((band) => band.stop),
+          exposurePaletteScale(next),
+        )
       }
     }
   }

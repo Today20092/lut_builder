@@ -4,22 +4,35 @@ import { Effect } from "effect"
 import { createWorkspaceRuntime } from "../src/workspaceRuntime.ts"
 
 const setup = {
-  profile: "Sony S-Log3", target: "Rec.709", cube_size: 17, bands: [], band_mode: "stops",
-  fill_mode: false, low_signal_warning: false, low_signal_hex: "#5b21b6",
-  high_signal_warning: false, high_signal_hex: "#dc2626", monochrome: true,
-  legal_range: false, output: "test.cube",
+  profile: "Sony S-Log3",
+  target: "Rec.709",
+  cube_size: 17,
+  bands: [],
+  band_mode: "stops",
+  fill_mode: false,
+  low_signal_warning: false,
+  low_signal_hex: "#5b21b6",
+  high_signal_warning: false,
+  high_signal_hex: "#dc2626",
+  monochrome: true,
+  legal_range: false,
+  output: "test.cube",
 }
 
 test("browser runtime normalizes setups without contacting a backend", async () => {
   const original = globalThis.fetch
-  globalThis.fetch = () => { throw new Error("Unexpected backend request") }
+  globalThis.fetch = () => {
+    throw new Error("Unexpected backend request")
+  }
   try {
     const runtime = createWorkspaceRuntime()
     assert.equal(runtime.capabilities.remotePreview, false)
     assert.deepEqual(await Effect.runPromise(runtime.normalize(setup)), setup)
     assert.equal(await Effect.runPromise(runtime.preview(setup)), null)
     await assert.rejects(Effect.runPromise(runtime.normalize({ ...setup, cube_size: 32 })), /17|33|65/)
-  } finally { globalThis.fetch = original }
+  } finally {
+    globalThis.fetch = original
+  }
 })
 
 test("local runtime normalizes and generates through authenticated HTTP without workers", async () => {
@@ -29,8 +42,21 @@ test("local runtime normalizes and generates through authenticated HTTP without 
   globalThis.fetch = async (path, options) => {
     calls.push({ path, options })
     return path === "/preview"
-      ? Response.json({ minimum: -7, maximum: 7, unit: "stops", colors: [], overlays: [], input_overlays: [], input_exposure: [], legend: [], warnings: ["Source warning"], setup: normalized })
-      : new Response("TITLE verified\n", { headers: { "Content-Disposition": 'attachment; filename="server.cube"' } })
+      ? Response.json({
+          minimum: -7,
+          maximum: 7,
+          unit: "stops",
+          colors: [],
+          overlays: [],
+          input_overlays: [],
+          input_exposure: [],
+          legend: [],
+          warnings: ["Source warning"],
+          setup: normalized,
+        })
+      : new Response("TITLE verified\n", {
+          headers: { "Content-Disposition": 'attachment; filename="server.cube"' },
+        })
   }
   try {
     const runtime = createWorkspaceRuntime("secret-token")
@@ -38,10 +64,15 @@ test("local runtime normalizes and generates through authenticated HTTP without 
     assert.equal(runtime.capabilities.cancellableGeneration, false)
     assert.deepEqual(await Effect.runPromise(runtime.normalize(setup)), normalized)
     assert.deepEqual((await Effect.runPromise(runtime.preview(setup))).warnings, ["Source warning"])
-    const artifact = await Effect.runPromise(runtime.generate(setup, "requested.cube", () => assert.fail("HTTP has no progress protocol")))
+    const artifact = await Effect.runPromise(
+      runtime.generate(setup, "requested.cube", () => assert.fail("HTTP has no progress protocol")),
+    )
     assert.equal(await artifact.blob.text(), "TITLE verified\n")
     assert.equal(artifact.filename, "server.cube")
-    assert.deepEqual(calls.map(({ path }) => path), ["/preview", "/preview", "/generate"])
+    assert.deepEqual(
+      calls.map(({ path }) => path),
+      ["/preview", "/preview", "/generate"],
+    )
     for (const { options } of calls) {
       assert.equal(options.headers["X-LUT-Builder-Token"], "secret-token")
       assert.equal(options.headers["Content-Type"], "application/json")
@@ -49,7 +80,9 @@ test("local runtime normalizes and generates through authenticated HTTP without 
       assert.equal(JSON.parse(options.body).version, 1)
     }
     assert.equal(JSON.parse(calls[2].options.body).output, "requested.cube")
-  } finally { globalThis.fetch = original }
+  } finally {
+    globalThis.fetch = original
+  }
 })
 
 test("runtime preserves actionable remote failures and rejects malformed preview JSON", async () => {
@@ -61,7 +94,9 @@ test("runtime preserves actionable remote failures and rejects malformed preview
     await assert.rejects(Effect.runPromise(runtime.generate(setup, "x.cube", () => {})), /Unsupported camera input/)
     globalThis.fetch = async () => Response.json({ setup })
     await assert.rejects(Effect.runPromise(runtime.preview(setup)), /minimum/)
-  } finally { globalThis.fetch = original }
+  } finally {
+    globalThis.fetch = original
+  }
 })
 
 test("runtime cancellation reaches HTTP requests and terminates browser workers", async () => {
@@ -85,11 +120,18 @@ test("runtime cancellation reaches HTTP requests and terminates browser workers"
       assert.equal(httpSignal.aborted, true)
     }
     globalThis.Worker = class {
-      postMessage(message) { messages.push(message.type) }
-      terminate() { terminated = true }
+      postMessage(message) {
+        messages.push(message.type)
+      }
+      terminate() {
+        terminated = true
+      }
     }
     const browserController = new AbortController()
-    const browser = Effect.runPromiseExit(createWorkspaceRuntime().generate(setup, "x.cube", () => {}), { signal: browserController.signal })
+    const browser = Effect.runPromiseExit(
+      createWorkspaceRuntime().generate(setup, "x.cube", () => {}),
+      { signal: browserController.signal },
+    )
     await new Promise((resolve) => setImmediate(resolve))
     browserController.abort()
     await browser
@@ -112,9 +154,15 @@ test("browser runtime preserves worker bytes, progress and requested filename", 
   }
   try {
     const progress = []
-    const result = await Effect.runPromise(createWorkspaceRuntime().generate(setup, "browser.cube", (value) => progress.push(value)))
+    const result = await Effect.runPromise(
+      createWorkspaceRuntime().generate(setup, "browser.cube", (value) => progress.push(value)),
+    )
     assert.equal(await result.blob.text(), "AB\n")
+    // text/plain makes mobile browsers save "browser.cube.txt".
+    assert.equal(result.blob.type, "application/octet-stream")
     assert.equal(result.filename, "browser.cube")
     assert.deepEqual(progress, [0.75])
-  } finally { globalThis.Worker = original }
+  } finally {
+    globalThis.Worker = original
+  }
 })

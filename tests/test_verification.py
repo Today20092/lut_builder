@@ -1,15 +1,14 @@
 """Reference checks at the decoded-RGB API shared with frame extraction."""
 
+from dataclasses import replace
+from itertools import permutations
+
 import numpy as np
 import pytest
-from itertools import permutations
-from dataclasses import replace
 
 from lut_builder.data import PROFILE_CATALOG
-
 from lut_builder.setup import LutSetup
 from lut_builder.verification import sdr_view, verify_rgb
-
 
 INTERPRETATION = {
     "transfer": "S-Log3",
@@ -97,10 +96,10 @@ def test_serialized_cube_agrees_with_independent_barycentric_reference(size, mod
         [1, 1, 1],
         [-0.02, 0.5, 1.02],
     ]
-    # Threshold neighborhoods, including the export's half-grid warning expansion.
+    # Threshold neighborhoods, including the export's one-grid-step warning expansion.
     for threshold in [
-        0.0929 + 0.5 / (size - 1),
-        0.94 - 0.5 / (size - 1),
+        0.0929 + 1 / (size - 1),
+        0.867 - 1 / (size - 1),
         0.410557184750733,
     ]:
         points.extend([[threshold + delta] * 3 for delta in [-1e-7, 0, 1e-7]])

@@ -11,7 +11,7 @@ def test_catalog_returns_source_and_target_facts():
     assert source.gamut == "S-Gamut3.Cine"
     assert source.log == "S-Log3"
     assert source.encoded_signal_floor == pytest.approx(0.0929)
-    assert source.encoded_signal_ceiling == pytest.approx(0.94)
+    assert source.encoded_signal_ceiling == pytest.approx(0.867)
     assert target.name == "Rec.709"
     assert target.gamut == "ITU-R BT.709"
     assert target.transfer == "ITU-R BT.709"

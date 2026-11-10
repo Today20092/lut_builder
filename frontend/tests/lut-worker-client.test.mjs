@@ -29,7 +29,9 @@ test("Effect worker client reports progress, returns bytes, and terminates", asy
       this.onmessage({ data: { type: "progress", id: message.id, progress: 0.5 } })
       this.onmessage({ data: { type: "complete", id: message.id, bytes } })
     }
-    terminate() { terminated = true }
+    terminate() {
+      terminated = true
+    }
   }
   try {
     const progress = []
@@ -50,17 +52,27 @@ test("interrupting Effect generation sends cancel and terminates its worker", as
   globalThis.Worker = class {
     onmessage = null
     onerror = null
-    postMessage(message) { messages.push(message) }
-    terminate() { terminated = true }
+    postMessage(message) {
+      messages.push(message)
+    }
+    terminate() {
+      terminated = true
+    }
   }
   const controller = new AbortController()
   try {
-    const running = Effect.runPromiseExit(generateInWorker(setup, () => {}), { signal: controller.signal })
+    const running = Effect.runPromiseExit(
+      generateInWorker(setup, () => {}),
+      { signal: controller.signal },
+    )
     await new Promise((resolve) => setImmediate(resolve))
     controller.abort()
     const exit = await running
     assert.ok(Exit.isFailure(exit))
-    assert.deepEqual(messages.map(({ type }) => type), ["generate", "cancel"])
+    assert.deepEqual(
+      messages.map(({ type }) => type),
+      ["generate", "cancel"],
+    )
     assert.equal(terminated, true)
   } finally {
     globalThis.Worker = originalWorker

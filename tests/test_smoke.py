@@ -9,7 +9,6 @@ from lut_builder.data import MIDDLE_GREY, PROFILE_CATALOG, ProfileCatalog, oklch
 from lut_builder.engine import generate_lut
 from lut_builder.setup import LutSetup
 
-
 MIDDLE_GREY_CODES = {
     "Sony S-Log3": 0.41055718475073316,
     "Panasonic V-Log": 0.42331144876013616,
@@ -86,7 +85,7 @@ def test_engine_runs():
 
 
 def test_config_round_trip():
-    from lut_builder.cli import save_config, load_config
+    from lut_builder.cli import load_config, save_config
 
     setup = LutSetup(
         profile_name="Sony S-Log3",

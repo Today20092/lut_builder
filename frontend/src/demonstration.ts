@@ -15,9 +15,7 @@ export function displayPreviewOverlayAt(
   maximum: number,
   unit: string,
 ) {
-  const exposure = unit === "IRE"
-    ? luminance * 100
-    : Math.log2(Math.max(luminance, 1e-6) / 0.18)
+  const exposure = unit === "IRE" ? luminance * 100 : Math.log2(Math.max(luminance, 1e-6) / 0.18)
   return previewOverlayAt(colors, (exposure - minimum) / (maximum - minimum))
 }
 
