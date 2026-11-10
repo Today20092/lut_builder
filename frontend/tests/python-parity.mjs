@@ -7,7 +7,9 @@ import test from "node:test"
 import { generateCube } from "../src/lutEngine.ts"
 
 const repoRoot = fileURLToPath(new URL("../../", import.meta.url))
-const fixture = JSON.parse(await readFile(new URL("./fixtures/lut-engine-python-reference.json", import.meta.url), "utf8"))
+const fixture = JSON.parse(
+  await readFile(new URL("./fixtures/lut-engine-python-reference.json", import.meta.url), "utf8"),
+)
 const setups = Object.keys(fixture.cases).map((profileTarget) => {
   const [profile, target] = profileTarget.split("|")
   return {
@@ -26,6 +28,10 @@ const setups = Object.keys(fixture.cases).map((profileTarget) => {
     output: "parity.cube",
   }
 })
+// Warnings on for every camera, so each profile's floor/ceiling must match data.py.
+for (const setup of setups.slice()) {
+  setups.push({ ...setup, low_signal_warning: true, low_signal_hex: "#0000ff", high_signal_warning: true, high_signal_hex: "#ff0000" })
+}
 for (const reference of Object.values(fixture.behavior)) {
   setups.push({ ...setups[0], ...reference.setup })
 }
@@ -34,15 +40,19 @@ function cubeRows(cube) {
   const lines = cube.trimEnd().split("\n")
   const sizeLine = lines.findIndex((line) => line.startsWith("LUT_3D_SIZE "))
   assert.notEqual(sizeLine, -1)
-  return lines.slice(sizeLine + 1).filter((line) => /^[-+\d.]/.test(line)).map((line) => line.trim().split(/\s+/).map(Number))
+  return lines
+    .slice(sizeLine + 1)
+    .filter((line) => /^[-+\d.]/.test(line))
+    .map((line) => line.trim().split(/\s+/).map(Number))
 }
 
 test("every browser LUT node matches Python across cameras, targets, and diagnostic modes", async () => {
-  const python = spawnSync(
-    "uv",
-    ["run", "--locked", "python", "frontend/tests/python-lut-reference.py"],
-    { cwd: repoRoot, input: JSON.stringify(setups), encoding: "utf8", maxBuffer: 16 * 1024 * 1024 },
-  )
+  const python = spawnSync("uv", ["run", "--locked", "python", "frontend/tests/python-lut-reference.py"], {
+    cwd: repoRoot,
+    input: JSON.stringify(setups),
+    encoding: "utf8",
+    maxBuffer: 16 * 1024 * 1024,
+  })
   assert.equal(python.status, 0, `Python LUT reference generation failed:\n${python.stderr}`)
   const references = JSON.parse(python.stdout)
 

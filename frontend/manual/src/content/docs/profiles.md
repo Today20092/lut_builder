@@ -5,20 +5,22 @@ description: Exact configured limits, input assumptions, evidence gaps, and work
 
 > **Match the whole profile.** Camera brand alone is insufficient: log curve, gamut, and the documented input-range convention must agree with the source. Threshold evidence is specific to each profile.
 
-These are the current **application constants**, not a table of measured sensor clipping points. Match the log curve and gamut together. The values are maintained in the [browser catalog](https://github.com/Today20092/lut_builder/blob/main/frontend/src/lutEngine.ts) and [Python catalog](https://github.com/Today20092/lut_builder/blob/main/src/lut_builder/data.py).
+Each floor is the curve's encoded zero-light level. Each ceiling is where that camera family's recorded signal stops, from the manufacturer where one is published and otherwise from a labelled measurement. None is a per-body sensor calibration. Match the log curve and gamut together. The values are maintained in the [browser catalog](https://github.com/Today20092/lut_builder/blob/main/frontend/src/lutEngine.ts) and [Python catalog](https://github.com/Today20092/lut_builder/blob/main/src/lut_builder/data.py).
 
 | Profile | Required gamut | Low F | High C |
 | --- | --- | ---: | ---: |
-| Sony S-Log3 | S-Gamut3.Cine | 0.0929 | 0.94 |
-| Panasonic V-Log | V-Gamut | 0.1251 | 0.8906 |
-| Canon Log 3 | Cinema Gamut | 0.04 | 0.90 |
-| ARRI LogC3 | ARRI Wide Gamut 3 | 0.03 | 0.91 |
-| RED Log3G10 | REDWideGamutRGB | 0 | 1 |
-| Blackmagic Film Gen 5 | Blackmagic Wide Gamut | 0.09246575342465753 | 1 |
+| Sony S-Log3 | S-Gamut3.Cine | 0.0929 | 0.867 |
+| Panasonic V-Log | V-Gamut | 0.1251 | 0.8905 |
+| Canon Log 3 | Cinema Gamut | 0.1251 | 0.79 (unverified) |
+| ARRI LogC3 | ARRI Wide Gamut 3 | 0.0928 | 0.9296 |
+| RED Log3G10 | REDWideGamutRGB | 0.0916 | 0.7986 (unverified) |
+| Blackmagic Film Gen 5 | Blackmagic Wide Gamut | 0.09246575342465753 | 0.8561 (unverified) |
+
+**Unverified** ceilings have no manufacturer-published clip code. They use the lowest credible measurement, so the warning may appear somewhat before your camera actually clips. Check against your own waveform.
 
 ## Reading the examples
 
-All examples below use a **65³ cube**, both warnings enabled, and normalized camera RGB at exact lattice nodes. Each comparison includes `t = 0.0078125`. They illustrate the exported warning rule, not sensor performance or an arbitrary interpolated pixel. Warning colors override exposure bands; high wins when both trigger.
+All examples below use a **65³ cube**, both warnings enabled, and normalized camera RGB at exact lattice nodes. Each comparison includes `t = 0.015625`, one grid step. They illustrate the exported warning rule, not sensor performance or an arbitrary interpolated pixel. Warning colors override exposure bands; high wins when both trigger.
 
 The camera documents linked below support curve/gamut interpretation. A source link in the catalog does not by itself prove every warning constant. Where the repository has no reproducible derivation, that gap is stated rather than assigning a false precision or a camera-wide guarantee.
 
@@ -26,62 +28,62 @@ The camera documents linked below support curve/gamut interpretation. A source l
 
 **Input:** S-Log3 with S-Gamut3.Cine. The cited Sony specification defines normalized S-Log3 as 10-bit code divided by 1023. Do not substitute S-Gamut3 or an already display-converted signal.
 
-**Evidence:** Sony's [S-Log3/S-Gamut3 technical summary, appendix](https://pro.sony/s3/cms-static-content/uploadfile/06/1237494271406.pdf) gives the zero-light code as 95. `95 / 1023 = 0.092864125…`, consistent with the catalog's rounded **0.0929** floor. The repository does not record a reproducible derivation for the **0.94** ceiling; treat it as the configured high warning, not a universal Sony saturation value.
+**Evidence:** Sony's [S-Log3/S-Gamut3 technical summary, appendix](https://pro.sony/s3/cms-static-content/uploadfile/06/1237494271406.pdf) gives the zero-light code as 95. `95 / 1023 = 0.092864125…`, consistent with the catalog's rounded **0.0929** floor. Sony [support documentation](https://www.sony-asia.com/electronics/support/articles/00145909) states that S-Log3's maximum is 94% in video output. On the 10-bit legal scale that is `64 + 0.94 × 876 ≈ 887`, and `887 / 1023 ≈ 0.867` in the full-range code values Sony records, so the **0.867** ceiling marks where Sony cameras stop. Earlier releases used 0.94 (code 962, about 102% video), which S-Log3 cameras do not reach, so clipped highlights were not flagged. The value is still not a per-camera sensor measurement.
 
-**Worked example:** the low comparison is `min(R,G,B) <= 0.1007125`; the high comparison is `max(R,G,B) >= 0.9321875`. `(0.09375, 0.5, 0.5)` triggers low. `(0.9375, 0.5, 0.5)` triggers high. Sony's 18% reference is code 420, or about 0.41056; that encoded value is not 41% scene-linear light.
+**Worked example:** low is `min(R,G,B) <= 0.108525`; high is `max(R,G,B) >= 0.851375`. `(0.09375, 0.5, 0.5)` triggers low. `(0.859375, 0.5, 0.5)` triggers high; `(0.84375, 0.5, 0.5)` does not. Sony's 18% reference is code 420, or about 0.41056; that encoded value is not 41% scene-linear light.
 
-**Limit:** camera model, recording path, and channel processing remain relevant. The high constant has no per-model calibration.
+**Limit:** the 94% maximum is Sony's family-wide statement. Lower ISOs or bodies with less highlight range can stop slightly earlier; a7S III footage measures about 0.871, just above the ceiling.
 
 ## Panasonic V-Log
 
-**Input:** V-Log with V-Gamut in the normalized code domain used by the decoder. The vendor's 10-bit code table can be read on a 0–1023 scale; any upstream YCbCr decoding and range handling must preserve the intended camera RGB values.
+**Input:** V-Log with V-Gamut, full-range code divided by 1023.
 
-**Evidence:** Panasonic's [V-Log/V-Gamut reference manual](https://pro-av.panasonic.net/en/cinema_camera_varicam_eva/support/pdf/VARICAM_V-Log_V-Gamut.pdf) lists black at code 128 and 18% gray at 433. `128 / 1023 = 0.125122…` is consistent with the rounded **0.1251** floor. The catalog uses **0.8906** as its ceiling, but does not record a reproducible derivation tying that value to all V-Log cameras. Do not treat it as a V-Log L or camera-body clipping guarantee.
+**Evidence:** Panasonic's [V-Log/V-Gamut reference manual](https://pro-av.panasonic.net/en/cinema_camera_varicam_eva/support/pdf/VARICAM_V-Log_V-Gamut.pdf) lists black at code 128 (`128 / 1023 = 0.12512`, the **0.1251** floor) and VariCam 35 clipping at code 911. `911 / 1023 = 0.89052`, so the ceiling is **0.8905**. It was previously 0.8906, a rounding just above code 911. S5II/S5IIX measurements also report code 911 ([Gamut](https://gamut.io/product/baseluts-for-panasonic-s5ii-s5iix-and-s9/)).
 
-**Worked example:** low is `min <= 0.1329125`; high is `max >= 0.8827875`. `(0.125, 0.5, 0.5)` triggers low; `(0.890625, 0.5, 0.5)` triggers high. The vendor gray code gives `433 / 1023 ≈ 0.423265`; the decoder maps gray to scene exposure near the reference, not to that many stops.
+**Worked example:** low is `min <= 0.140725`; high is `max >= 0.874875`. `(0.140625, 0.5, 0.5)` triggers low; `(0.875, 0.5, 0.5)` triggers high; `(0.859375, 0.5, 0.5)` does not.
 
-**Limit:** V-Log-family cameras and modes need their own headroom checks. A proxy tagged BT.709 is not evidence that its samples still contain V-Log.
+**Limit:** GH-series V-Log clips lower (reported codes 762–837 depending on Dynamic Range Boost), so this ceiling will not flag GH6/GH7 clipping.
 
 ## Canon Log 3
 
-**Input:** Canon Log 3 with Cinema Gamut, in the decoder's normalized camera-code domain. Do not substitute Canon Log, Canon Log 2, or a display-rendered export. Confirm the file/host range interpretation; this manual does not certify all Canon recording paths.
+**Input:** Canon Log 3 with Cinema Gamut. Canon's v1.2 constants are legal-range values applied to code divided by 1023.
 
-**Evidence:** the catalog cites Canon's [C300 Mark II image-performance white paper](https://downloads.canon.com/nw/camera/products/cinema-eos/c300-mark-ii/white-papers/canon-c300-mk-ii-image-performance-wp.pdf). Its **0.04** floor and **0.90** ceiling are existing application constants. The repository contains no reproducible, page-specific derivation of that pair, and the cited URL could not be retrieved during this manual's source check. Neither constant is presented here as a verified zero-light code or a model-independent clipping value.
+**Evidence:** Canon Log 3's zero-light output is code 128 (`0.12512`), the **0.1251** floor. Earlier releases used 0.04, which is below black and could not trigger. Canon publishes no clip code. Its [C300 Mark II white paper](https://downloads.canon.com/nw/camera/products/cinema-eos/c300-mark-ii/white-papers/canon-c300-mk-ii-image-performance-wp.pdf) places sensor saturation near +6.3 stops, about code 1017. C70 and C300 Mark III users [report clipping at 85–90 IRE](https://www.dvxuser.com/threads/c70-when-is-this-bad-boy-going-to-start-shipping.374091/page-3). The ceiling uses 85 IRE (code 809, **0.79**). The previous 0.90 was about 98 IRE, which those cameras do not reach.
 
-**Worked example:** low is `min <= 0.0478125`; high is `max >= 0.8921875`. `(0.046875, 0.5, 0.5)` triggers low; `(0.90625, 0.5, 0.5)` triggers high.
+**Worked example:** low is `min <= 0.140725`; high is `max >= 0.774375`. `(0.140625, 0.5, 0.5)` triggers low; `(0.78125, 0.5, 0.5)` triggers high; `(0.765625, 0.5, 0.5)` does not.
 
-**Limit:** use the configured warnings as provisional diagnostic markers and validate them on the selected camera mode. This documentation does not alter their values.
+**Limit:** unverified. A C300 Mark II will warn about two stops early. Measure your body's clip on a waveform before relying on it.
 
 ## ARRI LogC3
 
-**Input:** ARRI LogC3 with ARRI Wide Gamut 3. LogC4/AWG4 is a different encoding. The application does not expose an EI selector; it uses the maintained decoder's defaults. Do not assume that a fixed warning pair describes all exposure indices.
+**Input:** ARRI LogC3 with ARRI Wide Gamut 3, full-range code divided by 1023, decoded at EI 800.
 
-**Evidence:** the catalog cites ARRI's [Log C image-encoding document](https://www.arri.com/resource/blob/31918/66f56e6abb6e5b6553929edf9aa7483e/2012-01-arrilog-c-logarithmic-cine-camera-image-encoding-data.pdf). The configured **0.03** floor and **0.91** ceiling have no reproducible EI-specific derivation recorded in this repository. The original URL was unavailable during the source check. These are normalized input-domain constants, not a claim about legal-range transport codes or universal LogC3 black/saturation levels.
+**Evidence:** ARRI's [Log C usage document](https://www.arri.com/resource/blob/31918/66f56e6abb6e5b6553929edf9aa7483e/2017-03-alexa-logc-curve-in-vfx-data.pdf) defines black as sensor code 256/65535 and the maximum as full sensor signal. Through the EI 800 parameters those encode to code 95 (**0.0928** floor) and code 976. ARRI's [false-color specification](https://www.arri.com/resource/blob/390448/2d469ae1e98110562fe347cea50a284b/arri-logc-false-color-specification-data.pdf) starts red at code 951, one-third stop below clipping. That is the **0.9296** ceiling. The previous 0.03 floor was below black and could not trigger.
 
-**Worked example:** low is `min <= 0.0378125`; high is `max >= 0.9021875`. `(0.03125, 0.5, 0.5)` triggers low; `(0.90625, 0.5, 0.5)` triggers high.
+**Worked example:** low is `min <= 0.108425`; high is `max >= 0.913975`. `(0.09375, 0.5, 0.5)` triggers low; `(0.921875, 0.5, 0.5)` triggers high; `(0.90625, 0.5, 0.5)` does not.
 
-**Limit:** check the original recording's LogC generation, gamut, EI, and range handling before relying on the result.
+**Limit:** EI-specific. At EI 400 the sensor clips at code 917, below this ceiling, and at EI 1600 it reaches code 1023.
 
 ## RED Log3G10
 
-**Input:** Log3G10 with REDWideGamutRGB. Supply decoded camera RGB in the curve's normalized domain; the builder does not read R3D RAW or infer decode settings.
+**Input:** Log3G10 with REDWideGamutRGB, full-range code divided by 1023. The builder does not read R3D RAW.
 
-**Evidence:** **0** and **1** are the chosen boundaries of the normalized cube input domain. They are not a derivation of the camera sensor's black or saturation points, nor a claim that encoded linear zero equals zero. The catalog points to RED's [IPP2 technical paper](https://www.red.com/download/ipp2-technical-paper); that URL was unavailable during the source check. The normalized-domain policy is independently visible in the exported cube's `DOMAIN_MIN` and `DOMAIN_MAX`.
+**Evidence:** RED's [Log3G10 white paper](https://docs.red.com/955-0187/PDF/915-0187%20Rev-C%20%20%20RED%20OPS,%20White%20Paper%20on%20REDWideGamutRGB%20and%20Log3G10.pdf) encodes linear zero at 0.091551 (**0.0916** floor) and reaches 1.0 only at +10 stops. The previous 0 and 1 thresholds could therefore never trigger. RED publishes no clip code. KOMODO at ISO 800 measures code 817 ([Gamut](https://gamut.io/product/baseluts-for-red-komodo/)), the **0.7986** ceiling.
 
-**Worked example:** low is `min <= 0.0078125`; high is `max >= 0.9921875`. `(0, 0.5, 0.5)` triggers low; `(1, 0.5, 0.5)` triggers high. On a 65³ grid, the next interior nodes, 0.015625 and 0.984375, do not cross those respective tests.
+**Worked example:** low is `min <= 0.107225`; high is `max >= 0.782975`. `(0.09375, 0.5, 0.5)` triggers low; `(0.796875, 0.5, 0.5)` triggers high; `(0.78125, 0.5, 0.5)` does not.
 
-**Limit:** RGB transformations before the LUT can reach these boundaries even without sensor clipping. RAW decode metadata and exposure adjustments remain outside this warning policy.
+**Limit:** unverified, and the clip code moves with ISO and body. The camera's own exposure tools see the sensor directly and remain authoritative.
 
 ## Blackmagic Film Gen 5
 
-**Input:** Blackmagic Film Generation 5 with Blackmagic Wide Gamut. This profile expects the normalized domain **after the appropriate video-level expansion**: 10-bit codes 64–940 map to 0–1. Code 145 becomes `(145 − 64) / 876 = 0.0924657534…`; dividing it by 1023 instead would give the wrong input for this convention.
+**Input:** Blackmagic Film Generation 5 with Blackmagic Wide Gamut, **after video-level expansion**: 10-bit codes 64–940 map to 0–1. Code 145 becomes `(145 − 64) / 876 = 0.0924657534…`.
 
-**Evidence:** the [existing Blackmagic research](https://github.com/Today20092/lut_builder/blob/main/docs/research/blackmagic-film-gen5-profile.md) traces the floor to the constant `E` in the vendor's linear segment `encoded = D × linear + E`. At linear zero, encoded equals **0.09246575342465753**. Its top mapping is **1**, corresponding to video code 940. The [vendor reference](https://drive.google.com/file/d/1FF5WO2nvI9GEWb4_EntrBoV9ZIuFToZd/view) was unavailable during this manual's direct source check; the repository preserves the equations and links to the [Blackmagic-reviewed Academy implementation](https://github.com/AcademySoftwareFoundation/OpenColorIO-Config-ACES/blob/main/opencolorio_config_aces/clf/transforms/blackmagic/generate.py).
+**Evidence:** the [existing Blackmagic research](https://github.com/Today20092/lut_builder/blob/main/docs/research/blackmagic-film-gen5-profile.md) traces the floor to the constant `E` in `encoded = D × linear + E`: linear zero is **0.09246575342465753**. Blackmagic publishes no clip code. Pocket 4K/6K at ISO 400 measure code 814 ([Gamut](https://gamut.io/product/baseluts-for-blackmagic-pocket-cinema-camera-6k-and-pocket-cinema-camera-4k/)), or `(814 − 64) / 876 = 0.8561` in this domain. The previous ceiling of 1 (code 940) could not trigger.
 
-**Worked example:** low is `min <= 0.10027825342465753`; high is `max >= 0.9921875`. `(0.09375, 0.5, 0.5)` triggers low; `(1, 0.5, 0.5)` triggers high. The documented gray code 400 expands to `(400 − 64) / 876 ≈ 0.38356164`, which decodes to 0.18 linear.
+**Worked example:** low is `min <= 0.10809075342465753`; high is `max >= 0.840475`. `(0.09375, 0.5, 0.5)` triggers low; `(0.84375, 0.5, 0.5)` triggers high; `(0.828125, 0.5, 0.5)` does not.
 
-**Limit:** BRAW decoding, color-science generation, ISO, white balance, exposure, and highlight recovery can change the samples. This profile is not a RAW decoder. The high mapping is an encoding boundary, not a guarantee of 10.27 stops of usable sensor headroom on every camera.
+**Limit:** unverified. The same source also lists code 850, and the clip moves with ISO. BRAW decode settings and highlight recovery change the samples.
 
 ## Evidence status
 
-Source check: October 19, 2026. Sony and Panasonic documents were retrieved directly. Unavailable vendor links above remain as the catalog's original references, with their access and derivation limits explicit. Review the repository's [profile contribution requirements](https://github.com/Today20092/lut_builder/blob/main/Contributing.md) before proposing a threshold correction. Missing evidence is a reason to investigate; it is not permission to silently change LUT behavior.
+Source check: November 10, 2026. Sony and Panasonic documents were retrieved directly. Unavailable vendor links above remain as the catalog's original references, with their access and derivation limits explicit. Review the repository's [profile contribution requirements](https://github.com/Today20092/lut_builder/blob/main/Contributing.md) before proposing a threshold correction. Missing evidence is a reason to investigate; it is not permission to silently change LUT behavior.

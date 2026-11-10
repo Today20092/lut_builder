@@ -4,10 +4,9 @@ import colour
 import numpy as np
 import pytest
 
-from lut_builder.engine import generate_lut
 from lut_builder.data import MIDDLE_GREY, PROFILE_CATALOG
+from lut_builder.engine import generate_lut
 from lut_builder.setup import LutSetup
-
 
 OVERLAY_HEX = "#336699"
 TARGET_COLORS = {
@@ -48,7 +47,7 @@ def _generate_lut(tmp_path: Path, *, size: int, target: str, mode: str):
 @pytest.mark.parametrize("target_name", ["Rec.709", "Rec.2020"])
 def test_srgb_overlay_is_written_in_target_gamut(tmp_path, target_name):
     lut = _generate_lut(tmp_path, size=17, target=target_name, mode="stops")
-    for color, expected in TARGET_COLORS[target_name].items():
+    for expected in TARGET_COLORS[target_name].values():
         assert np.any(np.all(np.isclose(lut.table, expected, atol=1e-6), axis=-1))
 
 
@@ -109,7 +108,7 @@ def test_neutral_ramp_band_edges_and_half_grid_clipping(
         if mode == "ire"
         else np.log2(np.maximum(linear, 1e-6) / MIDDLE_GREY)
     )
-    tolerance = 0.5 / (size - 1)
+    tolerance = 1 / (size - 1)
     low = ramp <= profile.encoded_signal_floor + tolerance
     high = ramp >= profile.encoded_signal_ceiling - tolerance
     overlay = (values >= center - width) & (values <= center + width) & ~low & ~high
