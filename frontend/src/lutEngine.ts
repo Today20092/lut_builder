@@ -1,3 +1,4 @@
+import type { RGB } from "./cubeSampling.ts"
 import type { Setup } from "./editor.ts"
 import { parseImportedCube, sampleImportedCube, overlayInOutput, verifyImportedIdentity } from "./importedLut.ts"
 import {
@@ -79,20 +80,54 @@ const targets = {
   "Rec.2020": { gamut: "ITU-R BT.2020", transfer: "ITU-R BT.2020" },
 } as const
 
-function multiply(matrix: number[], rgb: number[]): [number, number, number] {
-  return [
-    matrix[0] * rgb[0] + matrix[1] * rgb[1] + matrix[2] * rgb[2],
-    matrix[3] * rgb[0] + matrix[4] * rgb[1] + matrix[5] * rgb[2],
-    matrix[6] * rgb[0] + matrix[7] * rgb[1] + matrix[8] * rgb[2],
-  ]
+type Mat3 = readonly [number, number, number, number, number, number, number, number, number]
+
+// Colour data tables are plain number[]; check their shape once where they enter the engine.
+function vec3(values: readonly number[]): RGB {
+  const [a, b, c] = values
+  if (values.length !== 3 || a === undefined || b === undefined || c === undefined) {
+    throw new RangeError(`Expected 3 values, received ${values.length}`)
+  }
+  return [a, b, c]
 }
 
-function encode(rgb: number[]): [number, number, number] {
+function mat3(values: readonly number[]): Mat3 {
+  const [a, b, c, d, e, f, g, h, i] = values
+  if (
+    values.length !== 9 ||
+    a === undefined ||
+    b === undefined ||
+    c === undefined ||
+    d === undefined ||
+    e === undefined ||
+    f === undefined ||
+    g === undefined ||
+    h === undefined ||
+    i === undefined
+  ) {
+    throw new RangeError(`Expected 9 values, received ${values.length}`)
+  }
+  return [a, b, c, d, e, f, g, h, i]
+}
+
+function dot(weights: RGB, [r, g, b]: RGB) {
+  return weights[0] * r + weights[1] * g + weights[2] * b
+}
+
+function multiply(matrix: Mat3, rgb: RGB): RGB {
+  const [m0, m1, m2, m3, m4, m5, m6, m7, m8] = matrix
+  const [r, g, b] = rgb
+  return [m0 * r + m1 * g + m2 * b, m3 * r + m4 * g + m5 * b, m6 * r + m7 * g + m8 * b]
+}
+
+function encodeChannel(value: number) {
   const alpha = 1.099
   const beta = 0.018
-  return rgb.map((value) =>
-    value < beta ? 4.5 * value : alpha * Math.sign(value) * Math.abs(value) ** 0.45 - (alpha - 1),
-  ) as [number, number, number]
+  return value < beta ? 4.5 * value : alpha * Math.sign(value) * Math.abs(value) ** 0.45 - (alpha - 1)
+}
+
+function encode([r, g, b]: RGB): RGB {
+  return [encodeChannel(r), encodeChannel(g), encodeChannel(b)]
 }
 
 function srgbToLinear(value: number) {
@@ -100,9 +135,16 @@ function srgbToLinear(value: number) {
 }
 
 function colorInTarget(hex: string, target: string): [number, number, number] {
-  const srgb = [1, 3, 5].map((start) => Number.parseInt(hex.slice(start, start + 2), 16) / 255)
-  if (target === "Rec.709") return srgb as [number, number, number]
-  return encode(multiply(srgbToTargetMatrices[target as keyof typeof srgbToTargetMatrices], srgb.map(srgbToLinear)))
+  const srgb = vec3([1, 3, 5].map((start) => Number.parseInt(hex.slice(start, start + 2), 16) / 255))
+  if (target === "Rec.709") return srgb
+  const [r, g, b] = srgb
+  return encode(
+    multiply(mat3(srgbToTargetMatrices[target as keyof typeof srgbToTargetMatrices]), [
+      srgbToLinear(r),
+      srgbToLinear(g),
+      srgbToLinear(b),
+    ]),
+  )
 }
 
 function nextFloat32(value: number, direction: 1 | -1) {
@@ -123,8 +165,8 @@ function overlayFor(
   let color: string | null = null
   if (fillMode && bands.length) {
     let zone = 0
-    while (zone < bands.length - 1 && value >= bands[zone].stop) zone += 1
-    color = bands[zone].color
+    while (zone < bands.length - 1 && value >= (bands[zone]?.stop ?? Infinity)) zone += 1
+    color = bands[zone]?.color ?? null
   } else {
     for (const band of bands) {
       if (value >= band.stop - band.width && value <= band.stop + band.width) color = band.color
@@ -227,9 +269,10 @@ export async function generateCube(
   const tolerance = 1 / (size - 1)
   const sortedBands = [...setup.bands].sort((left, right) => left.stop - right.stop)
   const rows: string[] = []
-  const sourceY = sourceLumaWeights[profileKey]
-  const targetY = targetLumaWeights[targetKey]
-  const transform = sourceToTargetMatrices[profileKey][targetKey]
+  const sourceY = vec3(sourceLumaWeights[profileKey])
+  const targetY = vec3(targetLumaWeights[targetKey])
+  const transform = mat3(sourceToTargetMatrices[profileKey][targetKey])
+  const decodeTable = logDecodeAtGrid[profileKey]
 
   for (let blueIndex = 0; blueIndex < size; blueIndex += 1) {
     if (options.signal?.aborted) throw new Error("Generation cancelled.")
@@ -240,20 +283,21 @@ export async function generateCube(
       for (let redIndex = 0; redIndex < size; redIndex += 1) {
         const red = redIndex / (size - 1)
         // shortcut: decoder tables cover the 17/33/65 lattice only; regenerate before adding arbitrary cube sizes.
-        const linear = [red, green, blue].map((encoded) => logDecodeAtGrid[profileKey][Math.round(encoded * 64)])
-        const luminance = linear[0] * sourceY[0] + linear[1] * sourceY[1] + linear[2] * sourceY[2]
+        const decode = (encoded: number) => decodeTable[Math.round(encoded * 64)] ?? Number.NaN
+        const linear: RGB = [decode(red), decode(green), decode(blue)]
+        const luminance = dot(sourceY, linear)
         const stops = Math.log2(Math.max(luminance, 1e-6) / 0.18)
         let targetLinear = multiply(transform, linear)
         if (setup.monochrome && !setup.fill_mode) {
-          const y = targetLinear[0] * targetY[0] + targetLinear[1] * targetY[1] + targetLinear[2] * targetY[2]
+          const y = dot(targetY, targetLinear)
           targetLinear = [y, y, y]
         }
         const encoded = encode(targetLinear)
         const value =
           setup.band_mode === "ire"
             ? setup.ire_basis === "camera"
-              ? (red * sourceY[0] + green * sourceY[1] + blue * sourceY[2]) * 100
-              : (encoded[0] * targetY[0] + encoded[1] * targetY[1] + encoded[2] * targetY[2]) * 100
+              ? dot(sourceY, [red, green, blue]) * 100
+              : dot(targetY, encoded) * 100
             : stops
         const low = setup.low_signal_warning && Math.min(red, green, blue) <= profile.floor + tolerance
         const high = setup.high_signal_warning && Math.max(red, green, blue) >= profile.ceiling - tolerance

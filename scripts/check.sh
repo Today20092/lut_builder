@@ -5,7 +5,7 @@ cd "$(dirname "$0")/.."
 uv run ruff format --check .
 uv run ruff check .
 uv run ty check
-(cd frontend && pnpm format:check && pnpm lint && pnpm exec tsc -b)
+(cd frontend && pnpm format:check && pnpm lint && pnpm exec tsc -b && pnpm typecheck:strict-index)
 if [ "$1" = "--full" ]; then
   uv run pytest -q
   (cd frontend && pnpm test && pnpm build)
