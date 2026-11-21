@@ -1,6 +1,6 @@
 # CI selection and release checks
 
-Pages CI always starts on PRs targeting `development` or `main`, on `main` pushes,
+Pages CI always starts on PRs targeting `main`, on `main` pushes,
 and on manual dispatch. It does not use workflow-level path filters: those can
 leave required checks pending. Instead, an inexpensive **Select checks** job
 chooses work, and a stable **CI checks** job checks the results even when work
