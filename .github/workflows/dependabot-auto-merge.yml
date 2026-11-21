@@ -1,0 +1,46 @@
+name: Dependabot auto-merge
+
+# Merges Dependabot minor and patch PRs once the required checks pass, then runs
+# the Pages workflow on main, which checks and deploys. Majors wait for a person.
+# update-type is the highest change in the PR, so a group containing a major is
+# skipped.
+#
+# A merge made with GITHUB_TOKEN creates no push event, so the Pages workflow
+# would not run on main. This job therefore dispatches it (workflow_dispatch).
+
+on: pull_request
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: write
+
+concurrency:
+  group: dependabot-auto-merge-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  merge:
+    # Only Dependabot's own PRs, and only when Dependabot made the latest push.
+    if: github.event.pull_request.user.login == 'dependabot[bot]' && github.actor == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - id: meta
+        uses: dependabot/fetch-metadata@v3
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Merge after checks, then check and deploy main
+        if: steps.meta.outputs.update-type == 'version-update:semver-minor' || steps.meta.outputs.update-type == 'version-update:semver-patch'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          # Let the PR's check runs register before watching them.
+          sleep 30
+          gh pr checks "$PR" --required --watch --fail-fast --interval 60
+          gh pr merge "$PR" --merge
+          gh workflow run deploy-pages.yml --ref main

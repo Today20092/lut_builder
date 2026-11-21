@@ -84,7 +84,7 @@ commits, as specified by `.gitignore`.
 
 ### Git and releases
 
-For branch setup, integration, promotion, synchronization or cleanup, read the
+For branches, worktrees, pull requests or merging, read the
 [Git workflow](docs/branch-workflow.md).
 
 For version selection, release-status wording or release preparation, read the

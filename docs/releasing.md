@@ -99,7 +99,7 @@ on physical-device testing; it does not certify every supported platform.
 
 ## Prepare and publish
 
-1. Select a reviewed development commit and an unused version under the rules
+1. Select a reviewed `main` commit and an unused version under the rules
    above. Update `pyproject.toml`, run `uv lock`, and check the project entry in
    `uv.lock`. Inspect release automation for stale versions, notes and channel
    flags. Done: source, lockfile and intended release identity agree.
@@ -113,12 +113,11 @@ on physical-device testing; it does not certify every supported platform.
    clean environment with `lut-builder --help`, `lut-builder list`, workspace
    startup and bundled assets. Done: the release record names source/artifact
    hashes, actual results, environments and skipped checks.
-4. Promote through the reviewed `development` → `main` route when authorized.
+4. Merge the release PR to `main` when authorized.
    That merge deploys Pages after CI; verify the deployed editor and manual.
    Version tagging, GitHub Release creation and package publication are separate
    authorized actions. No packaging/publication workflow currently automates
    them. Done: the record distinguishes preparation, promotion and publication.
 5. After authorized publication, check the public version, release flags and
-   downloads, retaining the exact tested artifacts and hashes. Bring main-only
-   release metadata back into development. Done: public contents match the
-   tested release and development includes the published source.
+   downloads, retaining the exact tested artifacts and hashes. Done: public
+   contents match the tested release.

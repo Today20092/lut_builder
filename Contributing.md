@@ -179,8 +179,8 @@ This means the validator will catch your typo before it ever silently generates 
 
 ## Pull request guidelines
 
-Target external contributions at `development`. Read the
-[Git workflow](docs/branch-workflow.md) for integration, checks and promotion,
+Target pull requests at `main`. Read the
+[Git workflow](docs/branch-workflow.md) for branches, checks and merging,
 and the [versioning policy](docs/releasing.md) for compatibility and releases.
 
 - **One camera per PR** where possible — it keeps reviews focused and makes it easy to revert if a value turns out to be wrong.
