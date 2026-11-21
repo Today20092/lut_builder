@@ -48,7 +48,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@vitejs/plugin-react": "^6",
-    "astro": "^5.18.2",
+    "astro": "^7.4.7",
     "esbuild": "^0.28.1",
     "eslint": "^10",
     "eslint-plugin-react-hooks": "^7.1.1",
